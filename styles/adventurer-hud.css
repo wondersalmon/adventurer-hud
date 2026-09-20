@@ -78,6 +78,10 @@
   scrollbar-color: var(--line) transparent;
 }
 
+.ws-rolls-dialog .ws-view > * {
+  flex-shrink: 0;
+}
+
 .ws-rolls-dialog.ws-font-small .ws-view {
   --ws-user-type-scale: 0.95;
 }

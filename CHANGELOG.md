@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.6
+
+- Fixed HUD sections collapsing to nearly zero height inside resized windows.
+- Restored usable full-window vertical scrolling in every mode.
+
 ## 0.6.5
 
 - Added a collapsed-by-default condition picker with enable/disable controls and separate active-condition removal buttons.
