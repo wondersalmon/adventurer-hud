@@ -1,12 +1,12 @@
 {
-  "name": "simple-rolls",
-  "version": "0.3.0",
+  "name": "adventurer-hud",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
-  "description": "A compact player-focused rolls HUD for Foundry VTT D&D 5e.",
+  "description": "A player-focused character, rolls and combat HUD for Foundry VTT D&D 5e.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/wondersalmon/simple-rolls.git"
+    "url": "https://github.com/wondersalmon/adventurer-hud.git"
   },
   "scripts": {
     "build": "node tools/build.mjs",

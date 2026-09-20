@@ -17,7 +17,7 @@ const repository = packageJson.repository.url
 
 manifest.version = packageJson.version;
 manifest.manifest = `${repository}/releases/latest/download/module.json`;
-manifest.download = `${repository}/releases/download/v${packageJson.version}/simple-rolls.zip`;
+manifest.download = `${repository}/releases/download/v${packageJson.version}/adventurer-hud.zip`;
 
 await rm(dist, { recursive: true, force: true });
 await mkdir(dist, { recursive: true });
@@ -29,7 +29,7 @@ await writeFile(
   "utf8"
 );
 
-const output = createWriteStream(path.join(dist, "simple-rolls.zip"));
+const output = createWriteStream(path.join(dist, "adventurer-hud.zip"));
 const archive = new ZipArchive({ zlib: { level: 9 } });
 
 const complete = new Promise((resolve, reject) => {
@@ -52,4 +52,4 @@ for (const file of ["README.md", "CHANGELOG.md", "LICENSE"]) {
 await archive.finalize();
 await complete;
 
-console.log(`Built Simple Rolls v${packageJson.version}.`);
+console.log(`Built Adventurer HUD v${packageJson.version}.`);

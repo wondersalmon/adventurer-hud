@@ -38,9 +38,9 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: simple-rolls-${{ github.sha }}
+          name: adventurer-hud-${{ github.sha }}
           path: |
             dist/module.json
-            dist/simple-rolls.zip
+            dist/adventurer-hud.zip
           if-no-files-found: error
           retention-days: 14

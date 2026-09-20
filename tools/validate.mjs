@@ -10,11 +10,11 @@ const manifest = await readJson("module.json");
 const packageJson = await readJson("package.json");
 const russian = await readJson("lang/ru.json");
 
-assert.equal(manifest.id, "simple-rolls");
+assert.equal(manifest.id, "adventurer-hud");
 assert.equal(manifest.version, packageJson.version);
 assert.equal(manifest.compatibility.minimum, "14");
-assert.ok(manifest.esmodules.includes("scripts/simple-rolls.js"));
-assert.ok(manifest.styles.includes("styles/simple-rolls.css"));
+assert.ok(manifest.esmodules.includes("scripts/adventurer-hud.js"));
+assert.ok(manifest.styles.includes("styles/adventurer-hud.css"));
 
 for (const file of [
   ...manifest.esmodules,
@@ -24,13 +24,13 @@ for (const file of [
   await access(path.join(root, file));
 }
 
-const sourceFiles = ["scripts/rolls-hud.js", "scripts/simple-rolls.js"];
+const sourceFiles = ["scripts/rolls-hud.js", "scripts/adventurer-hud.js"];
 const referencedKeys = new Set();
 
 for (const file of sourceFiles) {
   const source = await readFile(path.join(root, file), "utf8");
   for (const match of source.matchAll(/\btf?\("([^"]+)"/g)) {
-    referencedKeys.add(`SIMPLE_ROLLS.${match[1]}`);
+    referencedKeys.add(`ADVENTURER_HUD.${match[1]}`);
   }
 }
 

@@ -8,7 +8,7 @@ test("manifest and package versions match", async () => {
   const manifest = await readJson("module.json");
   const packageJson = await readJson("package.json");
 
-  assert.equal(manifest.id, "simple-rolls");
+  assert.equal(manifest.id, "adventurer-hud");
   assert.equal(manifest.version, packageJson.version);
 });
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1
+
+- Synchronized the Russian and English localization dictionaries.
+- Added HUD settings to the window controls menu.
+- Made combat mode manually available outside an active encounter.
+- Added temporary HP and maximum HP modifier statistics.
+- Replaced combat skills and tools with weapons, spells and action filters.
+- Added active condition display and owner-controlled condition removal.
+
 ## 0.3.0
 
 - Added actor portrait and identity to every HUD mode.

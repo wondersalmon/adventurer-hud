@@ -15,19 +15,19 @@ export async function openRollsHud() {
     // =========================================================
 
     if (game.system.id !== "dnd5e") {
-      throw new Error(game.i18n.localize("SIMPLE_ROLLS.Errors.Dnd5eOnly"));
+      throw new Error(game.i18n.localize("ADVENTURER_HUD.Errors.Dnd5eOnly"));
     }
 
     const { DialogV2 } = foundry.applications.api;
 
-    const state = (globalThis.__wsRollsHud ??= {});
+    const state = (globalThis.__adventurerHud ??= {});
     state.app ??= null;
     state.position ??= null;
     state.toolNames ??= new Map();
 
-    const t = key => game.i18n.localize(`SIMPLE_ROLLS.${key}`);
+    const t = key => game.i18n.localize(`ADVENTURER_HUD.${key}`);
 
-    const tf = (key, data) => game.i18n.format(`SIMPLE_ROLLS.${key}`, data);
+    const tf = (key, data) => game.i18n.format(`ADVENTURER_HUD.${key}`, data);
 
     // =========================================================
     // Actor
@@ -250,8 +250,10 @@ export async function openRollsHud() {
     let forceRegularMode = false;
     let forceCombatMode = false;
 
-    const combatModeAvailable = () =>
+    const isActiveCombatant = () =>
       Boolean(game.combat?.started && getCombatant());
+
+    const combatModeAvailable = () => actor.type === "character";
 
     const currentMode = () => {
       if (forceRegularMode) {
@@ -266,7 +268,7 @@ export async function openRollsHud() {
         return "death";
       }
 
-      if (getSetting(SETTINGS.automaticCombatMode) && combatModeAvailable()) {
+      if (getSetting(SETTINGS.automaticCombatMode) && isActiveCombatant()) {
         return "combat";
       }
 
@@ -997,6 +999,149 @@ export async function openRollsHud() {
     // Combat mode
     // =========================================================
 
+    let combatCategory = "weapons";
+
+    const itemActivation = item => {
+      const legacy = item.system?.activation?.type;
+
+      if (legacy) {
+        return legacy;
+      }
+
+      const activities = item.system?.activities;
+      const values =
+        typeof activities?.values === "function"
+          ? [...activities.values()]
+          : Object.values(activities ?? {});
+
+      return values.find(activity => activity?.activation?.type)?.activation
+        ?.type;
+    };
+
+    const combatItems = category =>
+      actor.items.filter(item => {
+        if (category === "weapons") {
+          return item.type === "weapon";
+        }
+
+        if (category === "spells") {
+          return item.type === "spell";
+        }
+
+        return itemActivation(item) === category;
+      });
+
+    const combatItemButton = item => `
+      <button
+        type="button"
+        class="ws-combat-item ws-button"
+        data-action="useitem"
+        data-item-id="${escapeHTML(item.id)}"
+        title="${escapeHTML(item.name)}"
+      >
+        <img src="${escapeHTML(item.img ?? "icons/svg/item-bag.svg")}" alt="">
+        <span>${escapeHTML(item.name)}</span>
+        <i class="fa-solid fa-dice-d20"></i>
+      </button>
+    `;
+
+    const combatActions = () => {
+      const categories = [
+        ["weapons", "fa-swords", "Combat.Weapons"],
+        ["spells", "fa-wand-magic-sparkles", "Combat.Spells"],
+        ["action", "fa-circle-play", "Combat.Action"],
+        ["bonus", "fa-bolt", "Combat.BonusAction"],
+        ["reaction", "fa-shield", "Combat.Reaction"],
+        ["special", "fa-star", "Combat.Special"]
+      ];
+      const items = combatItems(combatCategory);
+
+      return `
+        <div class="ws-combat-actions">
+          <div class="ws-combat-filters">
+            ${categories
+              .map(
+                ([category, icon, label]) => `
+                  <button
+                    type="button"
+                    class="ws-combat-filter ws-button ${
+                      combatCategory === category ? "ws-active" : ""
+                    }"
+                    data-action="combatfilter"
+                    data-category="${category}"
+                    title="${t(label)}"
+                  >
+                    <i class="fa-solid ${icon}"></i>
+                    <span>${t(label)}</span>
+                    <small>${combatItems(category).length}</small>
+                  </button>
+                `
+              )
+              .join("")}
+          </div>
+
+          <div class="ws-combat-item-list">
+            ${
+              items.length
+                ? items.map(combatItemButton).join("")
+                : `<div class="ws-empty">${t("Combat.Empty")}</div>`
+            }
+          </div>
+        </div>
+      `;
+    };
+
+    const activeStatuses = () => {
+      const configured = Array.isArray(CONFIG.statusEffects)
+        ? CONFIG.statusEffects
+        : [...(CONFIG.statusEffects?.values?.() ?? [])];
+
+      return configured.filter(status => actor.statuses?.has(status.id));
+    };
+
+    const combatStatuses = () => {
+      const statuses = activeStatuses();
+
+      if (!statuses.length) {
+        return "";
+      }
+
+      return `
+        <div class="ws-combat-statuses">
+          <div class="ws-section-title">
+            <i class="fa-solid fa-icons"></i>
+            ${t("Combat.Conditions")}
+          </div>
+
+          <div class="ws-status-list">
+            ${statuses
+              .map(status => {
+                const label = game.i18n.localize(
+                  status.name ?? status.label ?? status.id
+                );
+                const icon = status.img ?? status.icon ?? "icons/svg/aura.svg";
+
+                return `
+                  <button
+                    type="button"
+                    class="ws-status ws-button"
+                    data-action="removestatus"
+                    data-status-id="${escapeHTML(status.id)}"
+                    title="${tf("Combat.RemoveCondition", { condition: label })}"
+                    ${canRollActor ? "" : "disabled"}
+                  >
+                    <img src="${escapeHTML(icon)}" alt="">
+                    <span>${escapeHTML(label)}</span>
+                    <i class="fa-solid fa-xmark"></i>
+                  </button>
+                `;
+              })
+              .join("")}
+          </div>
+        </div>
+      `;
+    };
+
     function combatHTML() {
       const combatant = getCombatant();
       const hp = actor.system.attributes.hp ?? {};
@@ -1028,12 +1173,17 @@ export async function openRollsHud() {
               <span>${t("Combat.HP")}</span>
               <strong>
                 ${Number(hp.value ?? 0)} / ${Number(hp.max ?? 0)}
-                ${
-                  Number(hp.temp ?? 0) > 0
-                    ? `<small>+${Number(hp.temp)}</small>`
-                    : ""
-                }
               </strong>
+            </div>
+
+            <div class="ws-combat-stat ws-combat-temp-hp">
+              <span>${t("Combat.TempHP")}</span>
+              <strong>${Number(hp.temp ?? 0)}</strong>
+            </div>
+
+            <div class="ws-combat-stat ws-combat-temp-max">
+              <span>${t("Combat.TempMax")}</span>
+              <strong>${formatMod(hp.tempmax ?? 0)}</strong>
             </div>
 
             <div class="ws-combat-stat">
@@ -1063,6 +1213,8 @@ export async function openRollsHud() {
               : ""
           }
 
+          ${combatStatuses()}
+
           ${combatant?.initiative == null ? initiativeHTML() : ""}
 
           ${
@@ -1076,51 +1228,7 @@ export async function openRollsHud() {
               : ""
           }
 
-          ${
-            visibility.skills || visibility.tools
-              ? `
-                <div class="ws-nav-grid">
-                  ${
-                    visibility.skills
-                      ? `
-                        <button
-                          type="button"
-                          class="ws-nav ws-button"
-                          data-action="regularview"
-                          data-view="skills"
-                        >
-                          <span class="ws-nav-main">
-                            <i class="fa-solid fa-list-check"></i>
-                            ${t("Labels.Skills")}
-                          </span>
-                          <i class="fa-solid fa-chevron-right ws-arrow"></i>
-                        </button>
-                      `
-                      : ""
-                  }
-
-                  ${
-                    visibility.tools
-                      ? `
-                        <button
-                          type="button"
-                          class="ws-nav ws-button"
-                          data-action="regularview"
-                          data-view="tools"
-                        >
-                          <span class="ws-nav-main">
-                            <i class="fa-solid fa-screwdriver-wrench"></i>
-                            ${t("Labels.Tools")}
-                          </span>
-                          <i class="fa-solid fa-chevron-right ws-arrow"></i>
-                        </button>
-                      `
-                      : ""
-                  }
-                </div>
-              `
-              : ""
-          }
+          ${combatActions()}
 
           <button
             type="button"
@@ -1277,7 +1385,7 @@ export async function openRollsHud() {
       globalThis.renderTemplate;
 
     content.innerHTML = await renderTemplate(
-      "modules/simple-rolls/templates/rolls-hud.hbs",
+      "modules/adventurer-hud/templates/rolls-hud.hbs",
       {
         body:
           currentMode() === "death"
@@ -1310,7 +1418,9 @@ export async function openRollsHud() {
             '[data-action="ability"]',
             '[data-action="skill"]',
             '[data-action="tool"]',
-            '[data-action="death"]'
+            '[data-action="death"]',
+            '[data-action="useitem"]',
+            '[data-action="removestatus"]'
           ].join(",")
         )
         .forEach(button => {
@@ -1510,6 +1620,44 @@ export async function openRollsHud() {
         refreshHud();
       },
 
+      combatfilter: function (_event, target) {
+        combatCategory = target.dataset.category;
+        refreshHud();
+      },
+
+      useitem: async function (event, target) {
+        if (!canRollActor) {
+          return ui.notifications.warn(t("Warnings.NoPermission"));
+        }
+
+        const item = actor.items.get(target.dataset.itemId);
+
+        if (!item) {
+          return ui.notifications.warn(t("Combat.ItemMissing"));
+        }
+
+        return rollAndClose(() => item.use({ event }));
+      },
+
+      removestatus: async function (_event, target) {
+        if (!canRollActor) {
+          return ui.notifications.warn(t("Warnings.NoPermission"));
+        }
+
+        const statusId = target.dataset.statusId;
+
+        if (!actor.statuses?.has(statusId)) {
+          return;
+        }
+
+        await actor.toggleStatusEffect(statusId, { active: false });
+        refreshHud();
+      },
+
+      settings: function () {
+        return game.settings.sheet.render({ force: true });
+      },
+
       deathmode: function () {
         if (!showDeathSaves()) {
           return ui.notifications.warn(t("Death.NotRequired"));
@@ -1593,7 +1741,14 @@ export async function openRollsHud() {
 
       window: {
         title: dialogTitle(),
-        resizable: true
+        resizable: true,
+        controls: [
+          {
+            icon: "fa-solid fa-gear",
+            label: t("Settings.Open"),
+            action: "settings"
+          }
+        ]
       },
 
       position: {

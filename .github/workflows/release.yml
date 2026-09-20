@@ -42,6 +42,6 @@ jobs:
         run: >-
           gh release create "${GITHUB_REF_NAME}"
           dist/module.json
-          dist/simple-rolls.zip
+          dist/adventurer-hud.zip
           --generate-notes
-          --title "Simple Rolls ${GITHUB_REF_NAME}"
+          --title "Adventurer HUD ${GITHUB_REF_NAME}"

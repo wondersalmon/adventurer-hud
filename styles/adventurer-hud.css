@@ -313,6 +313,108 @@
   font-weight: 750;
 }
 
+.ws-rolls-dialog .ws-combat-statuses,
+.ws-rolls-dialog .ws-combat-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ws-rolls-dialog .ws-status-list,
+.ws-rolls-dialog .ws-combat-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.ws-rolls-dialog .ws-status {
+  min-width: 0;
+  height: 30px;
+  padding: 3px 7px 3px 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text);
+  font-size: 9px;
+}
+
+.ws-rolls-dialog .ws-status img,
+.ws-rolls-dialog .ws-combat-item img {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.ws-rolls-dialog .ws-status > i {
+  color: var(--danger);
+  font-size: 8px;
+}
+
+.ws-rolls-dialog .ws-combat-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ws-rolls-dialog .ws-combat-filter {
+  min-width: 0;
+  height: 31px;
+  padding: 0 7px;
+  display: grid;
+  grid-template-columns: 13px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.ws-rolls-dialog .ws-combat-filter span,
+.ws-rolls-dialog .ws-combat-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-rolls-dialog .ws-combat-filter small {
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.ws-rolls-dialog .ws-combat-filter.ws-active {
+  border-color: rgb(193 154 88 / 0.45) !important;
+  background: var(--accent-bg) !important;
+  color: var(--accent);
+}
+
+.ws-rolls-dialog .ws-combat-item-list {
+  max-height: 154px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  overflow: hidden auto;
+  scrollbar-width: thin;
+}
+
+.ws-rolls-dialog .ws-combat-item {
+  min-width: 0;
+  height: 36px;
+  padding: 4px 7px 4px 4px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 12px;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 9.5px;
+  text-align: left;
+}
+
+.ws-rolls-dialog .ws-combat-item > i {
+  color: var(--accent);
+  font-size: 9px;
+}
+
 .ws-rolls-dialog .ws-mode-fallback {
   width: 100%;
   height: 34px;

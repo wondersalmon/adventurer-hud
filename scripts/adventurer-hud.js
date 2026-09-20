@@ -9,7 +9,7 @@ import {
 
 let selectionTimer = null;
 
-const getOpenApp = () => globalThis.__wsRollsHud?.app ?? null;
+const getOpenApp = () => globalThis.__adventurerHud?.app ?? null;
 
 const scheduleActorRefresh = () => {
   if (!getSetting(SETTINGS.autoUpdateActor) || !getOpenApp()?.rendered) {
@@ -27,7 +27,7 @@ const scheduleActorRefresh = () => {
 
     const actor = selected[0]?.actor ?? game.user.character;
 
-    if (actor && actor.uuid !== globalThis.__wsRollsHud?.actorUuid) {
+    if (actor && actor.uuid !== globalThis.__adventurerHud?.actorUuid) {
       void openRollsHud();
     }
   }, 50);
@@ -37,8 +37,8 @@ Hooks.once("init", () => {
   registerSettings();
 
   game.keybindings.register(MODULE_ID, "openHud", {
-    name: "SIMPLE_ROLLS.Keybindings.Open.Name",
-    hint: "SIMPLE_ROLLS.Keybindings.Open.Hint",
+    name: "ADVENTURER_HUD.Keybindings.Open.Name",
+    hint: "ADVENTURER_HUD.Keybindings.Open.Hint",
     editable: [
       {
         key: "KeyR",
@@ -64,7 +64,7 @@ Hooks.once("ready", async () => {
     });
   }
 
-  Hooks.callAll("simpleRollsReady", module?.api);
+  Hooks.callAll("adventurerHudReady", module?.api);
 });
 
 Hooks.on("getSceneControlButtons", controls => {
@@ -73,9 +73,9 @@ Hooks.on("getSceneControlButtons", controls => {
     return;
   }
 
-  tokenControls.tools.simpleRolls = {
-    name: "simpleRolls",
-    title: "SIMPLE_ROLLS.Controls.Open",
+  tokenControls.tools.adventurerHud = {
+    name: "adventurerHud",
+    title: "ADVENTURER_HUD.Controls.Open",
     icon: "fa-solid fa-dice-d20",
     order: Object.keys(tokenControls.tools).length,
     button: true,
@@ -95,7 +95,7 @@ Hooks.on("getSceneControlButtons", controls => {
 Hooks.on("controlToken", scheduleActorRefresh);
 Hooks.on("canvasReady", scheduleActorRefresh);
 
-Hooks.on("simpleRollsSettingChanged", key => {
+Hooks.on("adventurerHudSettingChanged", key => {
   const layoutSettings = new Set([
     SETTINGS.automaticCombatMode,
     SETTINGS.showAbilityChecks,

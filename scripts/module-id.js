@@ -1,1 +1,1 @@
-export const MODULE_ID = "simple-rolls";
+export const MODULE_ID = "adventurer-hud";

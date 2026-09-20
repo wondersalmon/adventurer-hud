@@ -16,12 +16,12 @@ export const SETTINGS = Object.freeze({
 });
 
 const notifyChange = key => value =>
-  Hooks.callAll("simpleRollsSettingChanged", key, value);
+  Hooks.callAll("adventurerHudSettingChanged", key, value);
 
 const registerBoolean = (key, defaultValue = true) => {
   game.settings.register(MODULE_ID, key, {
-    name: `SIMPLE_ROLLS.Settings.${key}.Name`,
-    hint: `SIMPLE_ROLLS.Settings.${key}.Hint`,
+    name: `ADVENTURER_HUD.Settings.${key}.Name`,
+    hint: `ADVENTURER_HUD.Settings.${key}.Hint`,
     scope: "user",
     config: true,
     type: Boolean,
@@ -43,7 +43,7 @@ export function registerSettings() {
   registerBoolean(SETTINGS.showShortcuts);
 
   game.settings.register(MODULE_ID, SETTINGS.windowGeometry, {
-    name: "Simple Rolls window geometry",
+    name: "Adventurer HUD window geometry",
     hint: "",
     scope: "client",
     config: false,
@@ -52,7 +52,7 @@ export function registerSettings() {
   });
 
   game.settings.register(MODULE_ID, SETTINGS.migrationVersion, {
-    name: "Simple Rolls migration version",
+    name: "Adventurer HUD migration version",
     hint: "",
     scope: "client",
     config: false,
