@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0
+
+- Reworked responsive grids so controls gain columns instead of stretching excessively in wide windows.
+- Added full-window scrolling and independent scrolling for combat item lists.
+- Added selectable HUD font sizes and larger, clearer ability controls.
+- Moved combat initiative beside the actor name, removed it from regular mode and highlighted unrolled initiative.
+- Hid temporary HP and maximum-HP modifiers when their values are zero.
+- Added class/custom resource cards and per-section combat visibility settings.
+- Grouped spells by level with prepared/all filtering and spell-slot indicators.
+- Added best-effort resource costs to action cards.
+- Added live active-effect updates and direct condition removal.
+- Added consistent navigation among regular, combat and death-save modes.
+- Removed redundant mode subtitles below actor names.
+
 ## 0.5.0
 
 - Added optional adaptive layout and responsive typography.

@@ -5,10 +5,18 @@ export const SETTINGS = Object.freeze({
   automaticCombatMode: "automaticCombatMode",
   autoUpdateActor: "autoUpdateActor",
   keepOpen: "keepOpen",
+  fontSize: "fontSize",
   showAbilityChecks: "showAbilityChecks",
   showDeathSaves: "showDeathSaves",
   showInitiative: "showInitiative",
   showItemDetails: "showItemDetails",
+  showCombatResources: "showCombatResources",
+  showCombatWeapons: "showCombatWeapons",
+  showCombatSpells: "showCombatSpells",
+  showCombatActions: "showCombatActions",
+  showCombatBonusActions: "showCombatBonusActions",
+  showCombatReactions: "showCombatReactions",
+  showCombatSpecial: "showCombatSpecial",
   showSavingThrows: "showSavingThrows",
   showShortcuts: "showShortcuts",
   showSkills: "showSkills",
@@ -32,13 +40,43 @@ const registerBoolean = (key, defaultValue = true) => {
   });
 };
 
+const registerChoice = (key, choices, defaultValue) => {
+  game.settings.register(MODULE_ID, key, {
+    name: `ADVENTURER_HUD.Settings.${key}.Name`,
+    hint: `ADVENTURER_HUD.Settings.${key}.Hint`,
+    scope: "user",
+    config: true,
+    type: String,
+    choices,
+    default: defaultValue,
+    onChange: notifyChange(key)
+  });
+};
+
 export function registerSettings() {
   registerBoolean(SETTINGS.adaptiveLayout, true);
+  registerChoice(
+    SETTINGS.fontSize,
+    {
+      small: "ADVENTURER_HUD.Settings.fontSize.Small",
+      normal: "ADVENTURER_HUD.Settings.fontSize.Normal",
+      large: "ADVENTURER_HUD.Settings.fontSize.Large",
+      extraLarge: "ADVENTURER_HUD.Settings.fontSize.ExtraLarge"
+    },
+    "large"
+  );
   registerBoolean(SETTINGS.keepOpen, false);
   registerBoolean(SETTINGS.autoUpdateActor, true);
   registerBoolean(SETTINGS.automaticCombatMode, true);
   registerBoolean(SETTINGS.showInitiative);
   registerBoolean(SETTINGS.showItemDetails);
+  registerBoolean(SETTINGS.showCombatResources);
+  registerBoolean(SETTINGS.showCombatWeapons);
+  registerBoolean(SETTINGS.showCombatSpells);
+  registerBoolean(SETTINGS.showCombatActions);
+  registerBoolean(SETTINGS.showCombatBonusActions);
+  registerBoolean(SETTINGS.showCombatReactions);
+  registerBoolean(SETTINGS.showCombatSpecial);
   registerBoolean(SETTINGS.showAbilityChecks);
   registerBoolean(SETTINGS.showSavingThrows);
   registerBoolean(SETTINGS.showSkills);

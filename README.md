@@ -24,17 +24,18 @@ native roll events.
 
 ## Features
 
-- Compact checks, saves, skills, tools, initiative and death saves HUD
+- Compact checks, saves, skills, tools and death saves HUD
 - Actor portrait and name in every HUD mode
-- Automatic combat layout with HP, temporary HP, maximum-HP modifier, AC, speed and initiative
-- Weapons, spells and action-type filters with native item use
-- Optional range, activation, concentration and ritual details on combat cards
-- Item-sheet shortcuts and removable active conditions
+- Automatic combat layout with HP, optional temporary/max-HP values, AC, speed, resources and initiative
+- Configurable weapons, spells and action-type tabs with native item use
+- Prepared/all spell filters, spell-level groups and remaining spell-slot indicators
+- Optional range, activation, resource cost, concentration and ritual details on combat cards
+- Item-sheet shortcuts and removable active conditions with live updates
 - Manual fallback between regular, combat and death-save layouts
 - Native D&D 5e roll calls with modifier-key forwarding
 - Token Controls button and configurable keybinding (`Shift+R` by default)
 - Automatic updates when the selected token changes
-- Per-user section visibility and behavior settings
+- Per-user section visibility, font-size and behavior settings
 - Persistent client window size and position
 - Optional adaptive grids, spacing and typography for narrow and wide windows
 - Window behavior and geometry controls in the title-bar menu
@@ -60,23 +61,27 @@ adds a token to combat and never removes one.
 Combat mode groups owned items into weapons, spells, actions, bonus actions,
 reactions and special actions. Selecting a card uses the item through the native
 D&D 5e workflow; the book button opens its sheet without using it. Spell cards
-can show range, activation, concentration and ritual markers, while weapon cards
-can show normal and long range. This additional information can be disabled
-without hiding item-sheet buttons.
+are grouped by level, can be filtered to prepared spells, and show the available
+spell slots. Cards can show range, activation, resource cost, concentration and
+ritual markers, while weapon cards can show normal and long range. This
+additional information can be disabled without hiding item-sheet buttons.
 
 Active configured conditions are displayed with the character's combat data.
-An owner can remove an individual condition directly from the HUD. Initiative
-can be rolled only when the GM has already added the selected token to combat;
-the module never changes combat membership.
+An owner can remove an individual condition directly from the HUD, and effect
+changes refresh the open HUD automatically. Initiative appears beside the actor
+name and is highlighted until rolled. It can be rolled only when the GM has
+already added the selected token to combat; the module never changes combat
+membership.
 
 ## Configuration
 
 All options are per-user and available under Foundry's Module Settings:
 
-- adaptive layout, responsive typography and compact responsive grids;
+- adaptive layout, responsive typography and a selectable base font size;
 - automatic combat mode and automatic selected-token tracking;
 - keep the HUD open after rolls;
 - additional combat-card information;
+- visibility of combat resources and each combat item tab;
 - visibility of initiative, checks, saves, skills, tools, death saves and shortcut hints.
 
 The title-bar menu provides quick access to module settings, the keep-open toggle
