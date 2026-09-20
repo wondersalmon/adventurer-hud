@@ -1,0 +1,43 @@
+{
+  "id": "simple-rolls",
+  "title": "Simple Rolls",
+  "description": "A compact player-focused rolls HUD for the Foundry VTT D&D 5e system.",
+  "version": "0.3.0",
+  "manifest": "https://github.com/wondersalmon/simple-rolls/releases/latest/download/module.json",
+  "download": "https://github.com/wondersalmon/simple-rolls/releases/download/v0.3.0/simple-rolls.zip",
+  "compatibility": {
+    "minimum": "14",
+    "verified": "14"
+  },
+  "authors": [
+    {
+      "name": "wondersalmon"
+    }
+  ],
+  "esmodules": ["scripts/simple-rolls.js"],
+  "styles": ["styles/simple-rolls.css"],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    },
+    {
+      "lang": "ru",
+      "name": "Русский",
+      "path": "lang/ru.json"
+    }
+  ],
+  "relationships": {
+    "systems": [
+      {
+        "id": "dnd5e",
+        "type": "system",
+        "compatibility": {
+          "minimum": "5.3.0",
+          "verified": "6.0.3"
+        }
+      }
+    ]
+  }
+}
