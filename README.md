@@ -7,6 +7,8 @@
 A player-focused character, rolls and combat HUD for Foundry VTT 14 and the
 D&D 5e system.
 
+![image](/docs/media/image.png)
+
 ## Installation
 
 In Foundry VTT, choose **Install Module**, paste the following manifest URL and
@@ -32,6 +34,10 @@ updates use the public native Foundry and D&D 5e APIs, which keeps interference
 with other modules to a minimum. Modules that replace the same native roll
 workflows may still affect their behavior; Midi-QOL is supported through those
 native roll events.
+
+## Demo
+
+[Module demonstration](docs/media/demo.mp4)
 
 ## Features
 
@@ -110,40 +116,8 @@ ordering and hiding/restoring sections independently in regular, combat and
 death-save modes. Window size and position are stored per client. The open/close
 shortcut is configurable through Foundry's Configure Controls screen.
 
-## Development
-
-Requires Node.js 22 or newer.
-
-```shell
-npm ci
-npm run check
-npm run build
-```
-
-The build produces `dist/adventurer-hud.zip` and a matching `dist/module.json`.
-Pull requests and pushes to `main` run formatting, linting, tests, manifest
-validation and a package build. Tags named `v<module version>` publish both
-artifacts to a GitHub release.
-
-To prepare a new version, update `package.json` and its lock file, then run
-`npm run version:sync`. Commit the result before creating the matching tag.
-
 ## Roadmap
 
 - A touch-first mobile layout is planned for a later release. It will focus on
   the assigned character, large roll controls, bottom navigation and on-screen
   advantage/disadvantage controls instead of keyboard modifiers.
-
-## Structure
-
-- `module.json` — Foundry package manifest
-- `scripts/adventurer-hud.js` — module bootstrap, keybinding and public API
-- `scripts/rolls-hud.js` — window, actor data and roll workflow
-- `scripts/constants.js` — D&D 5e ability, skill and tool metadata
-- `scripts/settings.js` — per-user settings, window persistence and legacy migration
-- `scripts/module-id.js` — shared module identifier
-- `styles/adventurer-hud.css` — complete adaptive HUD styling
-- `templates/rolls-hud.hbs` — root Handlebars template
-- `lang/` — English and Russian localization
-- `tests/` — manifest and localization tests
-- `tools/` — validation, version synchronization and reproducible packaging
