@@ -57,8 +57,7 @@ export async function openRollsHud(actorOverride = null) {
       }
 
       const pickerContent = document.createElement("div");
-      pickerContent.className = "ws-actor-picker-list";
-      pickerContent.innerHTML = availableActors
+      pickerContent.innerHTML = `<div class="ws-actor-picker-list">${availableActors
         .sort((a, b) => a.name.localeCompare(b.name, game.i18n.lang))
         .map(
           candidate => `
@@ -74,7 +73,7 @@ export async function openRollsHud(actorOverride = null) {
             </button>
           `
         )
-        .join("");
+        .join("")}</div>`;
 
       const picker = new DialogV2({
         classes: ["ws-actor-picker"],
@@ -1083,7 +1082,6 @@ export async function openRollsHud(actorOverride = null) {
 
     let combatCategory = "weapons";
     let preparedSpellsOnly = true;
-    let conditionsExpanded = false;
     let resourcesExpanded = false;
 
     const itemActivities = item => {
@@ -1659,87 +1657,40 @@ export async function openRollsHud(actorOverride = null) {
 
     const combatStatuses = () => {
       const statuses = activeStatuses();
-      const activeIds = new Set(statuses.map(status => status.id));
       const statusLabel = status =>
         game.i18n.localize(status.name ?? status.label ?? status.id);
       const statusIcon = status =>
         status.img ?? status.icon ?? "icons/svg/aura.svg";
 
+      if (!statuses.length) {
+        return "";
+      }
+
       return `
         <div class="ws-combat-statuses">
-          <button
-            type="button"
-            class="ws-conditions-toggle ws-button"
-            data-action="toggleconditions"
-            aria-expanded="${conditionsExpanded}"
-          >
-            <span><i class="fa-solid fa-icons"></i>${t("Combat.Conditions")}</span>
-            <span class="ws-conditions-summary">
-              ${statuses.length ? statuses.length : t("Combat.ConditionsNone")}
-              <i class="fa-solid fa-chevron-${conditionsExpanded ? "up" : "down"}"></i>
-            </span>
-          </button>
+          <div class="ws-active-conditions">
+            ${statuses
+              .map(status => {
+                const label = statusLabel(status);
 
-          ${
-            conditionsExpanded
-              ? `
-                <div class="ws-condition-picker">
-                  ${configuredStatuses()
-                    .map(status => {
-                      const active = activeIds.has(status.id);
-                      const label = statusLabel(status);
-
-                      return `
-                        <button
-                          type="button"
-                          class="ws-condition-option ws-button ${active ? "ws-active" : ""}"
-                          data-action="togglestatus"
-                          data-status-id="${escapeHTML(status.id)}"
-                          aria-pressed="${active}"
-                          title="${escapeHTML(label)}"
-                          ${canRollActor ? "" : "disabled"}
-                        >
-                          <img src="${escapeHTML(statusIcon(status))}" alt="">
-                          <span>${escapeHTML(label)}</span>
-                          <i class="fa-solid fa-toggle-${active ? "on" : "off"}"></i>
-                        </button>
-                      `;
-                    })
-                    .join("")}
-                </div>
-              `
-              : ""
-          }
-
-          ${
-            statuses.length
-              ? `
-                <div class="ws-active-conditions">
-                  ${statuses
-                    .map(status => {
-                      const label = statusLabel(status);
-
-                      return `
-                        <button
-                          type="button"
-                          class="ws-status ws-button"
-                          data-action="removestatus"
-                          data-status-id="${escapeHTML(status.id)}"
-                          ${status.effectId ? `data-effect-id="${escapeHTML(status.effectId)}"` : ""}
-                          title="${tf("Combat.RemoveCondition", { condition: label })}"
-                          ${canRollActor ? "" : "disabled"}
-                        >
-                          <img src="${escapeHTML(statusIcon(status))}" alt="">
-                          <span>${escapeHTML(label)}</span>
-                          <i class="fa-solid fa-xmark"></i>
-                        </button>
-                      `;
-                    })
-                    .join("")}
-                </div>
-              `
-              : ""
-          }
+                return `
+                  <button
+                    type="button"
+                    class="ws-status ws-button"
+                    data-action="removestatus"
+                    data-status-id="${escapeHTML(status.id)}"
+                    ${status.effectId ? `data-effect-id="${escapeHTML(status.effectId)}"` : ""}
+                    title="${tf("Combat.RemoveCondition", { condition: label })}"
+                    ${canRollActor ? "" : "disabled"}
+                  >
+                    <img src="${escapeHTML(statusIcon(status))}" alt="">
+                    <span>${escapeHTML(label)}</span>
+                    <i class="fa-solid fa-xmark"></i>
+                  </button>
+                `;
+              })
+              .join("")}
+          </div>
         </div>
       `;
     };
@@ -1858,17 +1809,18 @@ export async function openRollsHud(actorOverride = null) {
         ? Number(uses.value) || 0
         : Math.max(0, max - Number(uses.spent ?? 0));
       const content = document.createElement("div");
-      content.className = "ws-resource-dialog-content";
       content.innerHTML = `
-        <p>${escapeHTML(item?.name ?? actorResource?.label ?? resourceId)}</p>
-        <label>
-          <span>${t("Combat.ResourceAmount")}</span>
-          <input type="number" name="amount" value="1" min="1" max="${Math.max(1, current)}" step="1">
-        </label>
-        <small>${tf("Combat.ResourceRemaining", { current, max })}</small>
-        <button type="button" data-action="consumeresource">
-          <i class="fa-solid fa-minus"></i>${t("Combat.Consume")}
-        </button>
+        <div class="ws-resource-dialog-content">
+          <p>${escapeHTML(item?.name ?? actorResource?.label ?? resourceId)}</p>
+          <label>
+            <span>${t("Combat.ResourceAmount")}</span>
+            <input type="number" name="amount" value="1" min="1" max="${Math.max(1, current)}" step="1">
+          </label>
+          <small>${tf("Combat.ResourceRemaining", { current, max })}</small>
+          <button type="button" data-action="consumeresource">
+            <i class="fa-solid fa-minus"></i>${t("Combat.Consume")}
+          </button>
+        </div>
       `;
 
       const dialog = new DialogV2({
@@ -1917,6 +1869,54 @@ export async function openRollsHud(actorOverride = null) {
       return dialog.render({ force: true });
     };
 
+    const openHpDialog = field => {
+      const hp = actor.system.attributes.hp ?? {};
+      const isTemp = field === "temp";
+      const current = Number(hp[field] ?? 0);
+      const content = document.createElement("div");
+      content.innerHTML = `
+        <div class="ws-hp-dialog-content">
+          <label>
+            <span>${t(isTemp ? "Combat.TempHP" : "Combat.HP")}</span>
+            <input type="number" name="value" value="${current}" min="0" step="1">
+          </label>
+          <button type="button" data-action="savehp">
+            <i class="fa-solid fa-check"></i>${t("Combat.SaveHP")}
+          </button>
+        </div>
+      `;
+
+      const dialog = new DialogV2({
+        classes: ["ws-hp-dialog"],
+        window: {
+          title: t(isTemp ? "Combat.EditTempHP" : "Combat.EditHP")
+        },
+        position: { width: 280, height: "auto" },
+        content,
+        actions: {
+          savehp: async function () {
+            const input = dialog.element.querySelector('[name="value"]');
+            let value = Math.max(0, Number(input?.value ?? current) || 0);
+
+            if (!isTemp) {
+              value = Math.min(value, Math.max(0, Number(hp.max ?? 0)));
+            }
+
+            await actor.update({ [`system.attributes.hp.${field}`]: value });
+            await dialog.close();
+          }
+        },
+        buttons: [
+          {
+            action: "close",
+            label: t("Actor.Cancel")
+          }
+        ]
+      });
+
+      return dialog.render({ force: true });
+    };
+
     function combatHTML() {
       const combatant = getCombatant();
       const hp = actor.system.attributes.hp ?? {};
@@ -1947,23 +1947,33 @@ export async function openRollsHud(actorOverride = null) {
           </div>
 
           <div class="ws-combat-stats">
-            <div class="ws-combat-stat ws-combat-hp">
+            <button
+              type="button"
+              class="ws-combat-stat ws-combat-hp ws-editable-stat ws-button"
+              data-action="edithp"
+              data-hp-field="value"
+              title="${t("Combat.EditHP")}"
+              ${canRollActor ? "" : "disabled"}
+            >
               <span>${t("Combat.HP")}</span>
               <strong>
                 ${Number(hp.value ?? 0)} / ${Number(hp.max ?? 0)}
               </strong>
-            </div>
+              <i class="fa-solid fa-pen"></i>
+            </button>
 
-            ${
-              Number(hp.temp ?? 0) > 0
-                ? `
-                  <div class="ws-combat-stat ws-combat-temp-hp">
-                    <span>${t("Combat.TempHP")}</span>
-                    <strong>${Number(hp.temp)}</strong>
-                  </div>
-                `
-                : ""
-            }
+            <button
+              type="button"
+              class="ws-combat-stat ws-combat-temp-hp ws-editable-stat ws-button"
+              data-action="edithp"
+              data-hp-field="temp"
+              title="${t("Combat.EditTempHP")}"
+              ${canRollActor ? "" : "disabled"}
+            >
+              <span>${t("Combat.TempHP")}</span>
+              <strong>${Number(hp.temp ?? 0)}</strong>
+              <i class="fa-solid fa-pen"></i>
+            </button>
 
             ${
               Number(hp.tempmax ?? 0) !== 0
@@ -2171,7 +2181,7 @@ export async function openRollsHud(actorOverride = null) {
             '[data-action="death"]',
             '[data-action="useitem"]',
             '[data-action="removestatus"]',
-            '[data-action="togglestatus"]',
+            '[data-action="edithp"]',
             '[data-action="shortrest"]',
             '[data-action="longrest"]'
           ].join(",")
@@ -2559,27 +2569,17 @@ export async function openRollsHud(actorOverride = null) {
         refreshHud();
       },
 
-      toggleconditions: function () {
-        conditionsExpanded = !conditionsExpanded;
-        refreshHud();
-      },
-
       toggleresources: function () {
         resourcesExpanded = !resourcesExpanded;
         refreshHud();
       },
 
-      togglestatus: async function (_event, target) {
+      edithp: function (_event, target) {
         if (!canRollActor) {
           return ui.notifications.warn(t("Warnings.NoPermission"));
         }
 
-        const statusId = target.dataset.statusId;
-        return performAndRefresh(() =>
-          actor.toggleStatusEffect(statusId, {
-            active: !actor.statuses?.has(statusId)
-          })
-        );
+        return openHpDialog(target.dataset.hpField);
       },
 
       inspiration: function () {

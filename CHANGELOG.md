@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.5
+
+- Fixed the owned-character picker when the HUD is opened without a selected token.
+- Changed compact combat saving throws to a two-column layout and kept combat filters at two columns at the minimum width.
+- Replaced the conditions browser with removable chips for currently active conditions.
+- Added editable current and temporary HP cards; temporary HP now remains visible at zero.
+- Disabled manual mode navigation by default.
+
 ## 0.7.0
 
 - Added a persistent per-user layout editor with drag-and-drop section ordering, hide/add controls, and access to all HUD modes while editing.
