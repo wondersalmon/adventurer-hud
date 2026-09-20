@@ -1,12 +1,14 @@
 import { MODULE_ID } from "./module-id.js";
 
 export const SETTINGS = Object.freeze({
+  adaptiveLayout: "adaptiveLayout",
   automaticCombatMode: "automaticCombatMode",
   autoUpdateActor: "autoUpdateActor",
   keepOpen: "keepOpen",
   showAbilityChecks: "showAbilityChecks",
   showDeathSaves: "showDeathSaves",
   showInitiative: "showInitiative",
+  showItemDetails: "showItemDetails",
   showSavingThrows: "showSavingThrows",
   showShortcuts: "showShortcuts",
   showSkills: "showSkills",
@@ -31,10 +33,12 @@ const registerBoolean = (key, defaultValue = true) => {
 };
 
 export function registerSettings() {
+  registerBoolean(SETTINGS.adaptiveLayout, true);
   registerBoolean(SETTINGS.keepOpen, false);
   registerBoolean(SETTINGS.autoUpdateActor, true);
   registerBoolean(SETTINGS.automaticCombatMode, true);
   registerBoolean(SETTINGS.showInitiative);
+  registerBoolean(SETTINGS.showItemDetails);
   registerBoolean(SETTINGS.showAbilityChecks);
   registerBoolean(SETTINGS.showSavingThrows);
   registerBoolean(SETTINGS.showSkills);

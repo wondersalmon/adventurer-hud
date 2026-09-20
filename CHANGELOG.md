@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0
+
+- Added optional adaptive layout and responsive typography.
+- Improved narrow combat layouts for filters, items, statistics and saves.
+- Added minimum widths for adaptive and fixed layouts.
+- Moved keep-open and window-reset controls into the title-bar menu.
+- Added optional combat-card details for spell and weapon range, activation, concentration and rituals.
+- Added description buttons for weapons, spells, features and other combat items.
+- Made the configurable Foundry keybinding toggle the HUD open and closed.
+
 ## 0.3.1
 
 - Synchronized the Russian and English localization dictionaries.
@@ -15,7 +25,7 @@
 - Added automatic combat mode with combat statistics and regular-mode fallback.
 - Converted all source comments to English.
 - Added local validation, linting, tests, release packaging and GitHub Actions workflows.
-- Added new Russian localization for the combat interface; English synchronization is intentionally deferred.
+- Added initial combat-interface localization.
 
 ## 0.2.0
 

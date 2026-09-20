@@ -11,6 +11,16 @@ let selectionTimer = null;
 
 const getOpenApp = () => globalThis.__adventurerHud?.app ?? null;
 
+const toggleHud = () => {
+  const app = getOpenApp();
+
+  if (app?.rendered) {
+    return app.close();
+  }
+
+  return openRollsHud();
+};
+
 const scheduleActorRefresh = () => {
   if (!getSetting(SETTINGS.autoUpdateActor) || !getOpenApp()?.rendered) {
     return;
@@ -47,7 +57,7 @@ Hooks.once("init", () => {
     ],
     restricted: false,
     onDown: () => {
-      void openRollsHud();
+      void toggleHud();
       return true;
     }
   });
@@ -81,13 +91,7 @@ Hooks.on("getSceneControlButtons", controls => {
     button: true,
     visible: true,
     onChange: () => {
-      const app = getOpenApp();
-
-      if (app?.rendered) {
-        void app.close();
-      } else {
-        void openRollsHud();
-      }
+      void toggleHud();
     }
   };
 });
@@ -97,10 +101,13 @@ Hooks.on("canvasReady", scheduleActorRefresh);
 
 Hooks.on("adventurerHudSettingChanged", key => {
   const layoutSettings = new Set([
+    SETTINGS.adaptiveLayout,
     SETTINGS.automaticCombatMode,
+    SETTINGS.keepOpen,
     SETTINGS.showAbilityChecks,
     SETTINGS.showDeathSaves,
     SETTINGS.showInitiative,
+    SETTINGS.showItemDetails,
     SETTINGS.showSavingThrows,
     SETTINGS.showShortcuts,
     SETTINGS.showSkills,

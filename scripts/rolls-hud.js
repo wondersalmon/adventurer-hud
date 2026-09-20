@@ -54,11 +54,13 @@ export async function openRollsHud() {
     state.actorUuid = actor.uuid;
 
     const canRollActor = actor.isOwner;
+    const adaptiveLayout = Boolean(getSetting(SETTINGS.adaptiveLayout));
 
     const visibility = {
       abilityChecks: getSetting(SETTINGS.showAbilityChecks),
       deathSaves: getSetting(SETTINGS.showDeathSaves),
       initiative: getSetting(SETTINGS.showInitiative),
+      itemDetails: getSetting(SETTINGS.showItemDetails),
       savingThrows: getSetting(SETTINGS.showSavingThrows),
       shortcuts: getSetting(SETTINGS.showShortcuts),
       skills: getSetting(SETTINGS.showSkills),
@@ -106,10 +108,11 @@ export async function openRollsHud() {
         return {};
       }
 
+      const minimumWidth = adaptiveLayout ? 270 : 420;
       const width = Number.isFinite(savedWidth)
         ? Math.min(
-            Math.max(160, savedWidth),
-            Math.max(160, window.innerWidth - 16)
+            Math.max(minimumWidth, savedWidth),
+            Math.max(minimumWidth, window.innerWidth - 16)
           )
         : defaultWidth;
 
@@ -700,38 +703,6 @@ export async function openRollsHud() {
         <span><kbd>Shift</kbd> ${t("Shortcuts.Fast")}</span>
         <span><kbd>Alt</kbd> ${t("Shortcuts.Advantage")}</span>
         <span><kbd>Ctrl</kbd> ${t("Shortcuts.Disadvantage")}</span>
-
-        <div class="ws-window-options">
-          <label
-            class="ws-keep-open"
-            title="${t("Window.KeepOpenHint")}"
-          >
-            <input
-              class="ws-keep-open-input"
-              type="checkbox"
-              data-action="keepopen"
-              ${keepOpen ? "checked" : ""}
-            >
-
-            <span
-              class="ws-keep-open-box"
-              aria-hidden="true"
-            ></span>
-
-            <span>${t("Window.KeepOpen")}</span>
-          </label>
-
-          <button
-            type="button"
-            class="ws-reset-window"
-            data-action="resetwindow"
-            title="${t("Window.ResetHint")}"
-            aria-label="${t("Window.ResetHint")}"
-          >
-            <i class="fa-solid fa-arrow-rotate-left"></i>
-            <span>${t("Window.Reset")}</span>
-          </button>
-        </div>
       </div>
     `
         : "";
@@ -1001,6 +972,14 @@ export async function openRollsHud() {
 
     let combatCategory = "weapons";
 
+    const itemActivities = item => {
+      const activities = item.system?.activities;
+
+      return typeof activities?.values === "function"
+        ? [...activities.values()]
+        : Object.values(activities ?? {});
+    };
+
     const itemActivation = item => {
       const legacy = item.system?.activation?.type;
 
@@ -1008,14 +987,78 @@ export async function openRollsHud() {
         return legacy;
       }
 
-      const activities = item.system?.activities;
-      const values =
-        typeof activities?.values === "function"
-          ? [...activities.values()]
-          : Object.values(activities ?? {});
+      return itemActivities(item).find(activity => activity?.activation?.type)
+        ?.activation?.type;
+    };
 
-      return values.find(activity => activity?.activation?.type)?.activation
-        ?.type;
+    const configLabel = config =>
+      game.i18n.localize(config?.label ?? config ?? "");
+
+    const activationLabel = item => {
+      const type = itemActivation(item);
+      const common = {
+        action: "Combat.Action",
+        bonus: "Combat.BonusAction",
+        reaction: "Combat.Reaction",
+        special: "Combat.Special"
+      }[type];
+
+      if (common) {
+        return t(common);
+      }
+
+      return configLabel(
+        CONFIG.DND5E.activityActivationTypes?.[type] ??
+          CONFIG.DND5E.abilityActivationTypes?.[type] ??
+          type
+      );
+    };
+
+    const itemRange = item => {
+      const activityRange = itemActivities(item).find(
+        activity => activity?.range
+      )?.range;
+      const range = activityRange ?? item.system?.range ?? {};
+      const rawValue = range.value?.value ?? range.value;
+      const value = rawValue === 0 ? 0 : rawValue || "";
+      const long = range.long ?? range.value?.long ?? "";
+      const units = range.units ?? range.value?.units ?? "";
+      const unitConfig =
+        CONFIG.DND5E.rangeTypes?.[units] ?? CONFIG.DND5E.movementUnits?.[units];
+      const unit = configLabel(unitConfig) || units;
+
+      if (range.special) {
+        return escapeHTML(range.special);
+      }
+
+      if (!value && !unit) {
+        return t("Combat.RangeUnknown");
+      }
+
+      const distance = long ? `${value}/${long}` : value;
+
+      return escapeHTML([distance, unit].filter(part => part !== "").join(" "));
+    };
+
+    const hasSpellProperty = (item, property) => {
+      const properties = item.system?.properties;
+      const activityHasProperty = itemActivities(item).some(activity => {
+        if (property === "concentration") {
+          return Boolean(activity?.duration?.concentration);
+        }
+
+        return false;
+      });
+
+      return [
+        properties?.has?.(property),
+        properties?.includes?.(property),
+        properties?.[property],
+        item.system?.components?.[property],
+        property === "concentration" && item.system?.duration?.concentration,
+        property === "ritual" && item.system?.preparation?.mode === "ritual",
+        activityHasProperty
+      ].some(Boolean);
     };
 
     const combatItems = category =>
@@ -1031,19 +1074,88 @@ export async function openRollsHud() {
         return itemActivation(item) === category;
       });
 
-    const combatItemButton = item => `
-      <button
-        type="button"
-        class="ws-combat-item ws-button"
-        data-action="useitem"
-        data-item-id="${escapeHTML(item.id)}"
-        title="${escapeHTML(item.name)}"
-      >
-        <img src="${escapeHTML(item.img ?? "icons/svg/item-bag.svg")}" alt="">
-        <span>${escapeHTML(item.name)}</span>
-        <i class="fa-solid fa-dice-d20"></i>
-      </button>
-    `;
+    const combatItemButton = item => {
+      const isSpell = item.type === "spell";
+      const isWeapon = item.type === "weapon";
+      const showsRange = isSpell || isWeapon;
+      const concentration = isSpell && hasSpellProperty(item, "concentration");
+      const ritual = isSpell && hasSpellProperty(item, "ritual");
+      const activation = itemActivation(item);
+      const showsDetails =
+        visibility.itemDetails &&
+        (showsRange || activation || concentration || ritual);
+
+      return `
+        <div class="ws-combat-item-card ${
+          showsDetails ? "ws-detailed-card" : ""
+        }">
+          <button
+            type="button"
+            class="ws-combat-item ws-button"
+            data-action="useitem"
+            data-item-id="${escapeHTML(item.id)}"
+            title="${escapeHTML(item.name)}"
+          >
+            <img src="${escapeHTML(item.img ?? "icons/svg/item-bag.svg")}" alt="">
+
+            <span class="ws-combat-item-content">
+              <strong>${escapeHTML(item.name)}</strong>
+              ${
+                showsDetails
+                  ? `
+                    <small class="ws-spell-meta">
+                      ${
+                        showsRange
+                          ? `
+                            <span title="${t("Combat.Range")}">
+                              <i class="fa-solid fa-crosshairs"></i>
+                              ${itemRange(item)}
+                            </span>
+                          `
+                          : ""
+                      }
+                      ${
+                        activation
+                          ? `
+                            <span title="${t("Combat.Activation")}">
+                              <i class="fa-solid fa-hourglass-half"></i>
+                              ${escapeHTML(activationLabel(item))}
+                            </span>
+                          `
+                          : ""
+                      }
+                      ${
+                        concentration
+                          ? `<b title="${t("Combat.Concentration")}">${t("Combat.ConcentrationShort")}</b>`
+                          : ""
+                      }
+                      ${
+                        ritual
+                          ? `<b title="${t("Combat.Ritual")}">${t("Combat.RitualShort")}</b>`
+                          : ""
+                      }
+                    </small>
+                  `
+                  : ""
+              }
+            </span>
+
+            <i class="fa-solid fa-dice-d20"></i>
+          </button>
+
+          <button
+            type="button"
+            class="ws-item-description ws-button"
+            data-action="openitem"
+            data-item-id="${escapeHTML(item.id)}"
+            title="${t("Combat.OpenDescription")}"
+            aria-label="${t("Combat.OpenDescription")}: ${escapeHTML(item.name)}"
+          >
+            <i class="fa-solid fa-book-open"></i>
+          </button>
+        </div>
+      `;
+    };
 
     const combatActions = () => {
       const categories = [
@@ -1639,6 +1751,16 @@ export async function openRollsHud() {
         return rollAndClose(() => item.use({ event }));
       },
 
+      openitem: function (_event, target) {
+        const item = actor.items.get(target.dataset.itemId);
+
+        if (!item) {
+          return ui.notifications.warn(t("Combat.ItemMissing"));
+        }
+
+        return item.sheet.render({ force: true });
+      },
+
       removestatus: async function (_event, target) {
         if (!canRollActor) {
           return ui.notifications.warn(t("Warnings.NoPermission"));
@@ -1669,14 +1791,11 @@ export async function openRollsHud() {
         refreshHud();
       },
 
-      keepopen: async function (_event, target) {
-        await storeKeepOpen(target.checked);
-
-        app.element
-          .querySelectorAll('[data-action="keepopen"]')
-          .forEach(input => {
-            input.checked = keepOpen;
-          });
+      togglekeepopen: async function () {
+        await storeKeepOpen(!keepOpen);
+        ui.notifications.info(
+          t(keepOpen ? "Window.KeepOpenEnabled" : "Window.KeepOpenDisabled")
+        );
       },
 
       resetwindow: async function () {
@@ -1737,12 +1856,22 @@ export async function openRollsHud() {
     const storedPosition = loadStoredPosition(dialogWidth);
 
     const app = new DialogV2({
-      classes: ["ws-rolls-dialog"],
+      classes: ["ws-rolls-dialog", adaptiveLayout ? "ws-adaptive" : "ws-fixed"],
 
       window: {
         title: dialogTitle(),
         resizable: true,
         controls: [
+          {
+            icon: keepOpen ? "fa-solid fa-toggle-on" : "fa-solid fa-toggle-off",
+            label: t("Window.KeepOpenMenu"),
+            action: "togglekeepopen"
+          },
+          {
+            icon: "fa-solid fa-arrow-rotate-left",
+            label: t("Window.ResetHint"),
+            action: "resetwindow"
+          },
           {
             icon: "fa-solid fa-gear",
             label: t("Settings.Open"),

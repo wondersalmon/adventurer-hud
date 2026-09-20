@@ -26,19 +26,26 @@ native roll events.
 
 - Compact checks, saves, skills, tools, initiative and death saves HUD
 - Actor portrait and name in every HUD mode
-- Automatic combat layout with HP, AC, speed, initiative, turn and concentration status
+- Automatic combat layout with HP, temporary HP, maximum-HP modifier, AC, speed and initiative
+- Weapons, spells and action-type filters with native item use
+- Optional range, activation, concentration and ritual details on combat cards
+- Item-sheet shortcuts and removable active conditions
 - Manual fallback between regular, combat and death-save layouts
 - Native D&D 5e roll calls with modifier-key forwarding
 - Token Controls button and configurable keybinding (`Shift+R` by default)
 - Automatic updates when the selected token changes
 - Per-user section visibility and behavior settings
 - Persistent client window size and position
+- Optional adaptive grids, spacing and typography for narrow and wide windows
+- Window behavior and geometry controls in the title-bar menu
 - Synchronized English and Russian localization
 - Migration of the previous macro's saved window state
 
 ## Opening the HUD
 
-Use the dice button under Token Controls, press `Shift+R`, assign a different shortcut under Foundry's Configure Controls screen, or call the public module API from a macro:
+Use the dice button under Token Controls or press `Shift+R` to toggle the HUD.
+The shortcut can be reassigned under Foundry's Configure Controls screen. The
+public module API can also open the HUD from a macro:
 
 ```js
 game.modules.get("adventurer-hud").api.open();
@@ -47,6 +54,34 @@ game.modules.get("adventurer-hud").api.open();
 The combat layout opens automatically for the selected token's combatant while
 an active combat is running, and it can also be opened manually. The module never
 adds a token to combat and never removes one.
+
+## Combat HUD
+
+Combat mode groups owned items into weapons, spells, actions, bonus actions,
+reactions and special actions. Selecting a card uses the item through the native
+D&D 5e workflow; the book button opens its sheet without using it. Spell cards
+can show range, activation, concentration and ritual markers, while weapon cards
+can show normal and long range. This additional information can be disabled
+without hiding item-sheet buttons.
+
+Active configured conditions are displayed with the character's combat data.
+An owner can remove an individual condition directly from the HUD. Initiative
+can be rolled only when the GM has already added the selected token to combat;
+the module never changes combat membership.
+
+## Configuration
+
+All options are per-user and available under Foundry's Module Settings:
+
+- adaptive layout, responsive typography and compact responsive grids;
+- automatic combat mode and automatic selected-token tracking;
+- keep the HUD open after rolls;
+- additional combat-card information;
+- visibility of initiative, checks, saves, skills, tools, death saves and shortcut hints.
+
+The title-bar menu provides quick access to module settings, the keep-open toggle
+and window-geometry reset. Window size and position are stored per client. The
+open/close shortcut is configurable through Foundry's Configure Controls screen.
 
 ## Development
 
@@ -78,7 +113,7 @@ To prepare a new version, update `package.json` and its lock file, then run
 - `scripts/adventurer-hud.js` — module bootstrap, keybinding and public API
 - `scripts/rolls-hud.js` — window, actor data and roll workflow
 - `scripts/constants.js` — D&D 5e ability, skill and tool metadata
-- `scripts/settings.js` — Foundry settings, persistence and legacy migration
+- `scripts/settings.js` — per-user settings, window persistence and legacy migration
 - `scripts/module-id.js` — shared module identifier
 - `styles/adventurer-hud.css` — complete adaptive HUD styling
 - `templates/rolls-hud.hbs` — root Handlebars template
