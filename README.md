@@ -41,10 +41,12 @@ native roll events.
 - Character class and level, Heroic Inspiration, and native rest controls
 - Automatic combat layout with HP, optional temporary/max-HP values, AC, speed, resources and initiative
 - Configurable weapons, spells and action-type tabs with native item use
-- Prepared/all spell filters, spell-level groups and remaining spell-slot indicators
+- Spell browser in regular and combat modes with prepared/all filters, spell-level groups and remaining spell-slot indicators
 - Optional range, attack bonus, damage formula, activation, resource cost, concentration and ritual details on combat cards
-- Collapsible condition controls, removable active conditions and live updates
-- Manual fallback between regular, combat and death-save layouts
+- Compact removable active-condition icons with live updates
+- Collapsible saving throws and combat class resources
+- Resource consumption and restoration controls
+- Optional manual fallback between regular, combat and death-save layouts, hidden by default
 - Native D&D 5e roll calls with modifier-key forwarding
 - Token Controls button and configurable keybinding (`Shift+R` by default)
 - Automatic updates when the selected token changes
@@ -80,11 +82,11 @@ spell slots. Cards can show range, activation, resource cost, concentration and
 ritual markers, while weapon cards can show normal and long range. This
 additional information can be disabled without hiding item-sheet buttons.
 
-Active configured conditions are displayed with the character's combat data.
-An owner can remove an individual condition directly from the HUD, and effect
-changes refresh the open HUD automatically. Initiative appears beside the actor
-name and is highlighted until rolled. It can be rolled only when the GM has
-already added the selected token to combat; the module never changes combat
+Active configured conditions are displayed as compact icons with the character's
+combat data. An owner can remove an individual condition directly from the HUD,
+and effect changes refresh the open HUD automatically. Initiative appears beside
+the actor name and is highlighted until rolled. It can be rolled only when the GM
+has already added the selected token to combat; the module never changes combat
 membership.
 
 ## Configuration
@@ -98,6 +100,9 @@ All options are per-user and available under Foundry's Module Settings:
 - visibility of combat resources and each combat item tab;
 - optional manual navigation among HUD modes;
 - visibility of initiative, checks, saves, skills, tools, death saves and shortcut hints.
+
+English is the complete fallback localization. Russian overrides it when the
+client language is set to Russian.
 
 The title-bar menu provides quick access to module settings, the keep-open toggle
 layout editing and window-geometry reset. Layout editing supports drag-and-drop

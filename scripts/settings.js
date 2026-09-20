@@ -166,29 +166,37 @@ export async function flushWindowGeometry() {
 export async function migrateLegacySettings() {
   const version = getSetting(SETTINGS.migrationVersion);
 
-  if (version >= 1) {
+  if (version >= 2) {
     return;
   }
 
-  const suffix = [game.world?.id ?? "world", game.user.id].join(":");
+  if (version < 1) {
+    const suffix = [game.world?.id ?? "world", game.user.id].join(":");
 
-  try {
-    const rawGeometry = localStorage.getItem(`ws-rolls-hud-position:${suffix}`);
+    try {
+      const rawGeometry = localStorage.getItem(
+        `ws-rolls-hud-position:${suffix}`
+      );
 
-    if (rawGeometry) {
-      await setSetting(SETTINGS.windowGeometry, JSON.parse(rawGeometry));
+      if (rawGeometry) {
+        await setSetting(SETTINGS.windowGeometry, JSON.parse(rawGeometry));
+      }
+
+      const rawKeepOpen = localStorage.getItem(
+        `ws-rolls-hud-keep-open:${suffix}`
+      );
+
+      if (rawKeepOpen !== null) {
+        await setSetting(SETTINGS.keepOpen, rawKeepOpen === "true");
+      }
+    } catch (error) {
+      console.warn(`${MODULE_ID} | Unable to migrate legacy settings`, error);
     }
-
-    const rawKeepOpen = localStorage.getItem(
-      `ws-rolls-hud-keep-open:${suffix}`
-    );
-
-    if (rawKeepOpen !== null) {
-      await setSetting(SETTINGS.keepOpen, rawKeepOpen === "true");
-    }
-  } catch (error) {
-    console.warn(`${MODULE_ID} | Unable to migrate legacy settings`, error);
   }
 
-  await setSetting(SETTINGS.migrationVersion, 1);
+  if (version < 2) {
+    await setSetting(SETTINGS.showModeNavigation, false);
+  }
+
+  await setSetting(SETTINGS.migrationVersion, 2);
 }

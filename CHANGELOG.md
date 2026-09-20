@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.8
+
+- Added a collapsible saving-throw section, expanded by default.
+- Added the spell browser to regular mode with prepared/all filtering.
+- Kept inspiration beside the actor identity and moved rest controls below the header in regular mode.
+- Reduced active condition controls to compact icon-only buttons.
+- Added resource restoration alongside resource consumption.
+- Made active-combat initiative lookup resilient to combat recreation.
+- Replaced nested action-list scrolling with the HUD window's shared scrollbar.
+- Increased the extra-large text-size option.
+- Confirmed manual mode navigation is hidden by default and English provides the localization fallback set.
+
 ## 0.7.5
 
 - Fixed the owned-character picker when the HUD is opened without a selected token.

@@ -9,6 +9,22 @@ test("Russian and English localization keys stay synchronized", async () => {
   assert.deepEqual(Object.keys(english).sort(), Object.keys(russian).sort());
 });
 
+test("English is available as the complete module fallback locale", async () => {
+  const manifest = JSON.parse(await readFile("module.json", "utf8"));
+  const english = JSON.parse(await readFile("lang/en.json", "utf8"));
+  const englishLanguage = manifest.languages.find(
+    language => language.lang === "en"
+  );
+
+  assert.equal(englishLanguage?.path, "lang/en.json");
+  assert.ok(Object.keys(english).length > 0);
+
+  for (const [key, value] of Object.entries(english)) {
+    assert.equal(typeof value, "string", `${key} must be a string`);
+    assert.ok(value.trim(), `${key} must not be empty`);
+  }
+});
+
 test("all directly referenced localization keys exist", async () => {
   const russian = JSON.parse(await readFile("lang/ru.json", "utf8"));
   const english = JSON.parse(await readFile("lang/en.json", "utf8"));

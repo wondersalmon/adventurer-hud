@@ -333,7 +333,26 @@ export async function openRollsHud(actorOverride = null) {
 
     const skillProf = id => profValue(actor.system.skills?.[id]?.prof);
 
-    const getCombatant = () => token?.document.combatant ?? null;
+    const getCombatant = () => {
+      const combat = game.combat;
+
+      if (!combat) {
+        return null;
+      }
+
+      const tokenId = token?.document?.id ?? token?.id;
+      const combatants = combat.combatants?.contents ?? [
+        ...(combat.combatants?.values?.() ?? [])
+      ];
+
+      return (
+        combatants.find(
+          combatant => tokenId && combatant.tokenId === tokenId
+        ) ??
+        combatants.find(combatant => combatant.actorId === actor.id) ??
+        null
+      );
+    };
 
     // =========================================================
     // Death saves
@@ -361,6 +380,7 @@ export async function openRollsHud(actorOverride = null) {
     let forceRegularMode = false;
     let forceCombatMode = false;
     let forceDeathMode = false;
+    let savingThrowsExpanded = true;
 
     const isActiveCombatant = () =>
       Boolean(game.combat?.started && getCombatant());
@@ -496,17 +516,20 @@ export async function openRollsHud(actorOverride = null) {
     // Abilities
     // =========================================================
 
-    function abilityRow(type, label, labelIcon) {
+    function abilityRow(type, label, labelIcon, showLabel = true) {
       return `
-        <div class="ws-ability-row">
+        <div class="ws-ability-row ${showLabel ? "" : "ws-label-free"}">
 
-          <div class="ws-row-label">
-            <i
-              class="fa-solid ${labelIcon}"
-            ></i>
-
-            ${label}
-          </div>
+          ${
+            showLabel
+              ? `
+                <div class="ws-row-label">
+                  <i class="fa-solid ${labelIcon}"></i>
+                  ${label}
+                </div>
+              `
+              : ""
+          }
 
           ${abilities
             .map(([id, short, icon]) => {
@@ -564,6 +587,25 @@ export async function openRollsHud(actorOverride = null) {
         </div>
       `;
     }
+
+    const savingThrowsSection = () => `
+      <div class="ws-saving-throws ${savingThrowsExpanded ? "ws-expanded" : ""}">
+        <button
+          type="button"
+          class="ws-section-toggle ws-button"
+          data-action="togglesaves"
+          aria-expanded="${savingThrowsExpanded}"
+        >
+          <span><i class="fa-solid fa-shield-halved"></i>${t("Labels.Save")}</span>
+          <i class="fa-solid fa-chevron-${savingThrowsExpanded ? "up" : "down"}"></i>
+        </button>
+        ${
+          savingThrowsExpanded
+            ? abilityRow("save", t("Labels.Save"), "fa-shield-halved", false)
+            : ""
+        }
+      </div>
+    `;
 
     // =========================================================
     // Skills
@@ -890,7 +932,9 @@ export async function openRollsHud(actorOverride = null) {
           id="ws-main"
           class="ws-view"
         >
-          ${actorHeader(`${restControls()}${inspirationControl()}`)}
+          ${actorHeader(inspirationControl())}
+
+          ${restControls()}
 
           <div class="ws-layout-anchor"></div>
 
@@ -908,18 +952,14 @@ export async function openRollsHud(actorOverride = null) {
                       : ""
                   }
 
-                  ${
-                    visibility.savingThrows
-                      ? abilityRow("save", t("Labels.Save"), "fa-shield-halved")
-                      : ""
-                  }
+                  ${visibility.savingThrows ? savingThrowsSection() : ""}
                 </div>
               `
               : ""
           }
 
           ${
-            visibility.skills || visibility.tools
+            visibility.skills || visibility.tools || visibility.combatSpells
               ? `
                 <div class="ws-divider"></div>
 
@@ -981,6 +1021,25 @@ export async function openRollsHud(actorOverride = null) {
                   ws-arrow
                 "
               ></i>
+            </button>
+            `
+                : ""
+            }
+
+            ${
+              visibility.combatSpells
+                ? `
+            <button
+              type="button"
+              class="ws-nav ws-button"
+              data-action="view"
+              data-view="spells"
+            >
+              <span class="ws-nav-main">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                ${t("Combat.Spells")}
+              </span>
+              <i class="fa-solid fa-chevron-right ws-arrow"></i>
             </button>
             `
                 : ""
@@ -1070,6 +1129,30 @@ export async function openRollsHud(actorOverride = null) {
               `
               : ""
           }
+
+          ${shortcutHint()}
+        </div>
+
+        <div id="ws-spells" class="ws-view ws-hidden">
+          ${back(t("Combat.Spells"), "fa-wand-magic-sparkles")}
+
+          <div class="ws-divider"></div>
+
+          <div class="ws-spell-filter" role="group" aria-label="${t("Combat.SpellFilter")}">
+            <button type="button" class="ws-button ${preparedSpellsOnly ? "ws-active" : ""}" data-action="spellfilter" data-prepared="true">
+              ${t("Combat.Prepared")}
+            </button>
+            <button type="button" class="ws-button ${preparedSpellsOnly ? "" : "ws-active"}" data-action="spellfilter" data-prepared="false">
+              ${t("Combat.AllSpells")}
+            </button>
+          </div>
+
+          <div class="ws-combat-item-list">
+            ${
+              spellGroups(combatItems("spells")) ||
+              `<div class="ws-empty">${t("Combat.EmptyPrepared")}</div>`
+            }
+          </div>
 
           ${shortcutHint()}
         </div>
@@ -1684,8 +1767,6 @@ export async function openRollsHud(actorOverride = null) {
                     ${canRollActor ? "" : "disabled"}
                   >
                     <img src="${escapeHTML(statusIcon(status))}" alt="">
-                    <span>${escapeHTML(label)}</span>
-                    <i class="fa-solid fa-xmark"></i>
                   </button>
                 `;
               })
@@ -1786,7 +1867,7 @@ export async function openRollsHud(actorOverride = null) {
                   class="ws-combat-stat ws-resource-link ws-button"
                   data-action="openresource"
                   ${resource.itemId ? `data-item-id="${resource.itemId}"` : `data-resource-id="${escapeHTML(resource.id)}"`}
-                  title="${t("Combat.ConsumeResource")}"
+                  title="${t("Combat.ManageResource")}"
                 >
                   <span>${escapeHTML(resource.label)}</span>
                   <strong>${resource.value} / ${resource.max || "—"}</strong>
@@ -1814,25 +1895,36 @@ export async function openRollsHud(actorOverride = null) {
           <p>${escapeHTML(item?.name ?? actorResource?.label ?? resourceId)}</p>
           <label>
             <span>${t("Combat.ResourceAmount")}</span>
-            <input type="number" name="amount" value="1" min="1" max="${Math.max(1, current)}" step="1">
+            <input type="number" name="amount" value="1" min="1" max="${Math.max(1, current, max)}" step="1">
           </label>
           <small>${tf("Combat.ResourceRemaining", { current, max })}</small>
-          <button type="button" data-action="consumeresource">
-            <i class="fa-solid fa-minus"></i>${t("Combat.Consume")}
-          </button>
+          <div class="ws-resource-dialog-actions">
+            <button type="button" data-action="changeresource" data-direction="consume" ${current <= 0 ? "disabled" : ""}>
+              <i class="fa-solid fa-minus"></i>${t("Combat.Consume")}
+            </button>
+            <button type="button" data-action="changeresource" data-direction="restore" ${max > 0 && current >= max ? "disabled" : ""}>
+              <i class="fa-solid fa-plus"></i>${t("Combat.Restore")}
+            </button>
+          </div>
         </div>
       `;
 
       const dialog = new DialogV2({
         classes: ["ws-resource-dialog"],
-        window: { title: t("Combat.ConsumeResource") },
+        window: { title: t("Combat.ManageResource") },
         position: { width: 320, height: "auto" },
         content,
         actions: {
-          consumeresource: async function () {
+          changeresource: async function (_event, target) {
             const input = dialog.element.querySelector('[name="amount"]');
+            const restore = target.dataset.direction === "restore";
+            const available = restore
+              ? max > 0
+                ? Math.max(0, max - current)
+                : Number.POSITIVE_INFINITY
+              : current;
             const amount = Math.min(
-              current,
+              available,
               Math.max(1, Number(input?.value ?? 1) || 1)
             );
             const sourceUses = item?._source?.system?.uses ?? {};
@@ -1840,17 +1932,29 @@ export async function openRollsHud(actorOverride = null) {
             if (item && Object.hasOwn(sourceUses, "spent")) {
               const spent = Number(uses.spent ?? 0);
               await item.update({
-                "system.uses.spent": Math.min(max, spent + amount)
+                "system.uses.spent": Math.max(
+                  0,
+                  Math.min(max, spent + (restore ? -amount : amount))
+                )
               });
             } else if (item) {
               await item.update({
-                "system.uses.value": Math.max(0, current - amount)
+                "system.uses.value": Math.max(
+                  0,
+                  Math.min(
+                    max || Number.POSITIVE_INFINITY,
+                    current + (restore ? amount : -amount)
+                  )
+                )
               });
             } else if (resourceId) {
               await actor.update({
                 [`system.resources.${resourceId}.value`]: Math.max(
                   0,
-                  current - amount
+                  Math.min(
+                    max || Number.POSITIVE_INFINITY,
+                    current + (restore ? amount : -amount)
+                  )
                 )
               });
             }
@@ -2007,7 +2111,7 @@ export async function openRollsHud(actorOverride = null) {
               ? `
                 <div class="ws-divider"></div>
                 <div class="ws-ability-table">
-                  ${abilityRow("save", t("Labels.Save"), "fa-shield-halved")}
+                  ${savingThrowsSection()}
                 </div>
               `
               : ""
@@ -2233,7 +2337,7 @@ export async function openRollsHud(actorOverride = null) {
     };
 
     const setView = view => {
-      if (!["main", "skills", "tools"].includes(view)) {
+      if (!["main", "skills", "tools", "spells"].includes(view)) {
         return;
       }
 
@@ -2544,6 +2648,11 @@ export async function openRollsHud(actorOverride = null) {
 
       spellfilter: function (_event, target) {
         preparedSpellsOnly = target.dataset.prepared === "true";
+        refreshHud();
+      },
+
+      togglesaves: function () {
+        savingThrowsExpanded = !savingThrowsExpanded;
         refreshHud();
       },
 
