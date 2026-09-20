@@ -8,7 +8,7 @@ import {
   SETTINGS
 } from "./settings.js";
 
-export async function openRollsHud() {
+export async function openRollsHud(actorOverride = null) {
   try {
     // =========================================================
     // System
@@ -40,10 +40,68 @@ export async function openRollsHud() {
     }
 
     const token = selected[0] ?? null;
-    const actor = token?.actor ?? game.user.character;
+    const actor = actorOverride ?? token?.actor ?? null;
 
     if (!actor) {
-      return ui.notifications.warn(t("Warnings.NoActor"));
+      const availableActors = game.actors.filter(
+        candidate => candidate.type === "character" && candidate.isOwner
+      );
+
+      if (!availableActors.length) {
+        return ui.notifications.warn(t("Warnings.NoActor"));
+      }
+
+      if (availableActors.length === 1) {
+        return openRollsHud(availableActors[0]);
+      }
+
+      const pickerContent = document.createElement("div");
+      pickerContent.className = "ws-actor-picker-list";
+      pickerContent.innerHTML = availableActors
+        .sort((a, b) => a.name.localeCompare(b.name, game.i18n.lang))
+        .map(
+          candidate => `
+            <button
+              type="button"
+              class="ws-actor-picker-entry"
+              data-action="selectactor"
+              data-actor-id="${candidate.id}"
+            >
+              <img src="${foundry.utils.escapeHTML(candidate.img ?? "icons/svg/mystery-man.svg")}" alt="">
+              <span>${foundry.utils.escapeHTML(candidate.name)}</span>
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          `
+        )
+        .join("");
+
+      const picker = new DialogV2({
+        classes: ["ws-actor-picker"],
+        window: { title: t("Actor.Select") },
+        position: {
+          width: Math.min(380, Math.max(280, window.innerWidth - 32)),
+          height: "auto"
+        },
+        content: pickerContent,
+        actions: {
+          selectactor: async function (_event, target) {
+            const selectedActor = game.actors.get(target.dataset.actorId);
+            await picker.close();
+
+            if (selectedActor) {
+              void openRollsHud(selectedActor);
+            }
+          }
+        },
+        buttons: [
+          {
+            action: "close",
+            label: t("Actor.Cancel")
+          }
+        ]
+      });
+
+      return picker.render({ force: true });
     }
 
     if (state.app?.rendered) {

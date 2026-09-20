@@ -66,6 +66,8 @@
   "ADVENTURER_HUD.Labels.Rolls": "ROLLS",
   "ADVENTURER_HUD.Labels.DeathSaves": "DEATH SAVES",
   "ADVENTURER_HUD.Actor.Level": "Level {level}",
+  "ADVENTURER_HUD.Actor.Select": "Select a character",
+  "ADVENTURER_HUD.Actor.Cancel": "Cancel",
   "ADVENTURER_HUD.Actor.Inspiration": "Inspiration",
   "ADVENTURER_HUD.Actor.InspirationActive": "Heroic Inspiration is available",
   "ADVENTURER_HUD.Actor.InspirationInactive": "Heroic Inspiration is not marked",

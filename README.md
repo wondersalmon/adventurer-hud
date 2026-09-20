@@ -37,6 +37,7 @@ native roll events.
 
 - Compact checks, saves, skills, tools and death saves HUD
 - Actor portrait and name in every HUD mode
+- Owned-character selection when no token is selected
 - Character class and level, Heroic Inspiration, and native rest controls
 - Automatic combat layout with HP, optional temporary/max-HP values, AC, speed, resources and initiative
 - Configurable weapons, spells and action-type tabs with native item use

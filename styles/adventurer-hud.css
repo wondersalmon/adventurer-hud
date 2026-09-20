@@ -2,6 +2,41 @@
   display: none !important;
 }
 
+.ws-actor-picker .ws-actor-picker-list {
+  max-height: min(60vh, 480px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.ws-actor-picker .ws-actor-picker-entry {
+  min-height: 48px;
+  padding: 5px 9px;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--color-border-light-tertiary);
+  border-radius: 7px;
+  text-align: left;
+}
+
+.ws-actor-picker .ws-actor-picker-entry img {
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.ws-actor-picker .ws-actor-picker-entry span {
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ws-rolls-dialog {
   min-width: 270px;
 }
@@ -11,11 +46,9 @@
 }
 
 .ws-rolls-dialog .window-content {
-  height: 100%;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden !important;
+  overflow: hidden auto !important;
+  scrollbar-gutter: stable;
 }
 
 /*
@@ -42,8 +75,6 @@
   --danger-bg: rgb(197 101 94 / 0.13);
 
   width: 100%;
-  height: 100%;
-  flex: 1 1 0;
   min-height: 0;
   box-sizing: border-box;
   container-name: ws-rolls;
@@ -61,25 +92,13 @@
   --ws-type-scale: var(--ws-user-type-scale);
 
   width: 100%;
-  height: 100%;
-  flex: 1 1 0;
-  max-height: none;
   min-height: 0;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 11px;
   padding: 10px 8px 8px;
-  overflow-x: hidden;
-  overflow-y: auto !important;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line) transparent;
-}
-
-.ws-rolls-dialog .ws-view > * {
-  flex-shrink: 0;
+  overflow: visible;
 }
 
 .ws-rolls-dialog.ws-font-small .ws-view {
@@ -882,9 +901,7 @@
 
 /* Skills / Tools */
 .ws-rolls-dialog .ws-scroll {
-  min-height: 80px;
-  flex: 1 1 auto;
-  overflow: auto;
+  overflow: visible;
   padding-right: 3px;
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;

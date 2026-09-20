@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.7
+
+- Replaced the nested percentage-height scroller with Foundry's native window-content scrolling.
+- Added an owned-character picker when no token is selected.
+
 ## 0.6.6
 
 - Fixed HUD sections collapsing to nearly zero height inside resized windows.

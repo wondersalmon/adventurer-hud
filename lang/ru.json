@@ -66,6 +66,8 @@
   "ADVENTURER_HUD.Labels.Rolls": "БРОСКИ",
   "ADVENTURER_HUD.Labels.DeathSaves": "СПАСБРОСКИ ОТ СМЕРТИ",
   "ADVENTURER_HUD.Actor.Level": "Уровень {level}",
+  "ADVENTURER_HUD.Actor.Select": "Выберите персонажа",
+  "ADVENTURER_HUD.Actor.Cancel": "Отмена",
   "ADVENTURER_HUD.Actor.Inspiration": "Вдохновение",
   "ADVENTURER_HUD.Actor.InspirationActive": "Героическое вдохновение доступно",
   "ADVENTURER_HUD.Actor.InspirationInactive": "Героическое вдохновение не отмечено",
