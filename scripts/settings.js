@@ -10,6 +10,7 @@ export const SETTINGS = Object.freeze({
   showDeathSaves: "showDeathSaves",
   showInitiative: "showInitiative",
   showItemDetails: "showItemDetails",
+  showModeNavigation: "showModeNavigation",
   showCombatResources: "showCombatResources",
   showCombatWeapons: "showCombatWeapons",
   showCombatSpells: "showCombatSpells",
@@ -70,6 +71,7 @@ export function registerSettings() {
   registerBoolean(SETTINGS.automaticCombatMode, true);
   registerBoolean(SETTINGS.showInitiative);
   registerBoolean(SETTINGS.showItemDetails);
+  registerBoolean(SETTINGS.showModeNavigation);
   registerBoolean(SETTINGS.showCombatResources);
   registerBoolean(SETTINGS.showCombatWeapons);
   registerBoolean(SETTINGS.showCombatSpells);

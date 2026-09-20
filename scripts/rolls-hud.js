@@ -62,6 +62,7 @@ export async function openRollsHud() {
       deathSaves: getSetting(SETTINGS.showDeathSaves),
       initiative: getSetting(SETTINGS.showInitiative),
       itemDetails: getSetting(SETTINGS.showItemDetails),
+      modeNavigation: getSetting(SETTINGS.showModeNavigation),
       combatResources: getSetting(SETTINGS.showCombatResources),
       combatWeapons: getSetting(SETTINGS.showCombatWeapons),
       combatSpells: getSetting(SETTINGS.showCombatSpells),
@@ -253,13 +254,17 @@ export async function openRollsHud() {
       actor.type === "character" &&
       deathData().hp <= 0;
 
+    const deathModeAvailable = () =>
+      visibility.deathSaves && actor.type === "character";
+
     const canRollDeathSave = () => {
-      const { failure, success } = deathData();
-      return failure < 3 && success < 3;
+      const { failure, hp, success } = deathData();
+      return hp <= 0 && failure < 3 && success < 3;
     };
 
     let forceRegularMode = false;
     let forceCombatMode = false;
+    let forceDeathMode = false;
 
     const isActiveCombatant = () =>
       Boolean(game.combat?.started && getCombatant());
@@ -273,6 +278,10 @@ export async function openRollsHud() {
 
       if (forceCombatMode && combatModeAvailable()) {
         return "combat";
+      }
+
+      if (forceDeathMode && deathModeAvailable()) {
+        return "death";
       }
 
       if (showDeathSaves()) {
@@ -604,7 +613,57 @@ export async function openRollsHud() {
     // Common UI
     // =========================================================
 
-    const actorHeader = (extra = "") => `
+    const classSummary = () => {
+      const classes = actor.items
+        .filter(item => item.type === "class")
+        .map(item => {
+          const level = Number(item.system?.levels ?? item.system?.level ?? 0);
+          return `${item.name}${level > 0 ? ` ${level}` : ""}`;
+        });
+
+      if (classes.length) {
+        return classes.join(" / ");
+      }
+
+      const level = Number(actor.system.details?.level ?? 0);
+      return level > 0 ? tf("Actor.Level", { level }) : "";
+    };
+
+    const inspirationControl = () => {
+      const active = Boolean(actor.system.attributes?.inspiration);
+
+      return `
+        <button
+          type="button"
+          class="ws-header-control ws-inspiration ws-button ${active ? "ws-active" : ""}"
+          data-action="inspiration"
+          title="${active ? t("Actor.InspirationActive") : t("Actor.InspirationInactive")}"
+          aria-pressed="${active}"
+          ${canRollActor ? "" : "disabled"}
+        >
+          <i class="fa-solid fa-star"></i>
+          <span>${t("Actor.Inspiration")}</span>
+        </button>
+      `;
+    };
+
+    const restControls = () => `
+      <div class="ws-rest-controls">
+        <button type="button" class="ws-header-control ws-button" data-action="shortrest" title="${t("Actor.ShortRest")}" ${canRollActor ? "" : "disabled"}>
+          <i class="fa-solid fa-campground"></i>
+          <span>${t("Actor.ShortRestShort")}</span>
+        </button>
+        <button type="button" class="ws-header-control ws-button" data-action="longrest" title="${t("Actor.LongRest")}" ${canRollActor ? "" : "disabled"}>
+          <i class="fa-solid fa-moon"></i>
+          <span>${t("Actor.LongRestShort")}</span>
+        </button>
+      </div>
+    `;
+
+    const actorHeader = (extra = "") => {
+      const summary = classSummary();
+
+      return `
       <div class="ws-actor-header">
         <img
           class="ws-actor-portrait"
@@ -614,11 +673,13 @@ export async function openRollsHud() {
 
         <div class="ws-actor-identity">
           <strong>${escapeHTML(actor.name)}</strong>
+          ${summary ? `<span>${escapeHTML(summary)}</span>` : ""}
         </div>
 
         ${extra}
       </div>
     `;
+    };
 
     const modeButton = (action, icon, label, cssClass = "") => `
       <button
@@ -632,6 +693,10 @@ export async function openRollsHud() {
     `;
 
     const modeNavigation = mode => {
+      if (!visibility.modeNavigation) {
+        return "";
+      }
+
       const buttons = [];
 
       if (mode !== "regular") {
@@ -651,7 +716,7 @@ export async function openRollsHud() {
         );
       }
 
-      if (mode !== "death" && showDeathSaves()) {
+      if (mode !== "death" && deathModeAvailable()) {
         buttons.push(
           modeButton(
             "deathmode",
@@ -729,7 +794,7 @@ export async function openRollsHud() {
           id="ws-main"
           class="ws-view"
         >
-          ${actorHeader()}
+          ${actorHeader(`${restControls()}${inspirationControl()}`)}
 
           ${modeNavigation("regular")}
 
@@ -919,6 +984,7 @@ export async function openRollsHud() {
 
     let combatCategory = "weapons";
     let preparedSpellsOnly = true;
+    let conditionsExpanded = false;
 
     const itemActivities = item => {
       const activities = item.system?.activities;
@@ -1035,6 +1101,62 @@ export async function openRollsHud() {
       return `${amount} ${label}`;
     };
 
+    const itemAttackBonus = item => {
+      const activity = itemActivities(item).find(
+        candidate => candidate?.type === "attack" || candidate?.attack
+      );
+      const value =
+        activity?.labels?.toHit ??
+        activity?.labels?.modifier ??
+        item.labels?.toHit ??
+        item.labels?.attack;
+
+      if ([undefined, null, ""].includes(value)) {
+        return "";
+      }
+
+      const label = String(value).trim();
+      return /^\d/.test(label) ? `+${label}` : label;
+    };
+
+    const damagePartFormula = part => {
+      if (Array.isArray(part)) {
+        return part[0] ?? "";
+      }
+
+      if (part?.formula) {
+        return part.formula;
+      }
+
+      const number = Number(part?.number ?? 0);
+      const denomination = Number(part?.denomination ?? 0);
+      const bonus = String(part?.bonus ?? "").trim();
+
+      if (!number || !denomination) {
+        return bonus;
+      }
+
+      return `${number}d${denomination}${bonus ? ` + ${bonus}` : ""}`;
+    };
+
+    const itemDamageFormula = item => {
+      const activityParts = itemActivities(item).flatMap(
+        activity => activity?.damage?.parts ?? []
+      );
+      const legacyParts = item.system?.damage?.parts ?? [];
+      const base = item.system?.damage?.base;
+      const formulas = [
+        ...activityParts,
+        ...(base?.formula ? [base] : []),
+        ...legacyParts
+      ]
+        .map(damagePartFormula)
+        .map(formula => String(formula ?? "").trim())
+        .filter(Boolean);
+
+      return [...new Set(formulas)].join(" + ");
+    };
+
     const isPreparedSpell = item => {
       const preparation = item.system?.preparation ?? {};
 
@@ -1066,9 +1188,17 @@ export async function openRollsHud() {
       const ritual = isSpell && hasSpellProperty(item, "ritual");
       const activation = itemActivation(item);
       const resourceCost = itemResourceCost(item);
+      const attackBonus = isSpell || isWeapon ? itemAttackBonus(item) : "";
+      const damageFormula = isSpell || isWeapon ? itemDamageFormula(item) : "";
       const showsDetails =
         visibility.itemDetails &&
-        (showsRange || activation || concentration || ritual || resourceCost);
+        (showsRange ||
+          activation ||
+          concentration ||
+          ritual ||
+          resourceCost ||
+          attackBonus ||
+          damageFormula);
 
       return `
         <div class="ws-combat-item-card ${
@@ -1105,6 +1235,26 @@ export async function openRollsHud() {
                             <span title="${t("Combat.Activation")}">
                               <i class="fa-solid fa-hourglass-half"></i>
                               ${escapeHTML(activationLabel(item))}
+                            </span>
+                          `
+                          : ""
+                      }
+                      ${
+                        attackBonus
+                          ? `
+                            <span title="${t("Combat.AttackBonus")}">
+                              <i class="fa-solid fa-bullseye"></i>
+                              ${escapeHTML(attackBonus)}
+                            </span>
+                          `
+                          : ""
+                      }
+                      ${
+                        damageFormula
+                          ? `
+                            <span title="${t("Combat.DamageFormula")}">
+                              <i class="fa-solid fa-burst"></i>
+                              ${escapeHTML(damageFormula)}
                             </span>
                           `
                           : ""
@@ -1314,10 +1464,15 @@ export async function openRollsHud() {
       `;
     };
 
-    const activeStatuses = () => {
-      const configured = Array.isArray(CONFIG.statusEffects)
+    const configuredStatuses = () => {
+      const statuses = Array.isArray(CONFIG.statusEffects)
         ? CONFIG.statusEffects
         : [...(CONFIG.statusEffects?.values?.() ?? [])];
+      return statuses.filter(status => status?.id);
+    };
+
+    const activeStatuses = () => {
+      const configured = configuredStatuses();
       const byId = new Map(configured.map(status => [status.id, status]));
       const statuses = new Map();
 
@@ -1356,44 +1511,87 @@ export async function openRollsHud() {
 
     const combatStatuses = () => {
       const statuses = activeStatuses();
-
-      if (!statuses.length) {
-        return "";
-      }
+      const activeIds = new Set(statuses.map(status => status.id));
+      const statusLabel = status =>
+        game.i18n.localize(status.name ?? status.label ?? status.id);
+      const statusIcon = status =>
+        status.img ?? status.icon ?? "icons/svg/aura.svg";
 
       return `
         <div class="ws-combat-statuses">
-          <div class="ws-section-title">
-            <i class="fa-solid fa-icons"></i>
-            ${t("Combat.Conditions")}
-          </div>
+          <button
+            type="button"
+            class="ws-conditions-toggle ws-button"
+            data-action="toggleconditions"
+            aria-expanded="${conditionsExpanded}"
+          >
+            <span><i class="fa-solid fa-icons"></i>${t("Combat.Conditions")}</span>
+            <span class="ws-conditions-summary">
+              ${statuses.length ? statuses.length : t("Combat.ConditionsNone")}
+              <i class="fa-solid fa-chevron-${conditionsExpanded ? "up" : "down"}"></i>
+            </span>
+          </button>
 
-          <div class="ws-status-list">
-            ${statuses
-              .map(status => {
-                const label = game.i18n.localize(
-                  status.name ?? status.label ?? status.id
-                );
-                const icon = status.img ?? status.icon ?? "icons/svg/aura.svg";
+          ${
+            conditionsExpanded
+              ? `
+                <div class="ws-condition-picker">
+                  ${configuredStatuses()
+                    .map(status => {
+                      const active = activeIds.has(status.id);
+                      const label = statusLabel(status);
 
-                return `
-                  <button
-                    type="button"
-                    class="ws-status ws-button"
-                    data-action="removestatus"
-                    data-status-id="${escapeHTML(status.id)}"
-                    ${status.effectId ? `data-effect-id="${escapeHTML(status.effectId)}"` : ""}
-                    title="${tf("Combat.RemoveCondition", { condition: label })}"
-                    ${canRollActor ? "" : "disabled"}
-                  >
-                    <img src="${escapeHTML(icon)}" alt="">
-                    <span>${escapeHTML(label)}</span>
-                    <i class="fa-solid fa-xmark"></i>
-                  </button>
-                `;
-              })
-              .join("")}
-          </div>
+                      return `
+                        <button
+                          type="button"
+                          class="ws-condition-option ws-button ${active ? "ws-active" : ""}"
+                          data-action="togglestatus"
+                          data-status-id="${escapeHTML(status.id)}"
+                          aria-pressed="${active}"
+                          title="${escapeHTML(label)}"
+                          ${canRollActor ? "" : "disabled"}
+                        >
+                          <img src="${escapeHTML(statusIcon(status))}" alt="">
+                          <span>${escapeHTML(label)}</span>
+                          <i class="fa-solid fa-toggle-${active ? "on" : "off"}"></i>
+                        </button>
+                      `;
+                    })
+                    .join("")}
+                </div>
+              `
+              : ""
+          }
+
+          ${
+            statuses.length
+              ? `
+                <div class="ws-active-conditions">
+                  ${statuses
+                    .map(status => {
+                      const label = statusLabel(status);
+
+                      return `
+                        <button
+                          type="button"
+                          class="ws-status ws-button"
+                          data-action="removestatus"
+                          data-status-id="${escapeHTML(status.id)}"
+                          ${status.effectId ? `data-effect-id="${escapeHTML(status.effectId)}"` : ""}
+                          title="${tf("Combat.RemoveCondition", { condition: label })}"
+                          ${canRollActor ? "" : "disabled"}
+                        >
+                          <img src="${escapeHTML(statusIcon(status))}" alt="">
+                          <span>${escapeHTML(label)}</span>
+                          <i class="fa-solid fa-xmark"></i>
+                        </button>
+                      `;
+                    })
+                    .join("")}
+                </div>
+              `
+              : ""
+          }
         </div>
       `;
     };
@@ -1426,14 +1624,49 @@ export async function openRollsHud() {
         return "";
       }
 
-      const resources = Object.entries(actor.system.resources ?? {})
+      const actorResources = Object.entries(actor.system.resources ?? {})
         .map(([id, resource]) => ({
           id,
           label: resource?.label || id,
           value: Number(resource?.value ?? 0),
-          max: Number(resource?.max ?? 0)
+          max: Number(resource?.max ?? 0),
+          itemId: null
         }))
         .filter(resource => resource.max > 0 || resource.value > 0);
+
+      const featureResources = actor.items
+        .filter(item => item.type === "feat")
+        .map(item => {
+          const uses = item.system?.uses ?? {};
+          const max = Number(uses.max ?? 0);
+          const spent = Number(uses.spent ?? 0);
+          const hasLegacyValue = ![undefined, null, ""].includes(uses.value);
+          const value = hasLegacyValue
+            ? Number(uses.value) || 0
+            : Math.max(0, max - spent);
+
+          return {
+            id: item.id,
+            label: item.name,
+            value,
+            max,
+            itemId: item.id
+          };
+        })
+        .filter(resource => resource.max > 0);
+
+      const actorLabels = new Set(
+        actorResources.map(resource =>
+          String(resource.label).trim().toLocaleLowerCase()
+        )
+      );
+      const resources = [
+        ...actorResources,
+        ...featureResources.filter(
+          resource =>
+            !actorLabels.has(String(resource.label).trim().toLocaleLowerCase())
+        )
+      ];
 
       if (!resources.length) {
         return "";
@@ -1444,10 +1677,13 @@ export async function openRollsHud() {
           ${resources
             .map(
               resource => `
-                <div class="ws-combat-stat">
+                <${resource.itemId ? "button" : "div"}
+                  class="ws-combat-stat ${resource.itemId ? "ws-resource-link ws-button" : ""}"
+                  ${resource.itemId ? `type="button" data-action="openitem" data-item-id="${resource.itemId}" title="${t("Combat.OpenDescription")}"` : ""}
+                >
                   <span>${escapeHTML(resource.label)}</span>
                   <strong>${resource.value} / ${resource.max || "—"}</strong>
-                </div>
+                </${resource.itemId ? "button" : "div"}>
               `
             )
             .join("")}
@@ -1469,7 +1705,9 @@ export async function openRollsHud() {
           id="ws-combat"
           class="ws-view ws-combat-view"
         >
-          ${actorHeader(combatInitiative())}
+          ${actorHeader(`${combatInitiative()}${inspirationControl()}`)}
+
+          ${modeNavigation("combat")}
 
           <div class="ws-combat-heading">
             <span>
@@ -1539,8 +1777,6 @@ export async function openRollsHud() {
 
           ${combatActions()}
 
-          ${modeNavigation("combat")}
-
           ${shortcutHint()}
         </div>
       `;
@@ -1600,7 +1836,9 @@ export async function openRollsHud() {
           id="ws-death"
           class="ws-view ws-death-view"
         >
-          ${actorHeader()}
+          ${actorHeader(inspirationControl())}
+
+          ${modeNavigation("death")}
 
           <div class="ws-death-heading">
 
@@ -1648,8 +1886,6 @@ export async function openRollsHud() {
               `
               : ""
           }
-
-          ${modeNavigation("death")}
 
           ${shortcutHint()}
         </div>
@@ -1702,7 +1938,10 @@ export async function openRollsHud() {
             '[data-action="tool"]',
             '[data-action="death"]',
             '[data-action="useitem"]',
-            '[data-action="removestatus"]'
+            '[data-action="removestatus"]',
+            '[data-action="togglestatus"]',
+            '[data-action="shortrest"]',
+            '[data-action="longrest"]'
           ].join(",")
         )
         .forEach(button => {
@@ -1735,6 +1974,22 @@ export async function openRollsHud() {
       }
     };
 
+    const performAndRefresh = async callback => {
+      if (rollPending) {
+        return;
+      }
+
+      rollPending = true;
+      setRollControlsDisabled(true);
+
+      try {
+        return await callback();
+      } finally {
+        rollPending = false;
+        refreshHud();
+      }
+    };
+
     const setView = view => {
       if (!["main", "skills", "tools"].includes(view)) {
         return;
@@ -1763,6 +2018,7 @@ export async function openRollsHud() {
       if (!showDeathSaves() && !combatModeAvailable()) {
         forceRegularMode = false;
         forceCombatMode = false;
+        forceDeathMode = false;
       }
 
       const mode = currentMode();
@@ -1880,6 +2136,7 @@ export async function openRollsHud() {
       normal: function () {
         forceRegularMode = true;
         forceCombatMode = false;
+        forceDeathMode = false;
         currentView = "main";
         refreshHud();
       },
@@ -1887,6 +2144,7 @@ export async function openRollsHud() {
       regularview: function (_event, target) {
         forceRegularMode = true;
         forceCombatMode = false;
+        forceDeathMode = false;
         currentView = target.dataset.view;
         refreshHud();
       },
@@ -1898,6 +2156,7 @@ export async function openRollsHud() {
 
         forceRegularMode = false;
         forceCombatMode = true;
+        forceDeathMode = false;
         currentView = "main";
         refreshHud();
       },
@@ -1910,6 +2169,53 @@ export async function openRollsHud() {
       spellfilter: function (_event, target) {
         preparedSpellsOnly = target.dataset.prepared === "true";
         refreshHud();
+      },
+
+      toggleconditions: function () {
+        conditionsExpanded = !conditionsExpanded;
+        refreshHud();
+      },
+
+      togglestatus: async function (_event, target) {
+        if (!canRollActor) {
+          return ui.notifications.warn(t("Warnings.NoPermission"));
+        }
+
+        const statusId = target.dataset.statusId;
+        return performAndRefresh(() =>
+          actor.toggleStatusEffect(statusId, {
+            active: !actor.statuses?.has(statusId)
+          })
+        );
+      },
+
+      inspiration: function () {
+        if (!canRollActor) {
+          return ui.notifications.warn(t("Warnings.NoPermission"));
+        }
+
+        return performAndRefresh(() =>
+          actor.update({
+            "system.attributes.inspiration":
+              !actor.system.attributes?.inspiration
+          })
+        );
+      },
+
+      shortrest: function () {
+        if (!canRollActor) {
+          return ui.notifications.warn(t("Warnings.NoPermission"));
+        }
+
+        return performAndRefresh(() => actor.shortRest());
+      },
+
+      longrest: function () {
+        if (!canRollActor) {
+          return ui.notifications.warn(t("Warnings.NoPermission"));
+        }
+
+        return performAndRefresh(() => actor.longRest());
       },
 
       useitem: async function (event, target) {
@@ -1957,12 +2263,13 @@ export async function openRollsHud() {
       },
 
       deathmode: function () {
-        if (!showDeathSaves()) {
-          return ui.notifications.warn(t("Death.NotRequired"));
+        if (!deathModeAvailable()) {
+          return ui.notifications.warn(t("Combat.NotAvailable"));
         }
 
         forceRegularMode = false;
         forceCombatMode = false;
+        forceDeathMode = true;
         currentView = "main";
         refreshHud();
       },
@@ -2113,6 +2420,9 @@ export async function openRollsHud() {
         "deleteActiveEffect",
         Hooks.on("deleteActiveEffect", refreshActorEffect)
       ],
+      ["createItem", Hooks.on("createItem", refreshActorEffect)],
+      ["updateItem", Hooks.on("updateItem", refreshActorEffect)],
+      ["deleteItem", Hooks.on("deleteItem", refreshActorEffect)],
       ["createCombat", Hooks.on("createCombat", refreshHud)],
       ["updateCombat", Hooks.on("updateCombat", refreshHud)],
       ["deleteCombat", Hooks.on("deleteCombat", refreshHud)],

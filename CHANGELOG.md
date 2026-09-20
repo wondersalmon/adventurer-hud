@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.5
+
+- Added a collapsed-by-default condition picker with enable/disable controls and separate active-condition removal buttons.
+- Fixed live condition and class-feature resource updates.
+- Added consumable class features, including Focus Points, to combat resources when they expose limited uses.
+- Added attack bonuses and damage formulas to weapon and spell cards.
+- Added character class and level information, including multiclass summaries.
+- Added Heroic Inspiration controls to every mode and short/long rest controls to regular mode.
+- Made death-save mode manually accessible outside zero HP while keeping death-save rolls gated by character state.
+- Moved mode navigation directly below the actor header and added an option to hide manual navigation.
+- Strengthened vertical scrolling for the full HUD, skills, tools, condition picker and combat item lists.
+- Reviewed the settings surface and retained distinct visibility controls where they affect independent HUD sections.
+
 ## 0.6.0
 
 - Reworked responsive grids so controls gain columns instead of stretching excessively in wide windows.

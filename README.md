@@ -7,6 +7,17 @@
 A player-focused character, rolls and combat HUD for Foundry VTT 14 and the
 D&D 5e system.
 
+## Installation
+
+In Foundry VTT, choose **Install Module**, paste the following manifest URL and
+select **Install**:
+
+```text
+https://github.com/wondersalmon/adventurer-hud/releases/latest/download/module.json
+```
+
+[Open the latest manifest](https://github.com/wondersalmon/adventurer-hud/releases/latest/download/module.json)
+
 ## Compatibility
 
 - Foundry VTT 14
@@ -26,11 +37,12 @@ native roll events.
 
 - Compact checks, saves, skills, tools and death saves HUD
 - Actor portrait and name in every HUD mode
+- Character class and level, Heroic Inspiration, and native rest controls
 - Automatic combat layout with HP, optional temporary/max-HP values, AC, speed, resources and initiative
 - Configurable weapons, spells and action-type tabs with native item use
 - Prepared/all spell filters, spell-level groups and remaining spell-slot indicators
-- Optional range, activation, resource cost, concentration and ritual details on combat cards
-- Item-sheet shortcuts and removable active conditions with live updates
+- Optional range, attack bonus, damage formula, activation, resource cost, concentration and ritual details on combat cards
+- Collapsible condition controls, removable active conditions and live updates
 - Manual fallback between regular, combat and death-save layouts
 - Native D&D 5e roll calls with modifier-key forwarding
 - Token Controls button and configurable keybinding (`Shift+R` by default)
@@ -82,6 +94,7 @@ All options are per-user and available under Foundry's Module Settings:
 - keep the HUD open after rolls;
 - additional combat-card information;
 - visibility of combat resources and each combat item tab;
+- optional manual navigation among HUD modes;
 - visibility of initiative, checks, saves, skills, tools, death saves and shortcut hints.
 
 The title-bar menu provides quick access to module settings, the keep-open toggle
