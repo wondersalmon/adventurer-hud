@@ -5,6 +5,7 @@ export const SETTINGS = Object.freeze({
   automaticCombatMode: "automaticCombatMode",
   autoUpdateActor: "autoUpdateActor",
   keepOpen: "keepOpen",
+  hudLayout: "hudLayout",
   fontSize: "fontSize",
   showAbilityChecks: "showAbilityChecks",
   showDeathSaves: "showDeathSaves",
@@ -90,6 +91,15 @@ export function registerSettings() {
     name: "Adventurer HUD window geometry",
     hint: "",
     scope: "client",
+    config: false,
+    type: Object,
+    default: {}
+  });
+
+  game.settings.register(MODULE_ID, SETTINGS.hudLayout, {
+    name: "Adventurer HUD layout",
+    hint: "",
+    scope: "user",
     config: false,
     type: Object,
     default: {}

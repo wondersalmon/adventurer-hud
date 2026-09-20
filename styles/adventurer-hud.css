@@ -37,6 +37,28 @@
   white-space: nowrap;
 }
 
+.ws-resource-dialog .ws-resource-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ws-resource-dialog .ws-resource-dialog-content p {
+  margin: 0;
+  font-weight: 800;
+}
+
+.ws-resource-dialog .ws-resource-dialog-content label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 80px;
+  align-items: center;
+  gap: 10px;
+}
+
+.ws-resource-dialog .ws-resource-dialog-content button {
+  min-height: 36px;
+}
+
 .ws-rolls-dialog {
   min-width: 270px;
 }
@@ -119,6 +141,83 @@
 
 .ws-rolls-dialog .ws-hidden {
   display: none !important;
+}
+
+.ws-rolls-dialog .ws-layout-hidden {
+  display: none !important;
+}
+
+.ws-rolls-dialog .ws-layout-anchor {
+  display: none;
+}
+
+.ws-rolls-dialog .ws-layout-palette {
+  padding: 7px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  border: 1px dashed var(--accent);
+  border-radius: 7px;
+  background: var(--accent-bg);
+  font-size: calc(8px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-layout-palette strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+}
+
+.ws-rolls-dialog .ws-layout-palette button {
+  min-height: 28px;
+  padding: 3px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: inherit;
+}
+
+.ws-rolls-dialog .ws-layout-editable {
+  padding: 5px;
+  border: 1px dashed rgb(193 154 88 / 0.65);
+  border-radius: 7px;
+  cursor: grab;
+}
+
+.ws-rolls-dialog .ws-layout-controls {
+  width: 100%;
+  min-height: 24px;
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--accent);
+  font-size: calc(8px * var(--ws-type-scale));
+  font-weight: 800;
+}
+
+.ws-rolls-dialog .ws-combat-heading.ws-layout-editable,
+.ws-rolls-dialog .ws-death-heading.ws-layout-editable {
+  flex-wrap: wrap;
+}
+
+.ws-rolls-dialog .ws-layout-controls span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ws-rolls-dialog .ws-layout-controls button {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--danger);
 }
 
 /* Actor identity */
@@ -362,10 +461,33 @@
 }
 
 .ws-rolls-dialog .ws-combat-resources {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ws-rolls-dialog .ws-resource-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(105px, 180px));
   justify-content: start;
   gap: 6px;
+}
+
+.ws-rolls-dialog .ws-resources-toggle {
+  min-height: 34px;
+  padding: 5px 9px;
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: calc(9px * var(--ws-type-scale));
+  font-weight: 800;
+}
+
+.ws-rolls-dialog .ws-resources-toggle > span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 
 .ws-rolls-dialog .ws-combat-stat {
@@ -758,6 +880,17 @@
   grid-template-columns: 58px repeat(6, minmax(54px, 110px));
   justify-content: start;
   gap: 5px;
+}
+
+.ws-rolls-dialog .ws-combat-view .ws-ability-row {
+  grid-template-columns: repeat(6, minmax(54px, 110px));
+}
+
+.ws-rolls-dialog .ws-combat-view .ws-row-label {
+  grid-column: 1 / -1;
+  min-height: 20px;
+  justify-content: flex-start;
+  padding-inline: 3px;
 }
 
 .ws-rolls-dialog .ws-row-label {
@@ -1241,6 +1374,18 @@
   }
 
   .ws-rolls-dialog .ws-combat-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ws-rolls-dialog .ws-resources-toggle {
+    display: flex;
+  }
+
+  .ws-rolls-dialog .ws-combat-resources:not(.ws-expanded) .ws-resource-grid {
+    display: none;
+  }
+
+  .ws-rolls-dialog .ws-resource-grid {
     grid-template-columns: 1fr 1fr;
   }
 }

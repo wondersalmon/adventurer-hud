@@ -1,4 +1,5 @@
 import { abilities, gaming, musical, skillIcons } from "./constants.js";
+import { MODULE_ID } from "./module-id.js";
 import {
   flushWindowGeometry,
   getSetting,
@@ -231,6 +232,44 @@ export async function openRollsHud(actorOverride = null) {
       await setSetting(SETTINGS.keepOpen, keepOpen);
     };
 
+    const layoutDefaults = Object.freeze({
+      regular: ["navigation", "abilities", "destinations", "shortcuts"],
+      combat: [
+        "navigation",
+        "heading",
+        "stats",
+        "resources",
+        "conditions",
+        "saves",
+        "actions",
+        "shortcuts"
+      ],
+      death: ["navigation", "heading", "tracker", "roll", "shortcuts"]
+    });
+    let hudLayout = foundry.utils.deepClone(
+      getSetting(SETTINGS.hudLayout) ?? {}
+    );
+    let editMode = false;
+
+    const modeLayout = mode => {
+      const defaults = layoutDefaults[mode] ?? [];
+      const saved = hudLayout[mode] ?? {};
+      const order = [
+        ...(saved.order ?? []).filter(id => defaults.includes(id)),
+        ...defaults.filter(id => !(saved.order ?? []).includes(id))
+      ];
+
+      return {
+        order: [...new Set(order)],
+        hidden: (saved.hidden ?? []).filter(id => defaults.includes(id))
+      };
+    };
+
+    const saveModeLayout = (mode, value) => {
+      hudLayout = { ...hudLayout, [mode]: value };
+      void setSetting(SETTINGS.hudLayout, hudLayout);
+    };
+
     const formatMod = value => {
       const n = Number(value ?? 0);
       if (!Number.isFinite(n)) {
@@ -338,7 +377,7 @@ export async function openRollsHud(actorOverride = null) {
         return "combat";
       }
 
-      if (forceDeathMode && deathModeAvailable()) {
+      if (forceDeathMode && (editMode || deathModeAvailable())) {
         return "death";
       }
 
@@ -751,7 +790,7 @@ export async function openRollsHud(actorOverride = null) {
     `;
 
     const modeNavigation = mode => {
-      if (!visibility.modeNavigation) {
+      if (!editMode && !visibility.modeNavigation) {
         return "";
       }
 
@@ -774,7 +813,7 @@ export async function openRollsHud(actorOverride = null) {
         );
       }
 
-      if (mode !== "death" && deathModeAvailable()) {
+      if (mode !== "death" && (editMode || deathModeAvailable())) {
         buttons.push(
           modeButton(
             "deathmode",
@@ -853,6 +892,8 @@ export async function openRollsHud(actorOverride = null) {
           class="ws-view"
         >
           ${actorHeader(`${restControls()}${inspirationControl()}`)}
+
+          <div class="ws-layout-anchor"></div>
 
           ${modeNavigation("regular")}
 
@@ -1043,6 +1084,7 @@ export async function openRollsHud(actorOverride = null) {
     let combatCategory = "weapons";
     let preparedSpellsOnly = true;
     let conditionsExpanded = false;
+    let resourcesExpanded = false;
 
     const itemActivities = item => {
       const activities = item.system?.activities;
@@ -1197,22 +1239,70 @@ export async function openRollsHud(actorOverride = null) {
       return `${number}d${denomination}${bonus ? ` + ${bonus}` : ""}`;
     };
 
+    const resolveDamageFormula = (formula, item, activity) => {
+      if (!formula) {
+        return "";
+      }
+
+      const source = String(formula);
+      const rollData =
+        activity?.getRollData?.({ deterministic: true }) ??
+        item.getRollData?.() ??
+        actor.getRollData?.() ??
+        {};
+      let resolved = source;
+
+      try {
+        resolved = Roll.replaceFormulaData(source, rollData, {
+          missing: 0,
+          warn: false
+        });
+      } catch {
+        // Keep the readable source formula when a system formula cannot be resolved.
+      }
+
+      return resolved.replaceAll(/\s+/g, " ").trim();
+    };
+
     const itemDamageFormula = item => {
-      const activityParts = itemActivities(item).flatMap(
-        activity => activity?.damage?.parts ?? []
+      const activities = itemActivities(item);
+      const activityParts = activities.flatMap(activity =>
+        (activity?.damage?.parts ?? []).map(part => ({ activity, part }))
       );
       const legacyParts = item.system?.damage?.parts ?? [];
       const base = item.system?.damage?.base;
-      const formulas = [
+      const records = [
         ...activityParts,
-        ...(base?.formula ? [base] : []),
-        ...legacyParts
-      ]
-        .map(damagePartFormula)
+        ...(base?.formula ? [{ activity: activities[0], part: base }] : []),
+        ...legacyParts.map(part => ({ activity: activities[0], part }))
+      ];
+      const sourceFormulas = records.map(({ part }) => damagePartFormula(part));
+      const formulas = records
+        .map(({ activity, part }) =>
+          resolveDamageFormula(damagePartFormula(part), item, activity)
+        )
         .map(formula => String(formula ?? "").trim())
         .filter(Boolean);
+      const unique = [...new Set(formulas)];
 
-      return [...new Set(formulas)].join(" + ");
+      if (
+        item.type === "weapon" &&
+        unique.length &&
+        !sourceFormulas.some(formula => String(formula).includes("@mod"))
+      ) {
+        const activity = activities.find(candidate => candidate?.attack);
+        const abilityId =
+          activity?.ability ??
+          item.system?.ability ??
+          (item.system?.actionType?.startsWith("r") ? "dex" : "str");
+        const modifier = Number(actor.system.abilities?.[abilityId]?.mod ?? 0);
+
+        if (modifier) {
+          unique[0] = `${unique[0]} ${modifier > 0 ? "+" : "-"} ${Math.abs(modifier)}`;
+        }
+      }
+
+      return unique.join(" + ");
     };
 
     const isPreparedSpell = item => {
@@ -1731,22 +1821,100 @@ export async function openRollsHud(actorOverride = null) {
       }
 
       return `
-        <div class="ws-combat-resources">
-          ${resources
-            .map(
-              resource => `
-                <${resource.itemId ? "button" : "div"}
-                  class="ws-combat-stat ${resource.itemId ? "ws-resource-link ws-button" : ""}"
-                  ${resource.itemId ? `type="button" data-action="openitem" data-item-id="${resource.itemId}" title="${t("Combat.OpenDescription")}"` : ""}
+        <div class="ws-combat-resources ${resourcesExpanded ? "ws-expanded" : ""}">
+          <button type="button" class="ws-resources-toggle ws-button" data-action="toggleresources" aria-expanded="${resourcesExpanded}">
+            <span><i class="fa-solid fa-battery-three-quarters"></i>${t("Combat.ClassResources")}</span>
+            <span>${resources.length}<i class="fa-solid fa-chevron-${resourcesExpanded ? "up" : "down"}"></i></span>
+          </button>
+          <div class="ws-resource-grid">
+            ${resources
+              .map(
+                resource => `
+                <button
+                  type="button"
+                  class="ws-combat-stat ws-resource-link ws-button"
+                  data-action="openresource"
+                  ${resource.itemId ? `data-item-id="${resource.itemId}"` : `data-resource-id="${escapeHTML(resource.id)}"`}
+                  title="${t("Combat.ConsumeResource")}"
                 >
                   <span>${escapeHTML(resource.label)}</span>
                   <strong>${resource.value} / ${resource.max || "—"}</strong>
-                </${resource.itemId ? "button" : "div"}>
+                </button>
               `
-            )
-            .join("")}
+              )
+              .join("")}
+          </div>
         </div>
       `;
+    };
+
+    const openResourceDialog = ({ item = null, resourceId = null } = {}) => {
+      const actorResource = resourceId
+        ? actor.system.resources?.[resourceId]
+        : null;
+      const uses = item?.system?.uses ?? actorResource ?? {};
+      const max = Number(uses.max ?? 0);
+      const current = ![undefined, null, ""].includes(uses.value)
+        ? Number(uses.value) || 0
+        : Math.max(0, max - Number(uses.spent ?? 0));
+      const content = document.createElement("div");
+      content.className = "ws-resource-dialog-content";
+      content.innerHTML = `
+        <p>${escapeHTML(item?.name ?? actorResource?.label ?? resourceId)}</p>
+        <label>
+          <span>${t("Combat.ResourceAmount")}</span>
+          <input type="number" name="amount" value="1" min="1" max="${Math.max(1, current)}" step="1">
+        </label>
+        <small>${tf("Combat.ResourceRemaining", { current, max })}</small>
+        <button type="button" data-action="consumeresource">
+          <i class="fa-solid fa-minus"></i>${t("Combat.Consume")}
+        </button>
+      `;
+
+      const dialog = new DialogV2({
+        classes: ["ws-resource-dialog"],
+        window: { title: t("Combat.ConsumeResource") },
+        position: { width: 320, height: "auto" },
+        content,
+        actions: {
+          consumeresource: async function () {
+            const input = dialog.element.querySelector('[name="amount"]');
+            const amount = Math.min(
+              current,
+              Math.max(1, Number(input?.value ?? 1) || 1)
+            );
+            const sourceUses = item?._source?.system?.uses ?? {};
+
+            if (item && Object.hasOwn(sourceUses, "spent")) {
+              const spent = Number(uses.spent ?? 0);
+              await item.update({
+                "system.uses.spent": Math.min(max, spent + amount)
+              });
+            } else if (item) {
+              await item.update({
+                "system.uses.value": Math.max(0, current - amount)
+              });
+            } else if (resourceId) {
+              await actor.update({
+                [`system.resources.${resourceId}.value`]: Math.max(
+                  0,
+                  current - amount
+                )
+              });
+            }
+
+            await dialog.close();
+          }
+        },
+        buttons: [
+          {
+            action: "close",
+            label: t("Actor.Cancel")
+          }
+        ]
+      });
+
+      return dialog.render({ force: true });
     };
 
     function combatHTML() {
@@ -1764,6 +1932,8 @@ export async function openRollsHud(actorOverride = null) {
           class="ws-view ws-combat-view"
         >
           ${actorHeader(`${combatInitiative()}${inspirationControl()}`)}
+
+          <div class="ws-layout-anchor"></div>
 
           ${modeNavigation("combat")}
 
@@ -1896,6 +2066,8 @@ export async function openRollsHud(actorOverride = null) {
         >
           ${actorHeader(inspirationControl())}
 
+          <div class="ws-layout-anchor"></div>
+
           ${modeNavigation("death")}
 
           <div class="ws-death-heading">
@@ -1926,21 +2098,23 @@ export async function openRollsHud(actorOverride = null) {
           ${
             canRollActor && canRollDeathSave()
               ? `
-                <button
-                  type="button"
-                  class="ws-death-roll ws-button"
-                  data-action="death"
-                  aria-label="${t("Death.Roll")}"
-                >
-                  <span>
-                    <i class="fa-solid fa-dice-d20"></i>
-                    ${t("Death.Roll")}
-                  </span>
+                <div class="ws-death-roll-section">
+                  <button
+                    type="button"
+                    class="ws-death-roll ws-button"
+                    data-action="death"
+                    aria-label="${t("Death.Roll")}"
+                  >
+                    <span>
+                      <i class="fa-solid fa-dice-d20"></i>
+                      ${t("Death.Roll")}
+                    </span>
 
-                  <i
-                    class="fa-solid fa-chevron-right ws-arrow"
-                  ></i>
-                </button>
+                    <i
+                      class="fa-solid fa-chevron-right ws-arrow"
+                    ></i>
+                  </button>
+                </div>
               `
               : ""
           }
@@ -2062,6 +2236,138 @@ export async function openRollsHud(actorOverride = null) {
       app.element.querySelector(`#ws-${view}`)?.classList.remove("ws-hidden");
     };
 
+    const layoutSelectors = {
+      regular: {
+        navigation: ".ws-mode-navigation",
+        abilities: ".ws-ability-table",
+        destinations: ".ws-nav-grid",
+        shortcuts: ".ws-shortcuts"
+      },
+      combat: {
+        navigation: ".ws-mode-navigation",
+        heading: ".ws-combat-heading",
+        stats: ".ws-combat-stats",
+        resources: ".ws-combat-resources",
+        conditions: ".ws-combat-statuses",
+        saves: ".ws-ability-table",
+        actions: ".ws-combat-actions",
+        shortcuts: ".ws-shortcuts"
+      },
+      death: {
+        navigation: ".ws-mode-navigation",
+        heading: ".ws-death-heading",
+        tracker: ".ws-death-tracker",
+        roll: ".ws-death-roll-section",
+        shortcuts: ".ws-shortcuts"
+      }
+    };
+
+    const applyLayout = mode => {
+      const view = app?.element?.querySelector(
+        `#ws-${mode === "regular" ? "main" : mode}`
+      );
+      const anchor = view?.querySelector(":scope > .ws-layout-anchor");
+
+      if (!view || !anchor) {
+        return;
+      }
+
+      view
+        .querySelectorAll(":scope > .ws-divider")
+        .forEach(divider => divider.remove());
+
+      const selectors = layoutSelectors[mode];
+      const elements = new Map();
+
+      for (const [id, selector] of Object.entries(selectors)) {
+        const element = view.querySelector(`:scope > ${selector}`);
+
+        if (element) {
+          element.dataset.layoutSection = id;
+          elements.set(id, element);
+        }
+      }
+
+      const layout = modeLayout(mode);
+      let cursor = anchor;
+
+      for (const id of layout.order) {
+        const element = elements.get(id);
+
+        if (!element) {
+          continue;
+        }
+
+        cursor.after(element);
+        cursor = element;
+        element.classList.toggle(
+          "ws-layout-hidden",
+          layout.hidden.includes(id) && !(editMode && id === "navigation")
+        );
+      }
+
+      view.classList.toggle("ws-edit-mode", editMode);
+
+      if (!editMode) {
+        return;
+      }
+
+      for (const [id, element] of elements) {
+        if (layout.hidden.includes(id) && id !== "navigation") {
+          continue;
+        }
+
+        element.draggable = true;
+        element.classList.add("ws-layout-editable");
+        element.insertAdjacentHTML(
+          "afterbegin",
+          `<div class="ws-layout-controls">
+            <span><i class="fa-solid fa-grip-vertical"></i>${t(`Layout.${id}`)}</span>
+            <button type="button" data-action="layoutremove" data-section="${id}" title="${t("Layout.Remove")}"><i class="fa-solid fa-xmark"></i></button>
+          </div>`
+        );
+
+        element.addEventListener("dragstart", event => {
+          event.dataTransfer.setData("text/plain", id);
+          event.dataTransfer.effectAllowed = "move";
+        });
+        element.addEventListener("dragover", event => event.preventDefault());
+        element.addEventListener("drop", event => {
+          event.preventDefault();
+          const source = event.dataTransfer.getData("text/plain");
+
+          if (!source || source === id || !layout.order.includes(source)) {
+            return;
+          }
+
+          const order = layout.order.filter(entry => entry !== source);
+          order.splice(order.indexOf(id), 0, source);
+          saveModeLayout(mode, { ...layout, order });
+          refreshHud();
+        });
+      }
+
+      const hidden = layout.hidden.filter(
+        id => id !== "navigation" && elements.has(id)
+      );
+      const palette = document.createElement("div");
+      palette.className = "ws-layout-palette";
+      palette.innerHTML = `
+        <strong><i class="fa-solid fa-pen-ruler"></i>${t("Layout.EditMode")}</strong>
+        ${
+          hidden.length
+            ? hidden
+                .map(
+                  id =>
+                    `<button type="button" class="ws-button" data-action="layoutadd" data-section="${id}"><i class="fa-solid fa-plus"></i>${t(`Layout.${id}`)}</button>`
+                )
+                .join("")
+            : `<span>${t("Layout.AllVisible")}</span>`
+        }
+      `;
+      anchor.after(palette);
+    };
+
     const refreshHud = () => {
       if (!app?.rendered) {
         return;
@@ -2092,6 +2398,8 @@ export async function openRollsHud(actorOverride = null) {
       if (windowTitle) {
         windowTitle.textContent = dialogTitle();
       }
+
+      applyLayout(mode);
 
       if (mode === "regular") {
         setView(currentView);
@@ -2229,8 +2537,35 @@ export async function openRollsHud(actorOverride = null) {
         refreshHud();
       },
 
+      layoutremove: function (_event, target) {
+        const mode = currentMode();
+        const layout = modeLayout(mode);
+        const section = target.dataset.section;
+
+        if (!layout.hidden.includes(section)) {
+          layout.hidden.push(section);
+          saveModeLayout(mode, layout);
+          refreshHud();
+        }
+      },
+
+      layoutadd: function (_event, target) {
+        const mode = currentMode();
+        const layout = modeLayout(mode);
+        layout.hidden = layout.hidden.filter(
+          id => id !== target.dataset.section
+        );
+        saveModeLayout(mode, layout);
+        refreshHud();
+      },
+
       toggleconditions: function () {
         conditionsExpanded = !conditionsExpanded;
+        refreshHud();
+      },
+
+      toggleresources: function () {
+        resourcesExpanded = !resourcesExpanded;
         refreshHud();
       },
 
@@ -2300,6 +2635,23 @@ export async function openRollsHud(actorOverride = null) {
         return item.sheet.render({ force: true });
       },
 
+      openresource: function (_event, target) {
+        if (!canRollActor) {
+          return ui.notifications.warn(t("Warnings.NoPermission"));
+        }
+
+        const item = target.dataset.itemId
+          ? actor.items.get(target.dataset.itemId)
+          : null;
+        const resourceId = target.dataset.resourceId;
+
+        if (!item && !resourceId) {
+          return ui.notifications.warn(t("Combat.ItemMissing"));
+        }
+
+        return openResourceDialog({ item, resourceId });
+      },
+
       removestatus: async function (_event, target) {
         if (!canRollActor) {
           return ui.notifications.warn(t("Warnings.NoPermission"));
@@ -2316,12 +2668,31 @@ export async function openRollsHud(actorOverride = null) {
         refreshHud();
       },
 
-      settings: function () {
-        return game.settings.sheet.render({ force: true });
+      settings: async function () {
+        const sheet = game.settings.sheet;
+        await sheet.render({ force: true });
+
+        const category = sheet.element?.querySelector(
+          `[data-category="${MODULE_ID}"], [data-tab="${MODULE_ID}"]`
+        );
+
+        if (category) {
+          category.click();
+        } else {
+          sheet.search?.(t("Title"));
+        }
+
+        return sheet;
+      },
+
+      toggleedit: function () {
+        editMode = !editMode;
+        currentView = "main";
+        refreshHud();
       },
 
       deathmode: function () {
-        if (!deathModeAvailable()) {
+        if (!editMode && !deathModeAvailable()) {
           return ui.notifications.warn(t("Combat.NotAvailable"));
         }
 
@@ -2407,6 +2778,11 @@ export async function openRollsHud(actorOverride = null) {
         title: dialogTitle(),
         resizable: true,
         controls: [
+          {
+            icon: "fa-solid fa-pen-ruler",
+            label: t("Layout.ToggleEdit"),
+            action: "toggleedit"
+          },
           {
             icon: keepOpen ? "fa-solid fa-toggle-on" : "fa-solid fa-toggle-off",
             label: t("Window.KeepOpenMenu"),
@@ -2507,7 +2883,10 @@ export async function openRollsHud(actorOverride = null) {
     );
 
     if (currentMode() === "regular") {
+      applyLayout("regular");
       setView(currentView);
+    } else {
+      applyLayout(currentMode());
     }
   } catch (error) {
     console.error("Rolls HUD | fatal error", error);

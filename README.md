@@ -49,6 +49,7 @@ native roll events.
 - Token Controls button and configurable keybinding (`Shift+R` by default)
 - Automatic updates when the selected token changes
 - Per-user section visibility, font-size and behavior settings
+- Persistent per-mode layout editing with section reordering, hiding and restoration
 - Persistent client window size and position
 - Optional adaptive grids, spacing and typography for narrow and wide windows
 - Window behavior and geometry controls in the title-bar menu
@@ -99,8 +100,10 @@ All options are per-user and available under Foundry's Module Settings:
 - visibility of initiative, checks, saves, skills, tools, death saves and shortcut hints.
 
 The title-bar menu provides quick access to module settings, the keep-open toggle
-and window-geometry reset. Window size and position are stored per client. The
-open/close shortcut is configurable through Foundry's Configure Controls screen.
+layout editing and window-geometry reset. Layout editing supports drag-and-drop
+ordering and hiding/restoring sections independently in regular, combat and
+death-save modes. Window size and position are stored per client. The open/close
+shortcut is configurable through Foundry's Configure Controls screen.
 
 ## Development
 

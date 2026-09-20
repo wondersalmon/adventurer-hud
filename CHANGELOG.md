@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0
+
+- Added a persistent per-user layout editor with drag-and-drop section ordering, hide/add controls, and access to all HUD modes while editing.
+- Opened Adventurer HUD's category directly when using the title-menu settings action.
+- Resolved roll-data variables in damage formulas and added the weapon ability modifier when it is applied implicitly by D&D 5e.
+- Moved the combat saving-throw label above its buttons to reduce horizontal usage.
+- Added resource-consumption dialogs for class-feature and custom actor resources.
+- Made class resources collapsible in narrow combat layouts.
+
 ## 0.6.7
 
 - Replaced the nested percentage-height scroller with Foundry's native window-content scrolling.
