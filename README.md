@@ -37,7 +37,7 @@ native roll events.
 
 ## Demo
 
-[Module demonstration](docs/media/demo.mp4)
+![Module demonstration](docs/media/demo.webp)
 
 ## Features
 
