@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFile } from "node:fs/promises";
 
 import {
   createHudState,
@@ -80,4 +81,35 @@ test("regular views are validated and rendered on demand", () => {
     }),
     "combat"
   );
+});
+
+test("regular HUD keeps initiative beside the actor controls", async () => {
+  const source = await readFile(
+    new URL("../scripts/rolls-hud.js", import.meta.url),
+    "utf8"
+  );
+  const regularView = source.slice(
+    source.indexOf("function normalHTML()"),
+    source.indexOf("function combatHTML()")
+  );
+
+  assert.match(
+    regularView,
+    /actorHeader\(`\$\{combatInitiative\(\)\}\$\{inspirationControl\(\)\}`\)/
+  );
+});
+
+test("extra-large typography and resource shortcut keys have dedicated styles", async () => {
+  const css = await readFile(
+    new URL("../styles/adventurer-hud.css", import.meta.url),
+    "utf8"
+  );
+  const source = await readFile(
+    new URL("../scripts/rolls-hud.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(css, /\.ws-font-extralarge \.ws-view/);
+  assert.match(source, /ws-resource-shortcuts ws-shortcuts/);
+  assert.match(source, /<kbd>\$\{t\("Combat\.ResourceConsumeKeys"\)\}<\/kbd>/);
 });

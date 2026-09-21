@@ -68,14 +68,14 @@ export const BASIC_SETTINGS = Object.freeze([
   SETTINGS.adaptiveLayout,
   SETTINGS.fontSize,
   SETTINGS.keepOpen,
+  SETTINGS.autoUpdateActor,
   SETTINGS.automaticCombatMode,
   SETTINGS.showItemDetails,
-  SETTINGS.showDeathSaves,
-  SETTINGS.showShortcuts
+  SETTINGS.showDeathSaves
 ]);
 
 const ADVANCED_SETTING_GROUPS = Object.freeze({
-  behavior: Object.freeze([SETTINGS.autoUpdateActor]),
+  behavior: Object.freeze([SETTINGS.showShortcuts]),
   regular: Object.freeze([
     SETTINGS.showAbilityChecks,
     SETTINGS.showSavingThrows,
@@ -360,6 +360,30 @@ export async function openSettings() {
     sheet.search?.(game.i18n.localize("ADVENTURER_HUD.Title"));
   }
   return sheet;
+}
+
+export function moveSettingsMenusToBottom(root) {
+  const element = root?.querySelector ? root : root?.[0];
+  if (!element) {
+    return;
+  }
+
+  const rows = ["configure", "reset"]
+    .map(key => {
+      const settingId = `${MODULE_ID}.${key}`;
+      const control = element.querySelector(
+        `[data-key="${settingId}"], [data-setting-id="${settingId}"], [name="${settingId}"]`
+      );
+      return control?.closest?.(".form-group") ?? null;
+    })
+    .filter(Boolean);
+
+  if (rows.length !== 2 || rows[0].parentElement !== rows[1].parentElement) {
+    return;
+  }
+
+  const container = rows[0].parentElement;
+  rows.forEach(row => container.append(row));
 }
 
 export async function resetSettings() {

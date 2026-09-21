@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   BASIC_SETTINGS,
   migrateLegacySettings,
+  moveSettingsMenusToBottom,
   registerSettings,
   resetSettings,
   SETTING_DEFAULTS,
@@ -45,11 +46,14 @@ test("manual mode navigation defaults to hidden and migrations are per user", ()
   assert.equal(registrations.get(SETTINGS.showModeNavigation)?.default, false);
   assert.equal(registrations.get(SETTINGS.migrationVersion)?.scope, "user");
   assert.equal(registrations.get(SETTINGS.fontSize)?.config, true);
-  assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.config, false);
+  assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.config, true);
   assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.default, false);
+  assert.equal(registrations.get(SETTINGS.showShortcuts)?.config, false);
   assert.equal(menus.get("configure")?.restricted, false);
   assert.equal(menus.get("reset")?.restricted, false);
   assert.ok(BASIC_SETTINGS.includes(SETTINGS.fontSize));
+  assert.ok(BASIC_SETTINGS.includes(SETTINGS.autoUpdateActor));
+  assert.ok(!BASIC_SETTINGS.includes(SETTINGS.showShortcuts));
   assert.ok(SETTING_GROUPS.advanced.includes(SETTINGS.showModeNavigation));
   assert.ok(SETTING_GROUPS.combat.includes(SETTINGS.showCombatResources));
 
@@ -102,4 +106,23 @@ test("migration preserves navigation and moves legacy spell visibility", async (
     [SETTINGS.showSpells, false],
     [SETTINGS.migrationVersion, 3]
   ]);
+});
+
+test("additional and reset settings menus are moved below regular options", () => {
+  const appended = [];
+  const parent = { append: row => appended.push(row.id) };
+  const rows = {
+    "adventurer-hud.configure": { id: "configure", parentElement: parent },
+    "adventurer-hud.reset": { id: "reset", parentElement: parent }
+  };
+  const root = {
+    querySelector(selector) {
+      const id = Object.keys(rows).find(key => selector.includes(key));
+      return id ? { closest: () => rows[id] } : null;
+    }
+  };
+
+  moveSettingsMenusToBottom(root);
+
+  assert.deepEqual(appended, ["configure", "reset"]);
 });

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.7
+
+- Added initiative to the regular HUD for characters already added to an encounter, including before combat starts.
+- Fixed the extra-large text-size option and aligned class-resource shortcut hints with the HUD's other keyboard hints.
+- Moved selected-token following into the main settings and shortcut hints into Additional Settings; Additional Settings and Reset Settings now remain at the bottom of the module section.
+- Completed the Foundry VTT 14 manifest metadata with the package type, project, documentation, support, license, author, and media links.
+- Added regression coverage for regular-mode initiative, typography, resource hints, settings placement, and release manifest URLs.
+
 ## 0.8.6
 
 - Fixed the Foundry V14 settings application and restored common options directly in Module Settings while keeping granular controls under Additional Settings.

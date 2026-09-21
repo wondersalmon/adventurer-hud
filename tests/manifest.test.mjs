@@ -9,7 +9,22 @@ test("manifest and package versions match", async () => {
   const packageJson = await readJson("package.json");
 
   assert.equal(manifest.id, "adventurer-hud");
+  assert.equal(manifest.type, "module");
   assert.equal(manifest.version, packageJson.version);
+  assert.equal(manifest.url, "https://github.com/wondersalmon/adventurer-hud");
+  assert.match(manifest.manifest, /releases\/latest\/download\/module\.json$/);
+  assert.match(
+    manifest.download,
+    new RegExp(
+      `releases/download/v${packageJson.version}/adventurer-hud\\.zip$`
+    )
+  );
+  assert.ok(manifest.readme);
+  assert.ok(manifest.changelog);
+  assert.ok(manifest.bugs);
+  assert.ok(manifest.license);
+  assert.ok(Array.isArray(manifest.media) && manifest.media.length > 0);
+  assert.ok(manifest.media.every(entry => entry.type && entry.url));
 });
 
 test("manifest targets Foundry 14 and dnd5e 5.3+", async () => {

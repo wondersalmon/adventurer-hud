@@ -1,17 +1,31 @@
 {
   "id": "adventurer-hud",
+  "type": "module",
   "title": "Adventurer HUD",
   "description": "A player-focused character, rolls and combat HUD for Foundry VTT D&D 5e.",
-  "version": "0.8.6",
+  "version": "0.8.7",
   "manifest": "https://github.com/wondersalmon/adventurer-hud/releases/latest/download/module.json",
-  "download": "https://github.com/wondersalmon/adventurer-hud/releases/download/v0.8.6/adventurer-hud.zip",
+  "download": "https://github.com/wondersalmon/adventurer-hud/releases/download/v0.8.7/adventurer-hud.zip",
+  "url": "https://github.com/wondersalmon/adventurer-hud",
+  "readme": "https://github.com/wondersalmon/adventurer-hud/blob/main/README.md",
+  "changelog": "https://github.com/wondersalmon/adventurer-hud/blob/main/CHANGELOG.md",
+  "bugs": "https://github.com/wondersalmon/adventurer-hud/issues",
+  "license": "https://github.com/wondersalmon/adventurer-hud/blob/main/LICENSE",
   "compatibility": {
     "minimum": "14",
     "verified": "14"
   },
   "authors": [
     {
-      "name": "wondersalmon"
+      "name": "wondersalmon",
+      "url": "https://github.com/wondersalmon"
+    }
+  ],
+  "media": [
+    {
+      "type": "setup",
+      "url": "https://raw.githubusercontent.com/wondersalmon/adventurer-hud/main/docs/media/demo.webp",
+      "thumbnail": "https://raw.githubusercontent.com/wondersalmon/adventurer-hud/main/docs/media/image.png"
     }
   ],
   "esmodules": ["scripts/adventurer-hud.js"],

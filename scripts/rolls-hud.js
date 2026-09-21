@@ -849,7 +849,7 @@ export async function openRollsHud(actorOverride = null) {
           id="ws-main"
           class="ws-view"
         >
-          ${actorHeader(inspirationControl())}
+          ${actorHeader(`${combatInitiative()}${inspirationControl()}`)}
 
           ${restControls()}
 
@@ -1732,7 +1732,10 @@ export async function openRollsHud(actorOverride = null) {
           </div>
           ${
             hudState.resourcesExpanded
-              ? `<div class="ws-resource-shortcuts"><i class="fa-solid fa-keyboard"></i>${t("Combat.ResourceShortcuts")}</div>`
+              ? `<div class="ws-resource-shortcuts ws-shortcuts">
+                  <span><kbd>${t("Combat.ResourceConsumeKeys")}</kbd> ${t("Combat.ResourceConsumeOne")}</span>
+                  <span><kbd>${t("Combat.ResourceRestoreKeys")}</kbd> ${t("Combat.ResourceRestoreOne")}</span>
+                </div>`
               : ""
           }
         </div>
@@ -2596,7 +2599,7 @@ export async function openRollsHud(actorOverride = null) {
       classes: [
         "ws-rolls-dialog",
         adaptiveLayout ? "ws-adaptive" : "ws-fixed",
-        `ws-font-${fontSize}`
+        `ws-font-${String(fontSize).toLowerCase()}`
       ],
 
       window: {

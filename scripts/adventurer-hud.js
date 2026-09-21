@@ -4,6 +4,7 @@ import { actorContextChanged } from "./runtime-helpers.js";
 import {
   getSetting,
   migrateLegacySettings,
+  moveSettingsMenusToBottom,
   registerSettings,
   SETTINGS
 } from "./settings.js";
@@ -107,6 +108,10 @@ Hooks.on("getSceneControlButtons", controls => {
 
 Hooks.on("controlToken", scheduleActorRefresh);
 Hooks.on("canvasReady", scheduleActorRefresh);
+
+Hooks.on("renderSettingsConfig", (app, html) => {
+  moveSettingsMenusToBottom(html ?? app.element);
+});
 
 Hooks.on("adventurerHudSettingChanged", key => {
   const layoutSettings = new Set([
