@@ -1,6 +1,11 @@
 import { abilities, gaming, musical, skillIcons } from "./constants.js";
 import { MODULE_ID } from "./module-id.js";
 import {
+  calculateResourceValue,
+  findCombatant,
+  tokenForActor
+} from "./runtime-helpers.js";
+import {
   flushWindowGeometry,
   getSetting,
   getWindowGeometry,
@@ -40,8 +45,9 @@ export async function openRollsHud(actorOverride = null) {
       return ui.notifications.warn(t("Warnings.OneToken"));
     }
 
-    const token = selected[0] ?? null;
-    const actor = actorOverride ?? token?.actor ?? null;
+    const selectedToken = selected[0] ?? null;
+    const actor = actorOverride ?? selectedToken?.actor ?? null;
+    const token = tokenForActor(selectedToken, actor);
 
     if (!actor) {
       const availableActors = game.actors.filter(
@@ -110,6 +116,7 @@ export async function openRollsHud(actorOverride = null) {
     }
 
     state.actorUuid = actor.uuid;
+    state.tokenUuid = token?.document?.uuid ?? token?.uuid ?? null;
 
     const canRollActor = actor.isOwner;
     const adaptiveLayout = Boolean(getSetting(SETTINGS.adaptiveLayout));
@@ -341,17 +348,10 @@ export async function openRollsHud(actorOverride = null) {
       }
 
       const tokenId = token?.document?.id ?? token?.id;
-      const combatants = combat.combatants?.contents ?? [
-        ...(combat.combatants?.values?.() ?? [])
-      ];
-
-      return (
-        combatants.find(
-          combatant => tokenId && combatant.tokenId === tokenId
-        ) ??
-        combatants.find(combatant => combatant.actorId === actor.id) ??
-        null
-      );
+      return findCombatant(combat.combatants, {
+        actorId: actor.id,
+        tokenId
+      });
     };
 
     // =========================================================
@@ -1902,7 +1902,7 @@ export async function openRollsHud(actorOverride = null) {
             <button type="button" data-action="changeresource" data-direction="consume" ${current <= 0 ? "disabled" : ""}>
               <i class="fa-solid fa-minus"></i>${t("Combat.Consume")}
             </button>
-            <button type="button" data-action="changeresource" data-direction="restore" ${max > 0 && current >= max ? "disabled" : ""}>
+            <button type="button" data-action="changeresource" data-direction="restore" ${max <= 0 || current >= max ? "disabled" : ""}>
               <i class="fa-solid fa-plus"></i>${t("Combat.Restore")}
             </button>
           </div>
@@ -1917,45 +1917,31 @@ export async function openRollsHud(actorOverride = null) {
         actions: {
           changeresource: async function (_event, target) {
             const input = dialog.element.querySelector('[name="amount"]');
-            const restore = target.dataset.direction === "restore";
-            const available = restore
-              ? max > 0
-                ? Math.max(0, max - current)
-                : Number.POSITIVE_INFINITY
-              : current;
-            const amount = Math.min(
-              available,
-              Math.max(1, Number(input?.value ?? 1) || 1)
-            );
+            const direction = target.dataset.direction;
+            const nextValue = calculateResourceValue({
+              amount: input?.value,
+              current,
+              direction,
+              max
+            });
+
+            if (nextValue === null || nextValue === current) {
+              return;
+            }
+
             const sourceUses = item?._source?.system?.uses ?? {};
 
             if (item && Object.hasOwn(sourceUses, "spent")) {
-              const spent = Number(uses.spent ?? 0);
               await item.update({
-                "system.uses.spent": Math.max(
-                  0,
-                  Math.min(max, spent + (restore ? -amount : amount))
-                )
+                "system.uses.spent": Math.max(0, max - nextValue)
               });
             } else if (item) {
               await item.update({
-                "system.uses.value": Math.max(
-                  0,
-                  Math.min(
-                    max || Number.POSITIVE_INFINITY,
-                    current + (restore ? amount : -amount)
-                  )
-                )
+                "system.uses.value": nextValue
               });
             } else if (resourceId) {
               await actor.update({
-                [`system.resources.${resourceId}.value`]: Math.max(
-                  0,
-                  Math.min(
-                    max || Number.POSITIVE_INFINITY,
-                    current + (restore ? amount : -amount)
-                  )
-                )
+                [`system.resources.${resourceId}.value`]: nextValue
               });
             }
 
@@ -2532,10 +2518,6 @@ export async function openRollsHud(actorOverride = null) {
           return ui.notifications.warn(t("Warnings.NoPermission"));
         }
 
-        if (!token) {
-          return ui.notifications.warn(t("Initiative.SelectToken"));
-        }
-
         if (!game.combat) {
           return ui.notifications.warn(t("Initiative.NoCombat"));
         }
@@ -2986,6 +2968,7 @@ export async function openRollsHud(actorOverride = null) {
         if (state.app === app) {
           state.app = null;
           state.actorUuid = null;
+          state.tokenUuid = null;
         }
       },
       { once: true }

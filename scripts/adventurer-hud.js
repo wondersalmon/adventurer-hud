@@ -1,5 +1,6 @@
 import { openRollsHud } from "./rolls-hud.js";
 import { MODULE_ID } from "./module-id.js";
+import { actorContextChanged } from "./runtime-helpers.js";
 import {
   getSetting,
   migrateLegacySettings,
@@ -36,9 +37,17 @@ const scheduleActorRefresh = () => {
     }
 
     const actor = selected[0]?.actor ?? game.user.character;
+    const tokenUuid = selected[0]?.document?.uuid ?? selected[0]?.uuid ?? null;
+    const current = globalThis.__adventurerHud ?? {};
 
-    if (actor && actor.uuid !== globalThis.__adventurerHud?.actorUuid) {
-      void openRollsHud();
+    if (
+      actor &&
+      actorContextChanged(
+        { actorUuid: current.actorUuid, tokenUuid: current.tokenUuid },
+        { actorUuid: actor.uuid, tokenUuid }
+      )
+    ) {
+      void openRollsHud(actor);
     }
   }, 50);
 };

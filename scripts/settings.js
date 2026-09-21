@@ -108,7 +108,7 @@ export function registerSettings() {
   game.settings.register(MODULE_ID, SETTINGS.migrationVersion, {
     name: "Adventurer HUD migration version",
     hint: "",
-    scope: "client",
+    scope: "user",
     config: false,
     type: Number,
     default: 0
@@ -192,10 +192,6 @@ export async function migrateLegacySettings() {
     } catch (error) {
       console.warn(`${MODULE_ID} | Unable to migrate legacy settings`, error);
     }
-  }
-
-  if (version < 2) {
-    await setSetting(SETTINGS.showModeNavigation, false);
   }
 
   await setSetting(SETTINGS.migrationVersion, 2);

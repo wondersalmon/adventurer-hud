@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Fixed automatic actor tracking so changing or deselecting a token refreshes the complete actor/token context.
+- Allowed initiative rolls for an owned actor when its combatant is known without requiring the token to remain selected.
+- Prevented restoring resources that do not define a finite maximum and centralized resource-value clamping.
+- Changed migration bookkeeping to per-user scope and stopped overwriting an existing manual-navigation preference.
+- Added regression tests for token context, combatant selection, resource bounds, setting defaults and migrations.
+
 ## 0.7.8
 
 - Added a collapsible saving-throw section, expanded by default.
