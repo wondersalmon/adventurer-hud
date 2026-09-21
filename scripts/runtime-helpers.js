@@ -37,5 +37,9 @@ export function calculateResourceValue({ amount, current, direction, max }) {
     return Math.min(maximum, currentValue + requested);
   }
 
+  if (direction === "restoreAll") {
+    return maximum > 0 ? maximum : null;
+  }
+
   return Math.max(0, currentValue - requested);
 }

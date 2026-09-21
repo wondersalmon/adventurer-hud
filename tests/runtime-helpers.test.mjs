@@ -78,4 +78,13 @@ test("resource changes are clamped and maxless resources cannot be restored", ()
     }),
     null
   );
+  assert.equal(
+    calculateResourceValue({
+      amount: 1,
+      current: 1,
+      direction: "restoreAll",
+      max: 6
+    }),
+    6
+  );
 });

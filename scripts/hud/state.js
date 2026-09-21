@@ -10,7 +10,6 @@ export function createHudState(initial = {}) {
   return {
     combatCategory: "weapons",
     currentView: "main",
-    editMode: false,
     forcedMode: null,
     preparedSpellsOnly: true,
     resourcesExpanded: false,
@@ -33,15 +32,15 @@ export function setRegularView(state, view) {
 export function resolveHudMode({
   automaticCombatMode,
   combatAvailable,
+  deathActive,
   deathAvailable,
-  editMode,
   forcedMode,
   isActiveCombatant
 }) {
   if (forcedMode === "regular") return "regular";
   if (forcedMode === "combat" && combatAvailable) return "combat";
-  if (forcedMode === "death" && (editMode || deathAvailable)) return "death";
-  if (deathAvailable) return "death";
+  if (forcedMode === "death" && deathAvailable) return "death";
+  if (deathActive) return "death";
   if (automaticCombatMode && isActiveCombatant) return "combat";
   return "regular";
 }

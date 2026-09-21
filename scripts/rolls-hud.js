@@ -12,7 +12,6 @@ import {
   itemActivities,
   itemRangeData
 } from "./dnd5e/items.js";
-import { LAYOUT_SCHEMA, normalizeModeLayout } from "./hud/layout.js";
 import {
   createHudState,
   resolveHudMode,
@@ -149,8 +148,11 @@ export async function openRollsHud(actorOverride = null) {
       initiative: getSetting(SETTINGS.showInitiative),
       itemDetails: getSetting(SETTINGS.showItemDetails),
       modeNavigation: getSetting(SETTINGS.showModeNavigation),
+      modeHeadings: getSetting(SETTINGS.showModeHeadings),
       combatResources: getSetting(SETTINGS.showCombatResources),
+      combatStats: getSetting(SETTINGS.showCombatStats),
       combatWeapons: getSetting(SETTINGS.showCombatWeapons),
+      conditions: getSetting(SETTINGS.showConditions),
       combatSpells: getSetting(SETTINGS.showSpells),
       combatActions: getSetting(SETTINGS.showCombatActions),
       combatBonusActions: getSetting(SETTINGS.showCombatBonusActions),
@@ -250,17 +252,7 @@ export async function openRollsHud(actorOverride = null) {
       await setSetting(SETTINGS.keepOpen, keepOpen);
     };
 
-    let hudLayout = foundry.utils.deepClone(
-      getSetting(SETTINGS.hudLayout) ?? {}
-    );
     const hudState = createHudState();
-
-    const modeLayout = mode => normalizeModeLayout(mode, hudLayout[mode]);
-
-    const saveModeLayout = (mode, value) => {
-      hudLayout = { ...hudLayout, [mode]: value };
-      void setSetting(SETTINGS.hudLayout, hudLayout);
-    };
 
     const formatMod = value => {
       const n = Number(value ?? 0);
@@ -330,8 +322,8 @@ export async function openRollsHud(actorOverride = null) {
       resolveHudMode({
         automaticCombatMode: getSetting(SETTINGS.automaticCombatMode),
         combatAvailable: combatModeAvailable(),
-        deathAvailable: showDeathSaves(),
-        editMode: hudState.editMode,
+        deathActive: showDeathSaves(),
+        deathAvailable: deathModeAvailable(),
         forcedMode: hudState.forcedMode,
         isActiveCombatant: isActiveCombatant()
       });
@@ -756,7 +748,7 @@ export async function openRollsHud(actorOverride = null) {
     `;
 
     const modeNavigation = mode => {
-      if (!hudState.editMode && !visibility.modeNavigation) {
+      if (!visibility.modeNavigation) {
         return "";
       }
 
@@ -779,7 +771,7 @@ export async function openRollsHud(actorOverride = null) {
         );
       }
 
-      if (mode !== "death" && (hudState.editMode || deathModeAvailable())) {
+      if (mode !== "death" && deathModeAvailable()) {
         buttons.push(
           modeButton(
             "deathmode",
@@ -860,8 +852,6 @@ export async function openRollsHud(actorOverride = null) {
           ${actorHeader(inspirationControl())}
 
           ${restControls()}
-
-          <div class="ws-layout-anchor"></div>
 
           ${modeNavigation("regular")}
 
@@ -1599,6 +1589,10 @@ export async function openRollsHud(actorOverride = null) {
     };
 
     const combatStatuses = () => {
+      if (!visibility.conditions) {
+        return "";
+      }
+
       const statuses = activeStatuses();
       const statusLabel = status =>
         game.i18n.localize(status.name ?? status.label ?? status.id);
@@ -1736,8 +1730,55 @@ export async function openRollsHud(actorOverride = null) {
               )
               .join("")}
           </div>
+          ${
+            hudState.resourcesExpanded
+              ? `<div class="ws-resource-shortcuts"><i class="fa-solid fa-keyboard"></i>${t("Combat.ResourceShortcuts")}</div>`
+              : ""
+          }
         </div>
       `;
+    };
+
+    const changeResource = async ({
+      amount = 1,
+      direction,
+      item = null,
+      resourceId = null
+    }) => {
+      const actorResource = resourceId
+        ? actor.system.resources?.[resourceId]
+        : null;
+      const uses = item?.system?.uses ?? actorResource ?? {};
+      const max = Number(uses.max ?? 0);
+      const current = ![undefined, null, ""].includes(uses.value)
+        ? Number(uses.value) || 0
+        : Math.max(0, max - Number(uses.spent ?? 0));
+      const nextValue = calculateResourceValue({
+        amount,
+        current,
+        direction,
+        max
+      });
+
+      if (nextValue === null || nextValue === current) {
+        return false;
+      }
+
+      const sourceUses = item?._source?.system?.uses ?? {};
+
+      if (item && Object.hasOwn(sourceUses, "spent")) {
+        await item.update({
+          "system.uses.spent": Math.max(0, max - nextValue)
+        });
+      } else if (item) {
+        await item.update({ "system.uses.value": nextValue });
+      } else if (resourceId) {
+        await actor.update({
+          [`system.resources.${resourceId}.value`]: nextValue
+        });
+      }
+
+      return true;
     };
 
     const openResourceDialog = ({ item = null, resourceId = null } = {}) => {
@@ -1765,6 +1806,9 @@ export async function openRollsHud(actorOverride = null) {
             <button type="button" data-action="changeresource" data-direction="restore" ${max <= 0 || current >= max ? "disabled" : ""}>
               <i class="fa-solid fa-plus"></i>${t("Combat.Restore")}
             </button>
+            <button type="button" data-action="changeresource" data-direction="restoreAll" ${max <= 0 || current >= max ? "disabled" : ""}>
+              <i class="fa-solid fa-angles-up"></i>${t("Combat.RestoreAll")}
+            </button>
           </div>
         </div>
       `;
@@ -1778,31 +1822,15 @@ export async function openRollsHud(actorOverride = null) {
           changeresource: async function (_event, target) {
             const input = dialog.element.querySelector('[name="amount"]');
             const direction = target.dataset.direction;
-            const nextValue = calculateResourceValue({
+            const changed = await changeResource({
               amount: input?.value,
-              current,
               direction,
-              max
+              item,
+              resourceId
             });
 
-            if (nextValue === null || nextValue === current) {
+            if (!changed) {
               return;
-            }
-
-            const sourceUses = item?._source?.system?.uses ?? {};
-
-            if (item && Object.hasOwn(sourceUses, "spent")) {
-              await item.update({
-                "system.uses.spent": Math.max(0, max - nextValue)
-              });
-            } else if (item) {
-              await item.update({
-                "system.uses.value": nextValue
-              });
-            } else if (resourceId) {
-              await actor.update({
-                [`system.resources.${resourceId}.value`]: nextValue
-              });
             }
 
             await dialog.close();
@@ -1883,11 +1911,9 @@ export async function openRollsHud(actorOverride = null) {
         >
           ${actorHeader(`${combatInitiative()}${inspirationControl()}`)}
 
-          <div class="ws-layout-anchor"></div>
-
           ${modeNavigation("combat")}
 
-          <div class="ws-combat-heading">
+          <div class="ws-combat-heading ${visibility.modeHeadings ? "" : "ws-hidden"}">
             <span>
               <i class="fa-solid fa-shield-halved"></i>
               ${t("Labels.Combat")}
@@ -1896,7 +1922,7 @@ export async function openRollsHud(actorOverride = null) {
             ${isTurn ? `<b>${t("Combat.YourTurn")}</b>` : ""}
           </div>
 
-          <div class="ws-combat-stats">
+          <div class="ws-combat-stats ${visibility.combatStats ? "" : "ws-hidden"}">
             <button
               type="button"
               class="ws-combat-stat ws-combat-hp ws-editable-stat ws-button"
@@ -2026,11 +2052,9 @@ export async function openRollsHud(actorOverride = null) {
         >
           ${actorHeader(inspirationControl())}
 
-          <div class="ws-layout-anchor"></div>
-
           ${modeNavigation("death")}
 
-          <div class="ws-death-heading">
+          <div class="ws-death-heading ${visibility.modeHeadings ? "" : "ws-hidden"}">
 
             <div class="ws-death-heading-icon">
               <i
@@ -2198,113 +2222,6 @@ export async function openRollsHud(actorOverride = null) {
       app.element.querySelector(`#ws-${view}`)?.classList.remove("ws-hidden");
     };
 
-    const applyLayout = mode => {
-      const view = app?.element?.querySelector(
-        `#ws-${mode === "regular" ? "main" : mode}`
-      );
-      const anchor = view?.querySelector(":scope > .ws-layout-anchor");
-
-      if (!view || !anchor) {
-        return;
-      }
-
-      view
-        .querySelectorAll(":scope > .ws-divider")
-        .forEach(divider => divider.remove());
-
-      const selectors = LAYOUT_SCHEMA[mode];
-      const elements = new Map();
-
-      for (const [id, selector] of Object.entries(selectors)) {
-        const element = view.querySelector(`:scope > ${selector}`);
-
-        if (element) {
-          element.dataset.layoutSection = id;
-          elements.set(id, element);
-        }
-      }
-
-      const layout = modeLayout(mode);
-      let cursor = anchor;
-
-      for (const id of layout.order) {
-        const element = elements.get(id);
-
-        if (!element) {
-          continue;
-        }
-
-        cursor.after(element);
-        cursor = element;
-        element.classList.toggle(
-          "ws-layout-hidden",
-          layout.hidden.includes(id) &&
-            !(hudState.editMode && id === "navigation")
-        );
-      }
-
-      view.classList.toggle("ws-edit-mode", hudState.editMode);
-
-      if (!hudState.editMode) {
-        return;
-      }
-
-      for (const [id, element] of elements) {
-        if (layout.hidden.includes(id) && id !== "navigation") {
-          continue;
-        }
-
-        element.draggable = true;
-        element.classList.add("ws-layout-editable");
-        element.insertAdjacentHTML(
-          "afterbegin",
-          `<div class="ws-layout-controls">
-            <span><i class="fa-solid fa-grip-vertical"></i>${t(`Layout.${id}`)}</span>
-            <button type="button" data-action="layoutremove" data-section="${id}" title="${t("Layout.Remove")}"><i class="fa-solid fa-xmark"></i></button>
-          </div>`
-        );
-
-        element.addEventListener("dragstart", event => {
-          event.dataTransfer.setData("text/plain", id);
-          event.dataTransfer.effectAllowed = "move";
-        });
-        element.addEventListener("dragover", event => event.preventDefault());
-        element.addEventListener("drop", event => {
-          event.preventDefault();
-          const source = event.dataTransfer.getData("text/plain");
-
-          if (!source || source === id || !layout.order.includes(source)) {
-            return;
-          }
-
-          const order = layout.order.filter(entry => entry !== source);
-          order.splice(order.indexOf(id), 0, source);
-          saveModeLayout(mode, { ...layout, order });
-          refreshHud();
-        });
-      }
-
-      const hidden = layout.hidden.filter(
-        id => id !== "navigation" && elements.has(id)
-      );
-      const palette = document.createElement("div");
-      palette.className = "ws-layout-palette";
-      palette.innerHTML = `
-        <strong><i class="fa-solid fa-pen-ruler"></i>${t("Layout.EditMode")}</strong>
-        ${
-          hidden.length
-            ? hidden
-                .map(
-                  id =>
-                    `<button type="button" class="ws-button" data-action="layoutadd" data-section="${id}"><i class="fa-solid fa-plus"></i>${t(`Layout.${id}`)}</button>`
-                )
-                .join("")
-            : `<span>${t("Layout.AllVisible")}</span>`
-        }
-      `;
-      anchor.after(palette);
-    };
-
     const refreshHud = (region = null) => {
       if (!app?.rendered) {
         return;
@@ -2360,8 +2277,6 @@ export async function openRollsHud(actorOverride = null) {
       if (windowTitle) {
         windowTitle.textContent = dialogTitle();
       }
-
-      applyLayout(mode);
 
       if (mode === "regular") {
         setView(hudState.currentView);
@@ -2492,28 +2407,6 @@ export async function openRollsHud(actorOverride = null) {
         refreshHud();
       },
 
-      layoutremove: function (_event, target) {
-        const mode = currentMode();
-        const layout = modeLayout(mode);
-        const section = target.dataset.section;
-
-        if (!layout.hidden.includes(section)) {
-          layout.hidden.push(section);
-          saveModeLayout(mode, layout);
-          refreshHud();
-        }
-      },
-
-      layoutadd: function (_event, target) {
-        const mode = currentMode();
-        const layout = modeLayout(mode);
-        layout.hidden = layout.hidden.filter(
-          id => id !== target.dataset.section
-        );
-        saveModeLayout(mode, layout);
-        refreshHud();
-      },
-
       toggleresources: function () {
         hudState.resourcesExpanded = !hudState.resourcesExpanded;
         refreshHud();
@@ -2580,7 +2473,7 @@ export async function openRollsHud(actorOverride = null) {
         return item.sheet.render({ force: true });
       },
 
-      openresource: function (_event, target) {
+      openresource: async function (event, target) {
         if (!canRollActor) {
           return ui.notifications.warn(t("Warnings.NoPermission"));
         }
@@ -2594,6 +2487,15 @@ export async function openRollsHud(actorOverride = null) {
           return ui.notifications.warn(t("Combat.ItemMissing"));
         }
 
+        if (event.shiftKey) {
+          return changeResource({
+            amount: 1,
+            direction: "consume",
+            item,
+            resourceId
+          });
+        }
+
         return openResourceDialog({ item, resourceId });
       },
 
@@ -2605,10 +2507,10 @@ export async function openRollsHud(actorOverride = null) {
         const statusId = target.dataset.statusId;
         const effectId = target.dataset.effectId;
 
-        if (actor.statuses?.has(statusId)) {
-          await actor.toggleStatusEffect(statusId, { active: false });
-        } else if (effectId) {
+        if (effectId) {
           await actor.effects.get(effectId)?.delete();
+        } else if (actor.statuses?.has(statusId)) {
+          await actor.toggleStatusEffect(statusId, { active: false });
         }
         refreshHud();
       },
@@ -2617,14 +2519,8 @@ export async function openRollsHud(actorOverride = null) {
         return openSettings();
       },
 
-      toggleedit: function () {
-        hudState.editMode = !hudState.editMode;
-        hudState.currentView = "main";
-        refreshHud();
-      },
-
       deathmode: function () {
-        if (!hudState.editMode && !deathModeAvailable()) {
+        if (!deathModeAvailable()) {
           return ui.notifications.warn(t("Combat.NotAvailable"));
         }
 
@@ -2708,11 +2604,6 @@ export async function openRollsHud(actorOverride = null) {
         resizable: true,
         controls: [
           {
-            icon: "fa-solid fa-pen-ruler",
-            label: t("Layout.ToggleEdit"),
-            action: "toggleedit"
-          },
-          {
             icon: keepOpen ? "fa-solid fa-toggle-on" : "fa-solid fa-toggle-off",
             label: t("Window.KeepOpenMenu"),
             action: "togglekeepopen"
@@ -2753,6 +2644,29 @@ export async function openRollsHud(actorOverride = null) {
     });
 
     state.app = app;
+
+    app.element.addEventListener("contextmenu", event => {
+      const target = event.target.closest?.(".ws-resource-link");
+
+      if (!target || !event.shiftKey || !canRollActor) {
+        return;
+      }
+
+      event.preventDefault();
+      const item = target.dataset.itemId
+        ? actor.items.get(target.dataset.itemId)
+        : null;
+
+      void changeResource({
+        amount: 1,
+        direction: "restore",
+        item,
+        resourceId: target.dataset.resourceId
+      }).catch(error => {
+        console.error("Rolls HUD | quick resource restore", error);
+        ui.notifications.error(`Rolls HUD: ${error?.message ?? error}`);
+      });
+    });
 
     app.addEventListener("position", () => storePosition(app.position));
 
@@ -2819,10 +2733,7 @@ export async function openRollsHud(actorOverride = null) {
     );
 
     if (currentMode() === "regular") {
-      applyLayout("regular");
       setView(hudState.currentView);
-    } else {
-      applyLayout(currentMode());
     }
   } catch (error) {
     console.error("Rolls HUD | fatal error", error);

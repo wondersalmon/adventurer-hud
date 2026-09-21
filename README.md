@@ -35,14 +35,10 @@ behavior.
 - Regular, combat, and death-save layouts
 - Checks, saves, skills, tools, spells, weapons, and actions
 - HP, temporary HP, AC, speed, initiative, class resources, conditions, and spell slots
-- Character picker when no token is selected
-- Heroic Inspiration, short rest, and long rest controls
 - Native item use and roll modifier keys
-- Automatic combat and selected-token tracking
+- Automatic mode detection for regular, combat, and death-save states
 - Responsive layout, font sizing, and persistent window geometry
-- Per-user visibility settings and per-mode layout editing
 - Configurable Token Controls button and keybinding (`Shift+R` by default)
-- English and Russian localization
 
 ![Adventurer HUD demonstration](docs/media/demo.webp)
 
@@ -65,12 +61,11 @@ game.modules.get("adventurer-hud").api.open();
 ## Configuration
 
 Open **Adventurer HUD settings** from Foundry's Module Settings or the HUD title
-menu. Options are grouped into behavior, appearance, regular mode, combat mode,
-and advanced settings. The title menu also provides layout editing, keep-open,
-and window reset controls.
+menu. Common options and reset controls appear directly in Foundry's Module
+Settings; granular options are under **Additional settings**. The title menu
+also provides keep-open and window reset controls.
 
-Settings and layouts are stored per user; window size and position are stored
-per client. English is the fallback localization.
+Settings are stored per user; window size and position are stored per client.
 
 ## Development
 
@@ -82,5 +77,5 @@ npm run check
 npm run build
 ```
 
-Compatibility adapters live in `scripts/dnd5e`, HUD state and layout rules in
-`scripts/hud`, and render dispatch in `scripts/render`.
+Compatibility adapters live in `scripts/dnd5e`, HUD state rules in `scripts/hud`,
+and render dispatch in `scripts/render`.

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { normalizeModeLayout } from "../scripts/hud/layout.js";
 import {
   createHudState,
   resolveHudMode,
@@ -20,8 +19,8 @@ test("one forced mode replaces the former three-flag state", () => {
     resolveHudMode({
       automaticCombatMode: false,
       combatAvailable: true,
+      deathActive: false,
       deathAvailable: true,
-      editMode: false,
       forcedMode: state.forcedMode,
       isActiveCombatant: false
     }),
@@ -33,19 +32,33 @@ test("automatic mode priority remains death, combat, regular", () => {
   const base = {
     automaticCombatMode: true,
     combatAvailable: true,
-    editMode: false,
+    deathAvailable: true,
     forcedMode: null,
     isActiveCombatant: true
   };
-  assert.equal(resolveHudMode({ ...base, deathAvailable: true }), "death");
-  assert.equal(resolveHudMode({ ...base, deathAvailable: false }), "combat");
+  assert.equal(resolveHudMode({ ...base, deathActive: true }), "death");
+  assert.equal(resolveHudMode({ ...base, deathActive: false }), "combat");
   assert.equal(
     resolveHudMode({
       ...base,
       automaticCombatMode: false,
-      deathAvailable: false
+      deathActive: false
     }),
     "regular"
+  );
+});
+
+test("manual death mode remains available before death saves are active", () => {
+  assert.equal(
+    resolveHudMode({
+      automaticCombatMode: false,
+      combatAvailable: true,
+      deathActive: false,
+      deathAvailable: true,
+      forcedMode: "death",
+      isActiveCombatant: false
+    }),
+    "death"
   );
 });
 
@@ -66,18 +79,5 @@ test("regular views are validated and rendered on demand", () => {
       combat: () => "combat"
     }),
     "combat"
-  );
-});
-
-test("saved layouts are normalized against the current schema", () => {
-  assert.deepEqual(
-    normalizeModeLayout("regular", {
-      order: ["shortcuts", "removed", "abilities"],
-      hidden: ["destinations", "removed"]
-    }),
-    {
-      order: ["shortcuts", "abilities", "navigation", "destinations"],
-      hidden: ["destinations"]
-    }
   );
 });

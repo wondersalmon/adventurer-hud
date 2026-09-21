@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  BASIC_SETTINGS,
   migrateLegacySettings,
   registerSettings,
+  resetSettings,
+  SETTING_DEFAULTS,
   SETTING_GROUPS,
   SETTINGS
 } from "../scripts/settings.js";
@@ -41,8 +44,12 @@ test("manual mode navigation defaults to hidden and migrations are per user", ()
 
   assert.equal(registrations.get(SETTINGS.showModeNavigation)?.default, false);
   assert.equal(registrations.get(SETTINGS.migrationVersion)?.scope, "user");
-  assert.equal(registrations.get(SETTINGS.fontSize)?.config, false);
+  assert.equal(registrations.get(SETTINGS.fontSize)?.config, true);
+  assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.config, false);
+  assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.default, false);
   assert.equal(menus.get("configure")?.restricted, false);
+  assert.equal(menus.get("reset")?.restricted, false);
+  assert.ok(BASIC_SETTINGS.includes(SETTINGS.fontSize));
   assert.ok(SETTING_GROUPS.advanced.includes(SETTINGS.showModeNavigation));
   assert.ok(SETTING_GROUPS.combat.includes(SETTINGS.showCombatResources));
 
@@ -54,6 +61,21 @@ test("manual mode navigation defaults to hidden and migrations are per user", ()
     .map(([key]) => key);
   assert.equal(new Set(groupedKeys).size, groupedKeys.length);
   assert.deepEqual(new Set(groupedKeys), new Set(configurableKeys));
+});
+
+test("reset restores configurable defaults", async () => {
+  const writes = [];
+  globalThis.game = {
+    settings: {
+      async set(_moduleId, key, value) {
+        writes.push([key, value]);
+      }
+    }
+  };
+
+  await resetSettings();
+
+  assert.deepEqual(writes, Object.entries(SETTING_DEFAULTS));
 });
 
 test("migration preserves navigation and moves legacy spell visibility", async () => {

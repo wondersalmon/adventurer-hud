@@ -5,15 +5,17 @@ export const SETTINGS = Object.freeze({
   automaticCombatMode: "automaticCombatMode",
   autoUpdateActor: "autoUpdateActor",
   keepOpen: "keepOpen",
-  hudLayout: "hudLayout",
   fontSize: "fontSize",
   showAbilityChecks: "showAbilityChecks",
   showDeathSaves: "showDeathSaves",
   showInitiative: "showInitiative",
   showItemDetails: "showItemDetails",
   showModeNavigation: "showModeNavigation",
+  showModeHeadings: "showModeHeadings",
   showCombatResources: "showCombatResources",
+  showCombatStats: "showCombatStats",
   showCombatWeapons: "showCombatWeapons",
+  showConditions: "showConditions",
   showCombatSpells: "showCombatSpells",
   showCombatActions: "showCombatActions",
   showCombatBonusActions: "showCombatBonusActions",
@@ -48,16 +50,85 @@ export const SETTING_GROUPS = Object.freeze({
     SETTINGS.showInitiative,
     SETTINGS.showItemDetails,
     SETTINGS.showCombatResources,
+    SETTINGS.showCombatStats,
+    SETTINGS.showConditions,
     SETTINGS.showCombatWeapons,
     SETTINGS.showCombatActions,
     SETTINGS.showCombatBonusActions,
     SETTINGS.showCombatReactions,
     SETTINGS.showCombatSpecial
   ]),
-  advanced: Object.freeze([SETTINGS.showModeNavigation])
+  advanced: Object.freeze([
+    SETTINGS.showModeNavigation,
+    SETTINGS.showModeHeadings
+  ])
+});
+
+export const BASIC_SETTINGS = Object.freeze([
+  SETTINGS.adaptiveLayout,
+  SETTINGS.fontSize,
+  SETTINGS.keepOpen,
+  SETTINGS.automaticCombatMode,
+  SETTINGS.showItemDetails,
+  SETTINGS.showDeathSaves,
+  SETTINGS.showShortcuts
+]);
+
+const ADVANCED_SETTING_GROUPS = Object.freeze({
+  behavior: Object.freeze([SETTINGS.autoUpdateActor]),
+  regular: Object.freeze([
+    SETTINGS.showAbilityChecks,
+    SETTINGS.showSavingThrows,
+    SETTINGS.showSkills,
+    SETTINGS.showTools,
+    SETTINGS.showSpells
+  ]),
+  combat: Object.freeze([
+    SETTINGS.showInitiative,
+    SETTINGS.showCombatResources,
+    SETTINGS.showCombatStats,
+    SETTINGS.showConditions,
+    SETTINGS.showCombatWeapons,
+    SETTINGS.showCombatActions,
+    SETTINGS.showCombatBonusActions,
+    SETTINGS.showCombatReactions,
+    SETTINGS.showCombatSpecial
+  ]),
+  advanced: Object.freeze([
+    SETTINGS.showModeNavigation,
+    SETTINGS.showModeHeadings
+  ])
+});
+
+export const SETTING_DEFAULTS = Object.freeze({
+  [SETTINGS.adaptiveLayout]: true,
+  [SETTINGS.fontSize]: "large",
+  [SETTINGS.keepOpen]: false,
+  [SETTINGS.autoUpdateActor]: false,
+  [SETTINGS.automaticCombatMode]: true,
+  [SETTINGS.showInitiative]: true,
+  [SETTINGS.showItemDetails]: true,
+  [SETTINGS.showModeNavigation]: false,
+  [SETTINGS.showModeHeadings]: true,
+  [SETTINGS.showCombatResources]: true,
+  [SETTINGS.showCombatStats]: true,
+  [SETTINGS.showConditions]: true,
+  [SETTINGS.showCombatWeapons]: true,
+  [SETTINGS.showSpells]: true,
+  [SETTINGS.showCombatActions]: true,
+  [SETTINGS.showCombatBonusActions]: true,
+  [SETTINGS.showCombatReactions]: true,
+  [SETTINGS.showCombatSpecial]: true,
+  [SETTINGS.showAbilityChecks]: true,
+  [SETTINGS.showSavingThrows]: true,
+  [SETTINGS.showSkills]: true,
+  [SETTINGS.showTools]: true,
+  [SETTINGS.showDeathSaves]: true,
+  [SETTINGS.showShortcuts]: true
 });
 
 let SettingsApplication = null;
+let ResetSettingsApplication = null;
 
 const notifyChange = key => value =>
   Hooks.callAll("adventurerHudSettingChanged", key, value);
@@ -67,7 +138,7 @@ const registerBoolean = (key, defaultValue = true) => {
     name: `ADVENTURER_HUD.Settings.${key}.Name`,
     hint: `ADVENTURER_HUD.Settings.${key}.Hint`,
     scope: "user",
-    config: false,
+    config: BASIC_SETTINGS.includes(key),
     type: Boolean,
     default: defaultValue,
     onChange: notifyChange(key)
@@ -79,7 +150,7 @@ const registerChoice = (key, choices, defaultValue) => {
     name: `ADVENTURER_HUD.Settings.${key}.Name`,
     hint: `ADVENTURER_HUD.Settings.${key}.Hint`,
     scope: "user",
-    config: false,
+    config: BASIC_SETTINGS.includes(key),
     type: String,
     choices,
     default: defaultValue,
@@ -100,12 +171,15 @@ export function registerSettings() {
     "large"
   );
   registerBoolean(SETTINGS.keepOpen, false);
-  registerBoolean(SETTINGS.autoUpdateActor, true);
+  registerBoolean(SETTINGS.autoUpdateActor, false);
   registerBoolean(SETTINGS.automaticCombatMode, true);
   registerBoolean(SETTINGS.showInitiative);
   registerBoolean(SETTINGS.showItemDetails);
   registerBoolean(SETTINGS.showModeNavigation, false);
+  registerBoolean(SETTINGS.showModeHeadings);
   registerBoolean(SETTINGS.showCombatResources);
+  registerBoolean(SETTINGS.showCombatStats);
+  registerBoolean(SETTINGS.showConditions);
   registerBoolean(SETTINGS.showCombatWeapons);
   registerBoolean(SETTINGS.showSpells);
   registerBoolean(SETTINGS.showCombatActions);
@@ -132,15 +206,6 @@ export function registerSettings() {
     name: "Adventurer HUD window geometry",
     hint: "",
     scope: "client",
-    config: false,
-    type: Object,
-    default: {}
-  });
-
-  game.settings.register(MODULE_ID, SETTINGS.hudLayout, {
-    name: "Adventurer HUD layout",
-    hint: "",
-    scope: "user",
     config: false,
     type: Object,
     default: {}
@@ -188,7 +253,7 @@ function registerSettingsMenu() {
 
     async _prepareContext() {
       return {
-        groups: Object.entries(SETTING_GROUPS).map(([id, keys]) => ({
+        groups: Object.entries(ADVANCED_SETTING_GROUPS).map(([id, keys]) => ({
           id,
           label: game.i18n.localize(`ADVENTURER_HUD.Settings.Groups.${id}`),
           settings: keys.map(key => {
@@ -221,7 +286,7 @@ function registerSettingsMenu() {
 
     static async #onSubmit(_event, _form, formData) {
       const values = formData.object;
-      for (const keys of Object.values(SETTING_GROUPS)) {
+      for (const keys of Object.values(ADVANCED_SETTING_GROUPS)) {
         for (const key of keys) {
           const definition = game.settings.settings.get(`${MODULE_ID}.${key}`);
           const value =
@@ -233,17 +298,74 @@ function registerSettingsMenu() {
   };
 
   game.settings.registerMenu(MODULE_ID, "configure", {
-    name: "ADVENTURER_HUD.Settings.Open",
-    hint: "ADVENTURER_HUD.Settings.MenuHint",
-    label: "ADVENTURER_HUD.Settings.Open",
+    name: "ADVENTURER_HUD.Settings.Advanced.Name",
+    hint: "ADVENTURER_HUD.Settings.Advanced.Hint",
+    label: "ADVENTURER_HUD.Settings.Advanced.Label",
     icon: "fa-solid fa-dice-d20",
     type: SettingsApplication,
     restricted: false
   });
+
+  ResetSettingsApplication = class AdventurerHudResetSettings extends (
+    HandlebarsApplicationMixin(ApplicationV2)
+  ) {
+    static DEFAULT_OPTIONS = {
+      id: "adventurer-hud-reset-settings",
+      tag: "form",
+      window: {
+        icon: "fa-solid fa-arrow-rotate-left",
+        title: "ADVENTURER_HUD.Settings.Reset.Name"
+      },
+      position: { width: 420, height: "auto" },
+      form: {
+        closeOnSubmit: true,
+        handler: this.#onSubmit
+      }
+    };
+
+    static PARTS = {
+      form: {
+        template: "modules/adventurer-hud/templates/reset-settings.hbs"
+      }
+    };
+
+    static async #onSubmit() {
+      await resetSettings();
+      ui.notifications.info(
+        game.i18n.localize("ADVENTURER_HUD.Settings.Reset.Done")
+      );
+    }
+  };
+
+  game.settings.registerMenu(MODULE_ID, "reset", {
+    name: "ADVENTURER_HUD.Settings.Reset.Name",
+    hint: "ADVENTURER_HUD.Settings.Reset.Hint",
+    label: "ADVENTURER_HUD.Settings.Reset.Label",
+    icon: "fa-solid fa-arrow-rotate-left",
+    type: ResetSettingsApplication,
+    restricted: false
+  });
 }
 
-export function openSettings() {
-  return new SettingsApplication().render({ force: true });
+export async function openSettings() {
+  const sheet = game.settings.sheet;
+  await sheet.render({ force: true });
+
+  const category = sheet.element?.querySelector(
+    `[data-category="${MODULE_ID}"], [data-tab="${MODULE_ID}"]`
+  );
+  if (category) {
+    category.click();
+  } else {
+    sheet.search?.(game.i18n.localize("ADVENTURER_HUD.Title"));
+  }
+  return sheet;
+}
+
+export async function resetSettings() {
+  for (const [key, value] of Object.entries(SETTING_DEFAULTS)) {
+    await setSetting(key, value);
+  }
 }
 
 export const getSetting = key => game.settings.get(MODULE_ID, key);

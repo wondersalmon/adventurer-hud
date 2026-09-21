@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.6
+
+- Fixed the Foundry V14 settings application and restored common options directly in Module Settings while keeping granular controls under Additional Settings.
+- Added a reset-to-defaults control and made selected-token following opt-in.
+- Fixed concentration removal, added full resource restoration, and added Shift-click quick resource adjustments.
+- Removed the free-form layout editor and replaced its useful visibility controls with explicit settings for mode headings, combat statistics, and active conditions.
+- Preserved manual access to death-save mode before death saves become active and expanded regression coverage for settings templates and HUD state.
+
 ## 0.8.5
 
 - Extracted version-tolerant D&D 5e actor and item adapters with dedicated 5.3 and 6.x fixtures.
