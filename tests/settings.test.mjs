@@ -4,17 +4,35 @@ import test from "node:test";
 import {
   migrateLegacySettings,
   registerSettings,
+  SETTING_GROUPS,
   SETTINGS
 } from "../scripts/settings.js";
 
+function installFoundryApplicationStub() {
+  class ApplicationV2 {}
+  globalThis.foundry = {
+    applications: {
+      api: {
+        ApplicationV2,
+        HandlebarsApplicationMixin: Base => class extends Base {}
+      }
+    }
+  };
+}
+
 test("manual mode navigation defaults to hidden and migrations are per user", () => {
   const registrations = new Map();
+  const menus = new Map();
 
   globalThis.Hooks = { callAll() {} };
+  installFoundryApplicationStub();
   globalThis.game = {
     settings: {
       register(_moduleId, key, config) {
         registrations.set(key, config);
+      },
+      registerMenu(_moduleId, key, config) {
+        menus.set(key, config);
       }
     }
   };
@@ -23,9 +41,22 @@ test("manual mode navigation defaults to hidden and migrations are per user", ()
 
   assert.equal(registrations.get(SETTINGS.showModeNavigation)?.default, false);
   assert.equal(registrations.get(SETTINGS.migrationVersion)?.scope, "user");
+  assert.equal(registrations.get(SETTINGS.fontSize)?.config, false);
+  assert.equal(menus.get("configure")?.restricted, false);
+  assert.ok(SETTING_GROUPS.advanced.includes(SETTINGS.showModeNavigation));
+  assert.ok(SETTING_GROUPS.combat.includes(SETTINGS.showCombatResources));
+
+  const groupedKeys = Object.values(SETTING_GROUPS).flat();
+  const configurableKeys = [...registrations]
+    .filter(([, definition]) =>
+      definition.name.startsWith("ADVENTURER_HUD.Settings.")
+    )
+    .map(([key]) => key);
+  assert.equal(new Set(groupedKeys).size, groupedKeys.length);
+  assert.deepEqual(new Set(groupedKeys), new Set(configurableKeys));
 });
 
-test("version-two migration preserves the manual-navigation preference", async () => {
+test("migration preserves navigation and moves legacy spell visibility", async () => {
   const writes = [];
 
   globalThis.game = {
@@ -33,6 +64,7 @@ test("version-two migration preserves the manual-navigation preference", async (
       get(_moduleId, key) {
         if (key === SETTINGS.migrationVersion) return 1;
         if (key === SETTINGS.showModeNavigation) return true;
+        if (key === SETTINGS.showCombatSpells) return false;
         return null;
       },
       async set(_moduleId, key, value) {
@@ -44,5 +76,8 @@ test("version-two migration preserves the manual-navigation preference", async (
 
   await migrateLegacySettings();
 
-  assert.deepEqual(writes, [[SETTINGS.migrationVersion, 2]]);
+  assert.deepEqual(writes, [
+    [SETTINGS.showSpells, false],
+    [SETTINGS.migrationVersion, 3]
+  ]);
 });

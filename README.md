@@ -1,123 +1,86 @@
 # Adventurer HUD
 
+[Русская версия](README.ru.md)
+
 [![Foundry VTT 14](https://img.shields.io/badge/Foundry_VTT-14-2f855a?style=flat-square)](https://foundryvtt.com/)
 [![D&D 5e 5.3–6.x](https://img.shields.io/badge/D%26D_5e-5.3–6.x-2f855a?style=flat-square)](https://github.com/foundryvtt/dnd5e)
 ![Dependencies: none](https://img.shields.io/badge/deps-none-2f855a?style=flat-square)
 
-A player-focused character, rolls and combat HUD for Foundry VTT 14 and the
-D&D 5e system.
+A player-focused character and combat HUD for Foundry VTT 14 with D&D 5e.
 
-![image](/docs/media/image.png)
+![Adventurer HUD](docs/media/image.png)
 
-## Installation
+## Install
 
-In Foundry VTT, choose **Install Module**, paste the following manifest URL and
-select **Install**:
+In Foundry VTT, open **Install Module**, paste this manifest URL, and select
+**Install**:
 
 ```text
 https://github.com/wondersalmon/adventurer-hud/releases/latest/download/module.json
 ```
-
-[Open the latest manifest](https://github.com/wondersalmon/adventurer-hud/releases/latest/download/module.json)
 
 ## Compatibility
 
 - Foundry VTT 14
 - D&D 5e 5.3–6.x
 - No required module dependencies
-- Native D&D 5e rolls
-- Optional Midi-QOL interoperability through the native roll event
 
-Adventurer HUD works with Foundry and the D&D 5e system alone. It has no required
-module, automation-library or UI-framework dependencies. Its rolls and document
-updates use the public native Foundry and D&D 5e APIs, which keeps interference
-with other modules to a minimum. Modules that replace the same native roll
-workflows may still affect their behavior; Midi-QOL is supported through those
-native roll events.
-
-## Demo
-
-![Module demonstration](docs/media/demo.webp)
+The HUD uses native Foundry and D&D 5e APIs. It works without automation
+modules and forwards roll events for interoperability with modules such as
+Midi-QOL. Modules that replace native roll workflows can still alter roll
+behavior.
 
 ## Features
 
-- Compact checks, saves, skills, tools and death saves HUD
-- Actor portrait and name in every HUD mode
-- Owned-character selection when no token is selected
-- Character class and level, Heroic Inspiration, and native rest controls
-- Automatic combat layout with HP, optional temporary/max-HP values, AC, speed, resources and initiative
-- Configurable weapons, spells and action-type tabs with native item use
-- Spell browser in regular and combat modes with prepared/all filters, spell-level groups and remaining spell-slot indicators
-- Optional range, attack bonus, damage formula, activation, resource cost, concentration and ritual details on combat cards
-- Compact removable active-condition icons with live updates
-- Collapsible saving throws and combat class resources
-- Resource consumption and restoration controls
-- Optional manual fallback between regular, combat and death-save layouts, hidden by default
-- Native D&D 5e roll calls with modifier-key forwarding
-- Token Controls button and configurable keybinding (`Shift+R` by default)
-- Automatic updates when the selected token changes
-- Per-user section visibility, font-size and behavior settings
-- Persistent per-mode layout editing with section reordering, hiding and restoration
-- Persistent client window size and position
-- Optional adaptive grids, spacing and typography for narrow and wide windows
-- Window behavior and geometry controls in the title-bar menu
-- Synchronized English and Russian localization
-- Migration of the previous macro's saved window state
+- Regular, combat, and death-save layouts
+- Checks, saves, skills, tools, spells, weapons, and actions
+- HP, temporary HP, AC, speed, initiative, class resources, conditions, and spell slots
+- Character picker when no token is selected
+- Heroic Inspiration, short rest, and long rest controls
+- Native item use and roll modifier keys
+- Automatic combat and selected-token tracking
+- Responsive layout, font sizing, and persistent window geometry
+- Per-user visibility settings and per-mode layout editing
+- Configurable Token Controls button and keybinding (`Shift+R` by default)
+- English and Russian localization
 
-## Opening the HUD
+![Adventurer HUD demonstration](docs/media/demo.webp)
 
-Use the dice button under Token Controls or press `Shift+R` to toggle the HUD.
-The shortcut can be reassigned under Foundry's Configure Controls screen. The
-public module API can also open the HUD from a macro:
+## Usage
+
+Open the HUD with the dice button under Token Controls or its configurable
+keybinding. Combat mode activates when the selected character is in an active
+combat; the module never adds or removes combatants.
+
+Combat item cards use the native D&D 5e workflow. Their book buttons open item
+sheets without using the item. Optional details include range, attack bonus,
+damage, activation, resource cost, concentration, and ritual markers.
+
+A macro can also open the HUD through its public API:
 
 ```js
 game.modules.get("adventurer-hud").api.open();
 ```
 
-The combat layout opens automatically for the selected token's combatant while
-an active combat is running, and it can also be opened manually. The module never
-adds a token to combat and never removes one.
-
-## Combat HUD
-
-Combat mode groups owned items into weapons, spells, actions, bonus actions,
-reactions and special actions. Selecting a card uses the item through the native
-D&D 5e workflow; the book button opens its sheet without using it. Spell cards
-are grouped by level, can be filtered to prepared spells, and show the available
-spell slots. Cards can show range, activation, resource cost, concentration and
-ritual markers, while weapon cards can show normal and long range. This
-additional information can be disabled without hiding item-sheet buttons.
-
-Active configured conditions are displayed as compact icons with the character's
-combat data. An owner can remove an individual condition directly from the HUD,
-and effect changes refresh the open HUD automatically. Initiative appears beside
-the actor name and is highlighted until rolled. It can be rolled only when the GM
-has already added the selected token to combat; the module never changes combat
-membership.
-
 ## Configuration
 
-All options are per-user and available under Foundry's Module Settings:
+Open **Adventurer HUD settings** from Foundry's Module Settings or the HUD title
+menu. Options are grouped into behavior, appearance, regular mode, combat mode,
+and advanced settings. The title menu also provides layout editing, keep-open,
+and window reset controls.
 
-- adaptive layout, responsive typography and a selectable base font size;
-- automatic combat mode and automatic selected-token tracking;
-- keep the HUD open after rolls;
-- additional combat-card information;
-- visibility of combat resources and each combat item tab;
-- optional manual navigation among HUD modes;
-- visibility of initiative, checks, saves, skills, tools, death saves and shortcut hints.
+Settings and layouts are stored per user; window size and position are stored
+per client. English is the fallback localization.
 
-English is the complete fallback localization. Russian overrides it when the
-client language is set to Russian.
+## Development
 
-The title-bar menu provides quick access to module settings, the keep-open toggle
-layout editing and window-geometry reset. Layout editing supports drag-and-drop
-ordering and hiding/restoring sections independently in regular, combat and
-death-save modes. Window size and position are stored per client. The open/close
-shortcut is configurable through Foundry's Configure Controls screen.
+Requires Node.js 22 or newer.
 
-## Roadmap
+```text
+npm ci
+npm run check
+npm run build
+```
 
-- A touch-first mobile layout is planned for a later release. It will focus on
-  the assigned character, large roll controls, bottom navigation and on-screen
-  advantage/disadvantage controls instead of keyboard modifiers.
+Compatibility adapters live in `scripts/dnd5e`, HUD state and layout rules in
+`scripts/hud`, and render dispatch in `scripts/render`.

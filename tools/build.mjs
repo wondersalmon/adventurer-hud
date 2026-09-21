@@ -45,7 +45,7 @@ for (const directory of ["lang", "scripts", "styles", "templates"]) {
   archive.directory(path.join(root, directory), directory);
 }
 
-for (const file of ["README.md", "CHANGELOG.md", "LICENSE"]) {
+for (const file of ["README.md", "README.ru.md", "CHANGELOG.md", "LICENSE"]) {
   archive.file(path.join(root, file), { name: file });
 }
 

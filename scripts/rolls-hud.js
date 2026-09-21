@@ -1,5 +1,25 @@
 import { abilities, gaming, musical, skillIcons } from "./constants.js";
-import { MODULE_ID } from "./module-id.js";
+import {
+  abilityTotal,
+  actorDeathData,
+  proficiencyMultiplier
+} from "./dnd5e/actor-data.js";
+import {
+  damagePartFormula,
+  hasItemProperty,
+  isPreparedSpell,
+  itemActivation,
+  itemActivities,
+  itemRangeData
+} from "./dnd5e/items.js";
+import { LAYOUT_SCHEMA, normalizeModeLayout } from "./hud/layout.js";
+import {
+  createHudState,
+  resolveHudMode,
+  setForcedMode,
+  setRegularView
+} from "./hud/state.js";
+import { renderHudMode, renderRegularView } from "./render/index.js";
 import {
   calculateResourceValue,
   findCombatant,
@@ -9,6 +29,7 @@ import {
   flushWindowGeometry,
   getSetting,
   getWindowGeometry,
+  openSettings,
   saveWindowGeometry,
   setSetting,
   SETTINGS
@@ -130,7 +151,7 @@ export async function openRollsHud(actorOverride = null) {
       modeNavigation: getSetting(SETTINGS.showModeNavigation),
       combatResources: getSetting(SETTINGS.showCombatResources),
       combatWeapons: getSetting(SETTINGS.showCombatWeapons),
-      combatSpells: getSetting(SETTINGS.showCombatSpells),
+      combatSpells: getSetting(SETTINGS.showSpells),
       combatActions: getSetting(SETTINGS.showCombatActions),
       combatBonusActions: getSetting(SETTINGS.showCombatBonusActions),
       combatReactions: getSetting(SETTINGS.showCombatReactions),
@@ -153,16 +174,7 @@ export async function openRollsHud(actorOverride = null) {
     // Helpers
     // =========================================================
 
-    const profValue = value =>
-      Number(
-        value?.multiplier ??
-          value?.value ??
-          value?.prof?.multiplier ??
-          value?.prof?.value ??
-          value?.prof ??
-          value ??
-          0
-      ) || 0;
+    const profValue = proficiencyMultiplier;
 
     const escapeHTML = value => foundry.utils.escapeHTML(String(value ?? ""));
 
@@ -238,38 +250,12 @@ export async function openRollsHud(actorOverride = null) {
       await setSetting(SETTINGS.keepOpen, keepOpen);
     };
 
-    const layoutDefaults = Object.freeze({
-      regular: ["navigation", "abilities", "destinations", "shortcuts"],
-      combat: [
-        "navigation",
-        "heading",
-        "stats",
-        "resources",
-        "conditions",
-        "saves",
-        "actions",
-        "shortcuts"
-      ],
-      death: ["navigation", "heading", "tracker", "roll", "shortcuts"]
-    });
     let hudLayout = foundry.utils.deepClone(
       getSetting(SETTINGS.hudLayout) ?? {}
     );
-    let editMode = false;
+    const hudState = createHudState();
 
-    const modeLayout = mode => {
-      const defaults = layoutDefaults[mode] ?? [];
-      const saved = hudLayout[mode] ?? {};
-      const order = [
-        ...(saved.order ?? []).filter(id => defaults.includes(id)),
-        ...defaults.filter(id => !(saved.order ?? []).includes(id))
-      ];
-
-      return {
-        order: [...new Set(order)],
-        hidden: (saved.hidden ?? []).filter(id => defaults.includes(id))
-      };
-    };
+    const modeLayout = mode => normalizeModeLayout(mode, hudLayout[mode]);
 
     const saveModeLayout = (mode, value) => {
       hudLayout = { ...hudLayout, [mode]: value };
@@ -300,44 +286,6 @@ export async function openRollsHud(actorOverride = null) {
       return profValue(data.save?.prof ?? data.saveProf);
     };
 
-    const numericProfBonus = proficiency => {
-      const term = proficiency?.term;
-
-      if (
-        term === null ||
-        term === undefined ||
-        term === "" ||
-        !Number.isFinite(Number(term))
-      ) {
-        return 0;
-      }
-
-      return Number(proficiency.flat ?? term) || 0;
-    };
-
-    const abilityTotal = (data, type) => {
-      const preparedValue = data[type]?.value;
-
-      const prepared = Number(preparedValue);
-
-      if (
-        preparedValue !== null &&
-        preparedValue !== undefined &&
-        preparedValue !== "" &&
-        Number.isFinite(prepared)
-      ) {
-        return prepared;
-      }
-
-      const legacyBonus = Number(data[`${type}Bonus`] ?? 0) || 0;
-
-      const legacyProf = data[`${type}Prof`];
-
-      return (
-        (Number(data.mod) || 0) + legacyBonus + numericProfBonus(legacyProf)
-      );
-    };
-
     const skillProf = id => profValue(actor.system.skills?.[id]?.prof);
 
     const getCombatant = () => {
@@ -358,11 +306,7 @@ export async function openRollsHud(actorOverride = null) {
     // Death saves
     // =========================================================
 
-    const deathData = () => ({
-      failure: Number(actor.system.attributes.death?.failure ?? 0),
-      hp: Number(actor.system.attributes.hp?.value ?? 0),
-      success: Number(actor.system.attributes.death?.success ?? 0)
-    });
+    const deathData = () => actorDeathData(actor);
 
     const showDeathSaves = () =>
       visibility.deathSaves &&
@@ -377,39 +321,20 @@ export async function openRollsHud(actorOverride = null) {
       return hp <= 0 && failure < 3 && success < 3;
     };
 
-    let forceRegularMode = false;
-    let forceCombatMode = false;
-    let forceDeathMode = false;
-    let savingThrowsExpanded = true;
-
     const isActiveCombatant = () =>
       Boolean(game.combat?.started && getCombatant());
 
     const combatModeAvailable = () => actor.type === "character";
 
-    const currentMode = () => {
-      if (forceRegularMode) {
-        return "regular";
-      }
-
-      if (forceCombatMode && combatModeAvailable()) {
-        return "combat";
-      }
-
-      if (forceDeathMode && (editMode || deathModeAvailable())) {
-        return "death";
-      }
-
-      if (showDeathSaves()) {
-        return "death";
-      }
-
-      if (getSetting(SETTINGS.automaticCombatMode) && isActiveCombatant()) {
-        return "combat";
-      }
-
-      return "regular";
-    };
+    const currentMode = () =>
+      resolveHudMode({
+        automaticCombatMode: getSetting(SETTINGS.automaticCombatMode),
+        combatAvailable: combatModeAvailable(),
+        deathAvailable: showDeathSaves(),
+        editMode: hudState.editMode,
+        forcedMode: hudState.forcedMode,
+        isActiveCombatant: isActiveCombatant()
+      });
 
     // =========================================================
     // Tools
@@ -589,18 +514,18 @@ export async function openRollsHud(actorOverride = null) {
     }
 
     const savingThrowsSection = () => `
-      <div class="ws-saving-throws ${savingThrowsExpanded ? "ws-expanded" : ""}">
+      <div class="ws-saving-throws ${hudState.savingThrowsExpanded ? "ws-expanded" : ""}">
         <button
           type="button"
           class="ws-section-toggle ws-button"
           data-action="togglesaves"
-          aria-expanded="${savingThrowsExpanded}"
+          aria-expanded="${hudState.savingThrowsExpanded}"
         >
           <span><i class="fa-solid fa-shield-halved"></i>${t("Labels.Save")}</span>
-          <i class="fa-solid fa-chevron-${savingThrowsExpanded ? "up" : "down"}"></i>
+          <i class="fa-solid fa-chevron-${hudState.savingThrowsExpanded ? "up" : "down"}"></i>
         </button>
         ${
-          savingThrowsExpanded
+          hudState.savingThrowsExpanded
             ? abilityRow("save", t("Labels.Save"), "fa-shield-halved", false)
             : ""
         }
@@ -831,7 +756,7 @@ export async function openRollsHud(actorOverride = null) {
     `;
 
     const modeNavigation = mode => {
-      if (!editMode && !visibility.modeNavigation) {
+      if (!hudState.editMode && !visibility.modeNavigation) {
         return "";
       }
 
@@ -854,7 +779,7 @@ export async function openRollsHud(actorOverride = null) {
         );
       }
 
-      if (mode !== "death" && (editMode || deathModeAvailable())) {
+      if (mode !== "death" && (hudState.editMode || deathModeAvailable())) {
         buttons.push(
           modeButton(
             "deathmode",
@@ -927,7 +852,7 @@ export async function openRollsHud(actorOverride = null) {
     `;
 
     function normalHTML() {
-      return `
+      const markup = `
         <div
           id="ws-main"
           class="ws-view"
@@ -1139,10 +1064,10 @@ export async function openRollsHud(actorOverride = null) {
           <div class="ws-divider"></div>
 
           <div class="ws-spell-filter" role="group" aria-label="${t("Combat.SpellFilter")}">
-            <button type="button" class="ws-button ${preparedSpellsOnly ? "ws-active" : ""}" data-action="spellfilter" data-prepared="true">
+            <button type="button" class="ws-button ${hudState.preparedSpellsOnly ? "ws-active" : ""}" data-action="spellfilter" data-prepared="true">
               ${t("Combat.Prepared")}
             </button>
-            <button type="button" class="ws-button ${preparedSpellsOnly ? "" : "ws-active"}" data-action="spellfilter" data-prepared="false">
+            <button type="button" class="ws-button ${hudState.preparedSpellsOnly ? "" : "ws-active"}" data-action="spellfilter" data-prepared="false">
               ${t("Combat.AllSpells")}
             </button>
           </div>
@@ -1157,34 +1082,23 @@ export async function openRollsHud(actorOverride = null) {
           ${shortcutHint()}
         </div>
       `;
+
+      const template = document.createElement("template");
+      template.innerHTML = markup;
+      const view = id =>
+        template.content.querySelector(`#ws-${id}`)?.outerHTML ?? "";
+
+      return renderRegularView(hudState.currentView, {
+        main: () => view("main"),
+        skills: () => view("skills"),
+        spells: () => view("spells"),
+        tools: () => view("tools")
+      });
     }
 
     // =========================================================
     // Combat mode
     // =========================================================
-
-    let combatCategory = "weapons";
-    let preparedSpellsOnly = true;
-    let resourcesExpanded = false;
-
-    const itemActivities = item => {
-      const activities = item.system?.activities;
-
-      return typeof activities?.values === "function"
-        ? [...activities.values()]
-        : Object.values(activities ?? {});
-    };
-
-    const itemActivation = item => {
-      const legacy = item.system?.activation?.type;
-
-      if (legacy) {
-        return legacy;
-      }
-
-      return itemActivities(item).find(activity => activity?.activation?.type)
-        ?.activation?.type;
-    };
 
     const configLabel = config =>
       game.i18n.localize(config?.label ?? config ?? "");
@@ -1210,14 +1124,9 @@ export async function openRollsHud(actorOverride = null) {
     };
 
     const itemRange = item => {
-      const activityRange = itemActivities(item).find(
-        activity => activity?.range
-      )?.range;
-      const range = activityRange ?? item.system?.range ?? {};
-      const rawValue = range.value?.value ?? range.value;
-      const value = rawValue === 0 ? 0 : rawValue || "";
-      const long = range.long ?? range.value?.long ?? "";
-      const units = range.units ?? range.value?.units ?? "";
+      const range = itemRangeData(item);
+      const value = range.value === 0 ? 0 : range.value || "";
+      const { long, units } = range;
       const unitConfig =
         CONFIG.DND5E.rangeTypes?.[units] ?? CONFIG.DND5E.movementUnits?.[units];
       const unit = configLabel(unitConfig) || units;
@@ -1233,27 +1142,6 @@ export async function openRollsHud(actorOverride = null) {
       const distance = long ? `${value}/${long}` : value;
 
       return escapeHTML([distance, unit].filter(part => part !== "").join(" "));
-    };
-
-    const hasSpellProperty = (item, property) => {
-      const properties = item.system?.properties;
-      const activityHasProperty = itemActivities(item).some(activity => {
-        if (property === "concentration") {
-          return Boolean(activity?.duration?.concentration);
-        }
-
-        return false;
-      });
-
-      return [
-        properties?.has?.(property),
-        properties?.includes?.(property),
-        properties?.[property],
-        item.system?.components?.[property],
-        property === "concentration" && item.system?.duration?.concentration,
-        property === "ritual" && item.system?.preparation?.mode === "ritual",
-        activityHasProperty
-      ].some(Boolean);
     };
 
     const itemResourceCost = item => {
@@ -1298,26 +1186,6 @@ export async function openRollsHud(actorOverride = null) {
 
       const label = String(value).trim();
       return /^\d/.test(label) ? `+${label}` : label;
-    };
-
-    const damagePartFormula = part => {
-      if (Array.isArray(part)) {
-        return part[0] ?? "";
-      }
-
-      if (part?.formula) {
-        return part.formula;
-      }
-
-      const number = Number(part?.number ?? 0);
-      const denomination = Number(part?.denomination ?? 0);
-      const bonus = String(part?.bonus ?? "").trim();
-
-      if (!number || !denomination) {
-        return bonus;
-      }
-
-      return `${number}d${denomination}${bonus ? ` + ${bonus}` : ""}`;
     };
 
     const resolveDamageFormula = (formula, item, activity) => {
@@ -1386,16 +1254,6 @@ export async function openRollsHud(actorOverride = null) {
       return unique.join(" + ");
     };
 
-    const isPreparedSpell = item => {
-      const preparation = item.system?.preparation ?? {};
-
-      return Boolean(
-        Number(item.system?.level ?? 0) === 0 ||
-        preparation.prepared ||
-        ["always", "atwill", "innate", "pact"].includes(preparation.mode)
-      );
-    };
-
     const combatItems = category =>
       actor.items.filter(item => {
         if (category === "weapons") {
@@ -1413,8 +1271,8 @@ export async function openRollsHud(actorOverride = null) {
       const isSpell = item.type === "spell";
       const isWeapon = item.type === "weapon";
       const showsRange = isSpell || isWeapon;
-      const concentration = isSpell && hasSpellProperty(item, "concentration");
-      const ritual = isSpell && hasSpellProperty(item, "ritual");
+      const concentration = isSpell && hasItemProperty(item, "concentration");
+      const ritual = isSpell && hasItemProperty(item, "ritual");
       const activation = itemActivation(item);
       const resourceCost = itemResourceCost(item);
       const attackBonus = isSpell || isWeapon ? itemAttackBonus(item) : "";
@@ -1593,7 +1451,7 @@ export async function openRollsHud(actorOverride = null) {
     };
 
     const spellGroups = items => {
-      const filtered = preparedSpellsOnly
+      const filtered = hudState.preparedSpellsOnly
         ? items.filter(isPreparedSpell)
         : items;
       const levels = new Map();
@@ -1634,11 +1492,13 @@ export async function openRollsHud(actorOverride = null) {
         return "";
       }
 
-      if (!categories.some(([category]) => category === combatCategory)) {
-        combatCategory = categories[0][0];
+      if (
+        !categories.some(([category]) => category === hudState.combatCategory)
+      ) {
+        hudState.combatCategory = categories[0][0];
       }
 
-      const items = combatItems(combatCategory);
+      const items = combatItems(hudState.combatCategory);
 
       return `
         <div class="ws-combat-actions">
@@ -1649,7 +1509,7 @@ export async function openRollsHud(actorOverride = null) {
                   <button
                     type="button"
                     class="ws-combat-filter ws-button ${
-                      combatCategory === category ? "ws-active" : ""
+                      hudState.combatCategory === category ? "ws-active" : ""
                     }"
                     data-action="combatfilter"
                     data-category="${category}"
@@ -1665,13 +1525,13 @@ export async function openRollsHud(actorOverride = null) {
           </div>
 
           ${
-            combatCategory === "spells"
+            hudState.combatCategory === "spells"
               ? `
                 <div class="ws-spell-filter" role="group" aria-label="${t("Combat.SpellFilter")}">
-                  <button type="button" class="ws-button ${preparedSpellsOnly ? "ws-active" : ""}" data-action="spellfilter" data-prepared="true">
+                  <button type="button" class="ws-button ${hudState.preparedSpellsOnly ? "ws-active" : ""}" data-action="spellfilter" data-prepared="true">
                     ${t("Combat.Prepared")}
                   </button>
-                  <button type="button" class="ws-button ${preparedSpellsOnly ? "" : "ws-active"}" data-action="spellfilter" data-prepared="false">
+                  <button type="button" class="ws-button ${hudState.preparedSpellsOnly ? "" : "ws-active"}" data-action="spellfilter" data-prepared="false">
                     ${t("Combat.AllSpells")}
                   </button>
                 </div>
@@ -1682,7 +1542,7 @@ export async function openRollsHud(actorOverride = null) {
           <div class="ws-combat-item-list">
             ${
               items.length
-                ? combatCategory === "spells"
+                ? hudState.combatCategory === "spells"
                   ? spellGroups(items) ||
                     `<div class="ws-empty">${t("Combat.EmptyPrepared")}</div>`
                   : `<div class="ws-combat-item-grid">${items.map(combatItemButton).join("")}</div>`
@@ -1853,10 +1713,10 @@ export async function openRollsHud(actorOverride = null) {
       }
 
       return `
-        <div class="ws-combat-resources ${resourcesExpanded ? "ws-expanded" : ""}">
-          <button type="button" class="ws-resources-toggle ws-button" data-action="toggleresources" aria-expanded="${resourcesExpanded}">
+        <div class="ws-combat-resources ${hudState.resourcesExpanded ? "ws-expanded" : ""}">
+          <button type="button" class="ws-resources-toggle ws-button" data-action="toggleresources" aria-expanded="${hudState.resourcesExpanded}">
             <span><i class="fa-solid fa-battery-three-quarters"></i>${t("Combat.ClassResources")}</span>
-            <span>${resources.length}<i class="fa-solid fa-chevron-${resourcesExpanded ? "up" : "down"}"></i></span>
+            <span>${resources.length}<i class="fa-solid fa-chevron-${hudState.resourcesExpanded ? "up" : "down"}"></i></span>
           </button>
           <div class="ws-resource-grid">
             ${resources
@@ -2237,12 +2097,11 @@ export async function openRollsHud(actorOverride = null) {
     content.innerHTML = await renderTemplate(
       "modules/adventurer-hud/templates/rolls-hud.hbs",
       {
-        body:
-          currentMode() === "death"
-            ? deathHTML()
-            : currentMode() === "combat"
-              ? combatHTML()
-              : normalHTML()
+        body: renderHudMode(currentMode(), {
+          combat: combatHTML,
+          death: deathHTML,
+          regular: normalHTML
+        })
       }
     );
 
@@ -2257,7 +2116,6 @@ export async function openRollsHud(actorOverride = null) {
           ? tf("Window.CombatTitle", { actor: actor.name })
           : tf("Window.Title", { actor: actor.name });
 
-    let currentView = "main";
     let rollPending = false;
 
     const setRollControlsDisabled = disabled => {
@@ -2323,43 +2181,21 @@ export async function openRollsHud(actorOverride = null) {
     };
 
     const setView = view => {
-      if (!["main", "skills", "tools", "spells"].includes(view)) {
+      const previousView = hudState.currentView;
+      if (!setRegularView(hudState, view)) {
         return;
       }
 
-      currentView = view;
+      if (previousView !== hudState.currentView && app?.rendered) {
+        refreshHud();
+        return;
+      }
 
       app.element
         .querySelectorAll(".ws-view")
         .forEach(element => element.classList.add("ws-hidden"));
 
       app.element.querySelector(`#ws-${view}`)?.classList.remove("ws-hidden");
-    };
-
-    const layoutSelectors = {
-      regular: {
-        navigation: ".ws-mode-navigation",
-        abilities: ".ws-ability-table",
-        destinations: ".ws-nav-grid",
-        shortcuts: ".ws-shortcuts"
-      },
-      combat: {
-        navigation: ".ws-mode-navigation",
-        heading: ".ws-combat-heading",
-        stats: ".ws-combat-stats",
-        resources: ".ws-combat-resources",
-        conditions: ".ws-combat-statuses",
-        saves: ".ws-ability-table",
-        actions: ".ws-combat-actions",
-        shortcuts: ".ws-shortcuts"
-      },
-      death: {
-        navigation: ".ws-mode-navigation",
-        heading: ".ws-death-heading",
-        tracker: ".ws-death-tracker",
-        roll: ".ws-death-roll-section",
-        shortcuts: ".ws-shortcuts"
-      }
     };
 
     const applyLayout = mode => {
@@ -2376,7 +2212,7 @@ export async function openRollsHud(actorOverride = null) {
         .querySelectorAll(":scope > .ws-divider")
         .forEach(divider => divider.remove());
 
-      const selectors = layoutSelectors[mode];
+      const selectors = LAYOUT_SCHEMA[mode];
       const elements = new Map();
 
       for (const [id, selector] of Object.entries(selectors)) {
@@ -2402,13 +2238,14 @@ export async function openRollsHud(actorOverride = null) {
         cursor = element;
         element.classList.toggle(
           "ws-layout-hidden",
-          layout.hidden.includes(id) && !(editMode && id === "navigation")
+          layout.hidden.includes(id) &&
+            !(hudState.editMode && id === "navigation")
         );
       }
 
-      view.classList.toggle("ws-edit-mode", editMode);
+      view.classList.toggle("ws-edit-mode", hudState.editMode);
 
-      if (!editMode) {
+      if (!hudState.editMode) {
         return;
       }
 
@@ -2468,7 +2305,7 @@ export async function openRollsHud(actorOverride = null) {
       anchor.after(palette);
     };
 
-    const refreshHud = () => {
+    const refreshHud = (region = null) => {
       if (!app?.rendered) {
         return;
       }
@@ -2480,18 +2317,43 @@ export async function openRollsHud(actorOverride = null) {
       }
 
       if (!showDeathSaves() && !combatModeAvailable()) {
-        forceRegularMode = false;
-        forceCombatMode = false;
-        forceDeathMode = false;
+        hudState.forcedMode = null;
       }
 
       const mode = currentMode();
-      shell.innerHTML =
-        mode === "death"
-          ? deathHTML()
-          : mode === "combat"
-            ? combatHTML()
-            : normalHTML();
+
+      if (mode === "combat" && region === "conditions") {
+        const current = shell.querySelector(".ws-combat-statuses");
+        const template = document.createElement("template");
+        template.innerHTML = combatStatuses();
+        const next = template.content.firstElementChild;
+
+        if (current && next) {
+          current.replaceWith(next);
+          return;
+        }
+
+        if (current && !next) {
+          current.remove();
+          return;
+        }
+      }
+
+      if (mode === "combat" && region === "actions") {
+        const current = shell.querySelector(".ws-combat-actions");
+        if (current) {
+          const template = document.createElement("template");
+          template.innerHTML = combatActions();
+          current.replaceWith(template.content.firstElementChild);
+          return;
+        }
+      }
+
+      shell.innerHTML = renderHudMode(mode, {
+        combat: combatHTML,
+        death: deathHTML,
+        regular: normalHTML
+      });
 
       const windowTitle = app.element.querySelector(".window-title");
 
@@ -2502,9 +2364,9 @@ export async function openRollsHud(actorOverride = null) {
       applyLayout(mode);
 
       if (mode === "regular") {
-        setView(currentView);
+        setView(hudState.currentView);
       } else {
-        currentView = "main";
+        hudState.currentView = "main";
       }
     };
 
@@ -2596,18 +2458,13 @@ export async function openRollsHud(actorOverride = null) {
       },
 
       normal: function () {
-        forceRegularMode = true;
-        forceCombatMode = false;
-        forceDeathMode = false;
-        currentView = "main";
+        setForcedMode(hudState, "regular");
         refreshHud();
       },
 
       regularview: function (_event, target) {
-        forceRegularMode = true;
-        forceCombatMode = false;
-        forceDeathMode = false;
-        currentView = target.dataset.view;
+        setForcedMode(hudState, "regular");
+        setRegularView(hudState, target.dataset.view);
         refreshHud();
       },
 
@@ -2616,25 +2473,22 @@ export async function openRollsHud(actorOverride = null) {
           return ui.notifications.warn(t("Combat.NotAvailable"));
         }
 
-        forceRegularMode = false;
-        forceCombatMode = true;
-        forceDeathMode = false;
-        currentView = "main";
+        setForcedMode(hudState, "combat");
         refreshHud();
       },
 
       combatfilter: function (_event, target) {
-        combatCategory = target.dataset.category;
-        refreshHud();
+        hudState.combatCategory = target.dataset.category;
+        refreshHud("actions");
       },
 
       spellfilter: function (_event, target) {
-        preparedSpellsOnly = target.dataset.prepared === "true";
-        refreshHud();
+        hudState.preparedSpellsOnly = target.dataset.prepared === "true";
+        refreshHud(currentMode() === "combat" ? "actions" : null);
       },
 
       togglesaves: function () {
-        savingThrowsExpanded = !savingThrowsExpanded;
+        hudState.savingThrowsExpanded = !hudState.savingThrowsExpanded;
         refreshHud();
       },
 
@@ -2661,7 +2515,7 @@ export async function openRollsHud(actorOverride = null) {
       },
 
       toggleresources: function () {
-        resourcesExpanded = !resourcesExpanded;
+        hudState.resourcesExpanded = !hudState.resourcesExpanded;
         refreshHud();
       },
 
@@ -2760,37 +2614,21 @@ export async function openRollsHud(actorOverride = null) {
       },
 
       settings: async function () {
-        const sheet = game.settings.sheet;
-        await sheet.render({ force: true });
-
-        const category = sheet.element?.querySelector(
-          `[data-category="${MODULE_ID}"], [data-tab="${MODULE_ID}"]`
-        );
-
-        if (category) {
-          category.click();
-        } else {
-          sheet.search?.(t("Title"));
-        }
-
-        return sheet;
+        return openSettings();
       },
 
       toggleedit: function () {
-        editMode = !editMode;
-        currentView = "main";
+        hudState.editMode = !hudState.editMode;
+        hudState.currentView = "main";
         refreshHud();
       },
 
       deathmode: function () {
-        if (!editMode && !deathModeAvailable()) {
+        if (!hudState.editMode && !deathModeAvailable()) {
           return ui.notifications.warn(t("Combat.NotAvailable"));
         }
 
-        forceRegularMode = false;
-        forceCombatMode = false;
-        forceDeathMode = true;
-        currentView = "main";
+        setForcedMode(hudState, "death");
         refreshHud();
       },
 
@@ -2920,6 +2758,12 @@ export async function openRollsHud(actorOverride = null) {
 
     const refreshActorEffect = effect => {
       if (effect?.parent?.uuid === actor.uuid) {
+        refreshHud("conditions");
+      }
+    };
+
+    const refreshActorItem = item => {
+      if (item?.parent?.uuid === actor.uuid) {
         refreshHud();
       }
     };
@@ -2945,9 +2789,9 @@ export async function openRollsHud(actorOverride = null) {
         "deleteActiveEffect",
         Hooks.on("deleteActiveEffect", refreshActorEffect)
       ],
-      ["createItem", Hooks.on("createItem", refreshActorEffect)],
-      ["updateItem", Hooks.on("updateItem", refreshActorEffect)],
-      ["deleteItem", Hooks.on("deleteItem", refreshActorEffect)],
+      ["createItem", Hooks.on("createItem", refreshActorItem)],
+      ["updateItem", Hooks.on("updateItem", refreshActorItem)],
+      ["deleteItem", Hooks.on("deleteItem", refreshActorItem)],
       ["createCombat", Hooks.on("createCombat", refreshHud)],
       ["updateCombat", Hooks.on("updateCombat", refreshHud)],
       ["deleteCombat", Hooks.on("deleteCombat", refreshHud)],
@@ -2976,7 +2820,7 @@ export async function openRollsHud(actorOverride = null) {
 
     if (currentMode() === "regular") {
       applyLayout("regular");
-      setView(currentView);
+      setView(hudState.currentView);
     } else {
       applyLayout(currentMode());
     }

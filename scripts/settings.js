@@ -22,10 +22,42 @@ export const SETTINGS = Object.freeze({
   showSavingThrows: "showSavingThrows",
   showShortcuts: "showShortcuts",
   showSkills: "showSkills",
+  showSpells: "showSpells",
   showTools: "showTools",
   windowGeometry: "windowGeometry",
   migrationVersion: "migrationVersion"
 });
+
+export const SETTING_GROUPS = Object.freeze({
+  behavior: Object.freeze([
+    SETTINGS.keepOpen,
+    SETTINGS.autoUpdateActor,
+    SETTINGS.automaticCombatMode
+  ]),
+  appearance: Object.freeze([SETTINGS.adaptiveLayout, SETTINGS.fontSize]),
+  regular: Object.freeze([
+    SETTINGS.showAbilityChecks,
+    SETTINGS.showSavingThrows,
+    SETTINGS.showSkills,
+    SETTINGS.showTools,
+    SETTINGS.showSpells,
+    SETTINGS.showDeathSaves,
+    SETTINGS.showShortcuts
+  ]),
+  combat: Object.freeze([
+    SETTINGS.showInitiative,
+    SETTINGS.showItemDetails,
+    SETTINGS.showCombatResources,
+    SETTINGS.showCombatWeapons,
+    SETTINGS.showCombatActions,
+    SETTINGS.showCombatBonusActions,
+    SETTINGS.showCombatReactions,
+    SETTINGS.showCombatSpecial
+  ]),
+  advanced: Object.freeze([SETTINGS.showModeNavigation])
+});
+
+let SettingsApplication = null;
 
 const notifyChange = key => value =>
   Hooks.callAll("adventurerHudSettingChanged", key, value);
@@ -35,7 +67,7 @@ const registerBoolean = (key, defaultValue = true) => {
     name: `ADVENTURER_HUD.Settings.${key}.Name`,
     hint: `ADVENTURER_HUD.Settings.${key}.Hint`,
     scope: "user",
-    config: true,
+    config: false,
     type: Boolean,
     default: defaultValue,
     onChange: notifyChange(key)
@@ -47,7 +79,7 @@ const registerChoice = (key, choices, defaultValue) => {
     name: `ADVENTURER_HUD.Settings.${key}.Name`,
     hint: `ADVENTURER_HUD.Settings.${key}.Hint`,
     scope: "user",
-    config: true,
+    config: false,
     type: String,
     choices,
     default: defaultValue,
@@ -75,7 +107,7 @@ export function registerSettings() {
   registerBoolean(SETTINGS.showModeNavigation, false);
   registerBoolean(SETTINGS.showCombatResources);
   registerBoolean(SETTINGS.showCombatWeapons);
-  registerBoolean(SETTINGS.showCombatSpells);
+  registerBoolean(SETTINGS.showSpells);
   registerBoolean(SETTINGS.showCombatActions);
   registerBoolean(SETTINGS.showCombatBonusActions);
   registerBoolean(SETTINGS.showCombatReactions);
@@ -86,6 +118,15 @@ export function registerSettings() {
   registerBoolean(SETTINGS.showTools);
   registerBoolean(SETTINGS.showDeathSaves);
   registerBoolean(SETTINGS.showShortcuts);
+
+  game.settings.register(MODULE_ID, SETTINGS.showCombatSpells, {
+    name: "Legacy spell visibility",
+    hint: "",
+    scope: "user",
+    config: false,
+    type: Boolean,
+    default: true
+  });
 
   game.settings.register(MODULE_ID, SETTINGS.windowGeometry, {
     name: "Adventurer HUD window geometry",
@@ -113,6 +154,96 @@ export function registerSettings() {
     type: Number,
     default: 0
   });
+
+  registerSettingsMenu();
+}
+
+function registerSettingsMenu() {
+  const { ApplicationV2, HandlebarsApplicationMixin } =
+    foundry.applications.api;
+
+  SettingsApplication = class AdventurerHudSettings extends (
+    HandlebarsApplicationMixin(ApplicationV2)
+  ) {
+    static DEFAULT_OPTIONS = {
+      id: "adventurer-hud-settings",
+      tag: "form",
+      classes: ["adventurer-hud-settings"],
+      window: {
+        icon: "fa-solid fa-dice-d20",
+        title: "ADVENTURER_HUD.Settings.Open"
+      },
+      position: { width: 620, height: "auto" },
+      form: {
+        closeOnSubmit: true,
+        handler: this.#onSubmit
+      }
+    };
+
+    static PARTS = {
+      form: {
+        template: "modules/adventurer-hud/templates/settings.hbs"
+      }
+    };
+
+    async _prepareContext() {
+      return {
+        groups: Object.entries(SETTING_GROUPS).map(([id, keys]) => ({
+          id,
+          label: game.i18n.localize(`ADVENTURER_HUD.Settings.Groups.${id}`),
+          settings: keys.map(key => {
+            const definition = game.settings.settings.get(
+              `${MODULE_ID}.${key}`
+            );
+            const value = getSetting(key);
+            const choices = definition?.choices
+              ? Object.entries(definition.choices).map(
+                  ([choiceValue, label]) => ({
+                    label: game.i18n.localize(label),
+                    selected: choiceValue === value,
+                    value: choiceValue
+                  })
+                )
+              : [];
+
+            return {
+              choices,
+              hint: game.i18n.localize(definition.hint),
+              key,
+              name: game.i18n.localize(definition.name),
+              type: definition.type === Boolean ? "boolean" : "choice",
+              value
+            };
+          })
+        }))
+      };
+    }
+
+    static async #onSubmit(_event, _form, formData) {
+      const values = formData.object;
+      for (const keys of Object.values(SETTING_GROUPS)) {
+        for (const key of keys) {
+          const definition = game.settings.settings.get(`${MODULE_ID}.${key}`);
+          const value =
+            definition.type === Boolean ? Boolean(values[key]) : values[key];
+          await setSetting(key, value);
+        }
+      }
+    }
+  };
+
+  game.settings.registerMenu(MODULE_ID, "configure", {
+    name: "ADVENTURER_HUD.Settings.Open",
+    hint: "ADVENTURER_HUD.Settings.MenuHint",
+    label: "ADVENTURER_HUD.Settings.Open",
+    icon: "fa-solid fa-dice-d20",
+    type: SettingsApplication,
+    restricted: false
+  });
+}
+
+export function openSettings() {
+  return new SettingsApplication().render({ force: true });
 }
 
 export const getSetting = key => game.settings.get(MODULE_ID, key);
@@ -166,7 +297,7 @@ export async function flushWindowGeometry() {
 export async function migrateLegacySettings() {
   const version = getSetting(SETTINGS.migrationVersion);
 
-  if (version >= 2) {
+  if (version >= 3) {
     return;
   }
 
@@ -194,5 +325,12 @@ export async function migrateLegacySettings() {
     }
   }
 
-  await setSetting(SETTINGS.migrationVersion, 2);
+  if (version < 3) {
+    await setSetting(
+      SETTINGS.showSpells,
+      Boolean(getSetting(SETTINGS.showCombatSpells))
+    );
+  }
+
+  await setSetting(SETTINGS.migrationVersion, 3);
 }

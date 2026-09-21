@@ -121,7 +121,7 @@ Hooks.on("adventurerHudSettingChanged", key => {
     SETTINGS.showModeNavigation,
     SETTINGS.showCombatResources,
     SETTINGS.showCombatWeapons,
-    SETTINGS.showCombatSpells,
+    SETTINGS.showSpells,
     SETTINGS.showCombatActions,
     SETTINGS.showCombatBonusActions,
     SETTINGS.showCombatReactions,

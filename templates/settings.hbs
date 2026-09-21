@@ -1,0 +1,38 @@
+<div class="ws-settings-groups">
+  {{#each groups}}
+    <fieldset class="ws-settings-group">
+      <legend>{{label}}</legend>
+      {{#each settings}}
+        <div class="form-group">
+          <label for="adventurer-hud-{{key}}">{{name}}</label>
+          <div class="form-fields">
+            {{#if choices.length}}
+              <select id="adventurer-hud-{{key}}" name="{{key}}">
+                {{selectOptions
+                  choices
+                  selected=value
+                  valueAttr="value"
+                  labelAttr="label"
+                }}
+              </select>
+            {{else}}
+              <input
+                id="adventurer-hud-{{key}}"
+                type="checkbox"
+                name="{{key}}"
+                {{checked value}}
+              />
+            {{/if}}
+          </div>
+          <p class="hint">{{hint}}</p>
+        </div>
+      {{/each}}
+    </fieldset>
+  {{/each}}
+</div>
+<footer class="form-footer">
+  <button type="submit">
+    <i class="fa-solid fa-floppy-disk"></i>
+    {{localize "ADVENTURER_HUD.Settings.Save"}}
+  </button>
+</footer>

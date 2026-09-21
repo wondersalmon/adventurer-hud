@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.5
+
+- Extracted version-tolerant D&D 5e actor and item adapters with dedicated 5.3 and 6.x fixtures.
+- Replaced three manual-mode flags with one explicit HUD state and centralized mode resolution.
+- Centralized layout schemas and saved-layout normalization.
+- Added mode and regular-view render dispatchers; regular subviews are attached one at a time.
+- Added targeted refreshes for active conditions and combat action filters while retaining full refreshes for structural changes.
+- Replaced the flat Foundry settings list with a grouped Adventurer HUD settings application while preserving existing setting keys and user preferences.
+- Expanded regression coverage for compatibility adapters, mode priority, view dispatch, layouts, and settings groups.
+- Streamlined the project documentation and added a complete Russian README with reciprocal language links.
+
 ## 0.7.9
 
 - Fixed automatic actor tracking so changing or deselecting a token refreshes the complete actor/token context.
