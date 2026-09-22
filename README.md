@@ -73,6 +73,12 @@ keybinding.
 
 Settings are stored per user; window size and position are stored per client.
 
+## AI disclosure
+
+AI tools were used as coding assistants during development and review. The
+module is maintained and tested by me, and I understand and maintain the
+codebase myself.
+
 ## Development
 
 Requires Node.js 22 or newer.
