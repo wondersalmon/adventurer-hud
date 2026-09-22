@@ -928,7 +928,9 @@ export async function openRollsHud(actorOverride = null) {
 
       updatePinControl() {
         const header = this.element?.querySelector(".window-header");
-        const menu = header?.querySelector('[data-action="controls"]');
+        const menu = header?.querySelector(
+          '[data-action="toggleControls"], [data-action="controls"], .fa-ellipsis-vertical'
+        );
 
         if (!header || !menu) {
           return;

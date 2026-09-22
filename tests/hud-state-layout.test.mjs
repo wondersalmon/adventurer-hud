@@ -191,6 +191,7 @@ test("pinned HUD ignores only close-key requests", async () => {
   assert.match(controller, /if \(pinned && options\.closeKey\)/);
   assert.match(controller, /return super\.close\(options\)/);
   assert.match(controller, /menu\.before\(control\)/);
+  assert.match(controller, /data-action="toggleControls"/);
   assert.match(controller, /control\.setAttribute\("aria-pressed"/);
   assert.doesNotMatch(controller, /controls:\s*\[\s*\{\s*icon:\s*pinned/s);
 });
