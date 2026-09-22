@@ -77,5 +77,8 @@ npm run check
 npm run build
 ```
 
-Адаптеры совместимости находятся в `scripts/dnd5e`, состояние HUD — в
-`scripts/hud`, диспетчеризация рендера — в `scripts/render`.
+Системные адаптеры находятся в `scripts/systems`, вспомогательный код версий
+D&D 5e — в `scripts/dnd5e`, а рендереры режимов и общие UI-компоненты — в
+`scripts/hud`. Диспетчеризация рендера находится в `scripts/render`. Инструкция
+по добавлению другой игровой системы:
+[system adapter guide](docs/system-adapters.md).

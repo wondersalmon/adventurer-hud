@@ -24,7 +24,14 @@ for (const file of [
   await access(path.join(root, file));
 }
 
-const sourceFiles = ["scripts/rolls-hud.js", "scripts/adventurer-hud.js"];
+const sourceFiles = [
+  "scripts/rolls-hud.js",
+  "scripts/adventurer-hud.js",
+  "scripts/hud/components.js",
+  "scripts/hud/regular.js",
+  "scripts/hud/combat.js",
+  "scripts/hud/death-saves.js"
+];
 const referencedKeys = new Set();
 
 for (const file of sourceFiles) {

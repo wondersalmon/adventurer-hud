@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   BASIC_SETTINGS,
+  isSettingSupported,
   migrateLegacySettings,
   moveSettingsMenusToBottom,
   registerSettings,
@@ -80,6 +81,12 @@ test("reset restores configurable defaults", async () => {
   await resetSettings();
 
   assert.deepEqual(writes, Object.entries(SETTING_DEFAULTS));
+});
+
+test("system capabilities control system-specific settings", () => {
+  assert.equal(isSettingSupported(SETTINGS.showInventory, "dnd5e"), true);
+  assert.equal(isSettingSupported(SETTINGS.showDeathSaves, "unknown"), false);
+  assert.equal(isSettingSupported(SETTINGS.fontSize, "unknown"), true);
 });
 
 test("migration preserves navigation and moves legacy spell visibility", async () => {

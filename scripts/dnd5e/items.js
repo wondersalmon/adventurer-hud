@@ -56,6 +56,40 @@ export function isPreparedSpell(item) {
   );
 }
 
+const INVENTORY_TYPES = new Set([
+  "backpack",
+  "consumable",
+  "container",
+  "equipment",
+  "loot",
+  "tool",
+  "weapon"
+]);
+
+export function inventoryCategory(item) {
+  if (!INVENTORY_TYPES.has(item.type)) return null;
+  if (item.system?.equipped) return "equipped";
+  if (item.type === "consumable") return "consumables";
+  return "other";
+}
+
+export function itemUsesData(item) {
+  const uses = item.system?.uses ?? {};
+  const max = Number(uses.max ?? 0);
+
+  if (!Number.isFinite(max) || max <= 0) return null;
+
+  const hasLegacyValue = ![undefined, null, ""].includes(uses.value);
+  const value = hasLegacyValue
+    ? Number(uses.value) || 0
+    : Math.max(0, max - (Number(uses.spent) || 0));
+
+  return {
+    max,
+    value: Math.min(max, Math.max(0, value))
+  };
+}
+
 export function damagePartFormula(part) {
   if (Array.isArray(part)) return part[0] ?? "";
   if (part?.formula) return part.formula;

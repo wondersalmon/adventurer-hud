@@ -3,7 +3,8 @@ export const REGULAR_VIEWS = Object.freeze([
   "main",
   "skills",
   "tools",
-  "spells"
+  "spells",
+  "inventory"
 ]);
 
 export function createHudState(initial = {}) {
@@ -11,6 +12,7 @@ export function createHudState(initial = {}) {
     combatCategory: "weapons",
     currentView: "main",
     forcedMode: null,
+    inventoryCategory: "equipped",
     preparedSpellsOnly: true,
     resourcesExpanded: false,
     savingThrowsExpanded: true,

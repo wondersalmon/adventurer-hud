@@ -28,7 +28,14 @@ test("English is available as the complete module fallback locale", async () => 
 test("all directly referenced localization keys exist", async () => {
   const russian = JSON.parse(await readFile("lang/ru.json", "utf8"));
   const english = JSON.parse(await readFile("lang/en.json", "utf8"));
-  const files = ["scripts/rolls-hud.js", "scripts/adventurer-hud.js"];
+  const files = [
+    "scripts/rolls-hud.js",
+    "scripts/adventurer-hud.js",
+    "scripts/hud/components.js",
+    "scripts/hud/regular.js",
+    "scripts/hud/combat.js",
+    "scripts/hud/death-saves.js"
+  ];
 
   for (const file of files) {
     const source = await readFile(file, "utf8");

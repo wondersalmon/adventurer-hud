@@ -1,4 +1,5 @@
 import { MODULE_ID } from "./module-id.js";
+import { getSystemAdapter } from "./systems/index.js";
 
 export const SETTINGS = Object.freeze({
   adaptiveLayout: "adaptiveLayout",
@@ -9,6 +10,7 @@ export const SETTINGS = Object.freeze({
   showAbilityChecks: "showAbilityChecks",
   showDeathSaves: "showDeathSaves",
   showInitiative: "showInitiative",
+  showInventory: "showInventory",
   showItemDetails: "showItemDetails",
   showModeNavigation: "showModeNavigation",
   showModeHeadings: "showModeHeadings",
@@ -43,6 +45,7 @@ export const SETTING_GROUPS = Object.freeze({
     SETTINGS.showSkills,
     SETTINGS.showTools,
     SETTINGS.showSpells,
+    SETTINGS.showInventory,
     SETTINGS.showDeathSaves,
     SETTINGS.showShortcuts
   ]),
@@ -81,7 +84,8 @@ const ADVANCED_SETTING_GROUPS = Object.freeze({
     SETTINGS.showSavingThrows,
     SETTINGS.showSkills,
     SETTINGS.showTools,
-    SETTINGS.showSpells
+    SETTINGS.showSpells,
+    SETTINGS.showInventory
   ]),
   combat: Object.freeze([
     SETTINGS.showInitiative,
@@ -115,6 +119,7 @@ export const SETTING_DEFAULTS = Object.freeze({
   [SETTINGS.showConditions]: true,
   [SETTINGS.showCombatWeapons]: true,
   [SETTINGS.showSpells]: true,
+  [SETTINGS.showInventory]: true,
   [SETTINGS.showCombatActions]: true,
   [SETTINGS.showCombatBonusActions]: true,
   [SETTINGS.showCombatReactions]: true,
@@ -133,12 +138,37 @@ let ResetSettingsApplication = null;
 const notifyChange = key => value =>
   Hooks.callAll("adventurerHudSettingChanged", key, value);
 
+const SETTING_CAPABILITIES = Object.freeze({
+  [SETTINGS.showAbilityChecks]: "abilityChecks",
+  [SETTINGS.showCombatActions]: "actions",
+  [SETTINGS.showCombatBonusActions]: "bonusActions",
+  [SETTINGS.showCombatReactions]: "reactions",
+  [SETTINGS.showCombatResources]: "resources",
+  [SETTINGS.showCombatSpecial]: "specialActions",
+  [SETTINGS.showCombatStats]: "combat",
+  [SETTINGS.showCombatWeapons]: "weapons",
+  [SETTINGS.showConditions]: "conditions",
+  [SETTINGS.showDeathSaves]: "deathSaves",
+  [SETTINGS.showInitiative]: "combat",
+  [SETTINGS.showInventory]: "inventory",
+  [SETTINGS.showSavingThrows]: "savingThrows",
+  [SETTINGS.showSkills]: "skills",
+  [SETTINGS.showSpells]: "spells",
+  [SETTINGS.showTools]: "tools"
+});
+
+export function isSettingSupported(key, systemId = game.system?.id) {
+  const capability = SETTING_CAPABILITIES[key];
+  if (!capability) return true;
+  return Boolean(getSystemAdapter(systemId)?.capabilities?.[capability]);
+}
+
 const registerBoolean = (key, defaultValue = true) => {
   game.settings.register(MODULE_ID, key, {
     name: `ADVENTURER_HUD.Settings.${key}.Name`,
     hint: `ADVENTURER_HUD.Settings.${key}.Hint`,
     scope: "user",
-    config: BASIC_SETTINGS.includes(key),
+    config: BASIC_SETTINGS.includes(key) && isSettingSupported(key),
     type: Boolean,
     default: defaultValue,
     onChange: notifyChange(key)
@@ -150,7 +180,7 @@ const registerChoice = (key, choices, defaultValue) => {
     name: `ADVENTURER_HUD.Settings.${key}.Name`,
     hint: `ADVENTURER_HUD.Settings.${key}.Hint`,
     scope: "user",
-    config: BASIC_SETTINGS.includes(key),
+    config: BASIC_SETTINGS.includes(key) && isSettingSupported(key),
     type: String,
     choices,
     default: defaultValue,
@@ -182,6 +212,7 @@ export function registerSettings() {
   registerBoolean(SETTINGS.showConditions);
   registerBoolean(SETTINGS.showCombatWeapons);
   registerBoolean(SETTINGS.showSpells);
+  registerBoolean(SETTINGS.showInventory);
   registerBoolean(SETTINGS.showCombatActions);
   registerBoolean(SETTINGS.showCombatBonusActions);
   registerBoolean(SETTINGS.showCombatReactions);
@@ -252,42 +283,46 @@ function registerSettingsMenu() {
     };
 
     async _prepareContext() {
-      return {
-        groups: Object.entries(ADVANCED_SETTING_GROUPS).map(([id, keys]) => ({
+      const groups = Object.entries(ADVANCED_SETTING_GROUPS)
+        .map(([id, keys]) => ({
           id,
           label: game.i18n.localize(`ADVENTURER_HUD.Settings.Groups.${id}`),
-          settings: keys.map(key => {
-            const definition = game.settings.settings.get(
-              `${MODULE_ID}.${key}`
-            );
-            const value = getSetting(key);
-            const choices = definition?.choices
-              ? Object.entries(definition.choices).map(
-                  ([choiceValue, label]) => ({
-                    label: game.i18n.localize(label),
-                    selected: choiceValue === value,
-                    value: choiceValue
-                  })
-                )
-              : [];
+          settings: keys
+            .filter(key => isSettingSupported(key))
+            .map(key => {
+              const definition = game.settings.settings.get(
+                `${MODULE_ID}.${key}`
+              );
+              const value = getSetting(key);
+              const choices = definition?.choices
+                ? Object.entries(definition.choices).map(
+                    ([choiceValue, label]) => ({
+                      label: game.i18n.localize(label),
+                      selected: choiceValue === value,
+                      value: choiceValue
+                    })
+                  )
+                : [];
 
-            return {
-              choices,
-              hint: game.i18n.localize(definition.hint),
-              key,
-              name: game.i18n.localize(definition.name),
-              type: definition.type === Boolean ? "boolean" : "choice",
-              value
-            };
-          })
+              return {
+                choices,
+                hint: game.i18n.localize(definition.hint),
+                key,
+                name: game.i18n.localize(definition.name),
+                type: definition.type === Boolean ? "boolean" : "choice",
+                value
+              };
+            })
         }))
-      };
+        .filter(group => group.settings.length);
+
+      return { groups };
     }
 
     static async #onSubmit(_event, _form, formData) {
       const values = formData.object;
       for (const keys of Object.values(ADVANCED_SETTING_GROUPS)) {
-        for (const key of keys) {
+        for (const key of keys.filter(key => isSettingSupported(key))) {
           const definition = game.settings.settings.get(`${MODULE_ID}.${key}`);
           const value =
             definition.type === Boolean ? Boolean(values[key]) : values[key];

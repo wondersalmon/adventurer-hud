@@ -77,5 +77,8 @@ npm run check
 npm run build
 ```
 
-Compatibility adapters live in `scripts/dnd5e`, HUD state rules in `scripts/hud`,
-and render dispatch in `scripts/render`.
+System adapters live in `scripts/systems`, version-specific D&D 5e helpers in
+`scripts/dnd5e`, and mode renderers and shared UI components in `scripts/hud`.
+Render dispatch lives in `scripts/render`. See the
+[system adapter guide](docs/system-adapters.md) to add
+support for another game system.

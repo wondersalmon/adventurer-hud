@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.0
+
+- Added an inventory browser to regular exploration mode with Equipped, Consumables, and Other filters.
+- Added remaining-charge indicators to inventory and combat item cards when an item has limited uses.
+- Added an optional inventory visibility setting and English/Russian inventory localization.
+- Added D&D 5e adapter coverage for inventory categories and charge data in both 5.3 and 6.x item shapes.
+- Added a public system-adapter registry with capability-driven UI and safe defaults for unsupported mechanics.
+- Moved D&D-specific data access, rolls, item use, resources, rests, and combat normalization behind the bundled D&D 5e adapter.
+- Added contributor documentation and contract tests for implementing future game-system integrations.
+- Split the HUD monolith into a focused application controller, shared components, and separate regular, combat, and death-save renderers.
+- Preserved the HUD's attached actor when settings trigger a refresh, escaped custom condition labels, and localized the dialog close action.
+- Expanded adapter and renderer regression coverage for system isolation, damage formulas, resources, spell slots, roll delegation, and condition markup.
+
 ## 0.8.7
 
 - Added initiative to the regular HUD for characters already added to an encounter, including before combat starts.

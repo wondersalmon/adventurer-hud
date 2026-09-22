@@ -8,8 +8,15 @@ import {
   registerSettings,
   SETTINGS
 } from "./settings.js";
+import {
+  defineSystemAdapter,
+  getSystemAdapter,
+  listSystemAdapters,
+  registerSystemAdapter
+} from "./systems/index.js";
 
 let selectionTimer = null;
+let settingsRefreshTimer = null;
 
 const getOpenApp = () => globalThis.__adventurerHud?.app ?? null;
 
@@ -54,6 +61,23 @@ const scheduleActorRefresh = () => {
 };
 
 Hooks.once("init", () => {
+  const module = game.modules.get(MODULE_ID);
+  const systems = Object.freeze({
+    define: defineSystemAdapter,
+    get: getSystemAdapter,
+    list: listSystemAdapters,
+    register: registerSystemAdapter
+  });
+
+  if (module) {
+    module.api = Object.freeze({
+      open: openRollsHud,
+      systems
+    });
+  }
+
+  Hooks.callAll("adventurerHudRegisterSystemAdapters", systems);
+
   registerSettings();
 
   game.keybindings.register(MODULE_ID, "openHud", {
@@ -77,12 +101,6 @@ Hooks.once("ready", async () => {
   await migrateLegacySettings();
 
   const module = game.modules.get(MODULE_ID);
-
-  if (module) {
-    module.api = Object.freeze({
-      open: openRollsHud
-    });
-  }
 
   Hooks.callAll("adventurerHudReady", module?.api);
 });
@@ -123,6 +141,7 @@ Hooks.on("adventurerHudSettingChanged", key => {
     SETTINGS.showDeathSaves,
     SETTINGS.showInitiative,
     SETTINGS.showItemDetails,
+    SETTINGS.showInventory,
     SETTINGS.showModeNavigation,
     SETTINGS.showModeHeadings,
     SETTINGS.showCombatResources,
@@ -141,6 +160,14 @@ Hooks.on("adventurerHudSettingChanged", key => {
   ]);
 
   if (layoutSettings.has(key) && getOpenApp()?.rendered) {
-    void openRollsHud();
+    clearTimeout(settingsRefreshTimer);
+    settingsRefreshTimer = setTimeout(() => {
+      settingsRefreshTimer = null;
+      const state = globalThis.__adventurerHud;
+
+      if (state?.app?.rendered) {
+        void openRollsHud(state.actor ?? null);
+      }
+    }, 50);
   }
 });

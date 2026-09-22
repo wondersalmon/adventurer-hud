@@ -9,10 +9,13 @@ import {
 import {
   damagePartFormula,
   hasItemProperty,
+  inventoryCategory,
   isPreparedSpell,
   itemActivation,
-  itemRangeData
+  itemRangeData,
+  itemUsesData
 } from "../scripts/dnd5e/items.js";
+import { dnd5eAdapter } from "../scripts/systems/dnd5e.js";
 
 const dnd53 = {
   system: {
@@ -85,4 +88,157 @@ test("actor adapters prefer prepared totals and retain legacy fallbacks", () => 
     }),
     { failure: 1, hp: 0, success: 2 }
   );
+});
+
+test("inventory adapters categorize items and normalize 5.3 and 6.x charges", () => {
+  assert.equal(
+    inventoryCategory({ type: "weapon", system: { equipped: true } }),
+    "equipped"
+  );
+  assert.equal(
+    inventoryCategory({ type: "consumable", system: {} }),
+    "consumables"
+  );
+  assert.equal(inventoryCategory({ type: "loot", system: {} }), "other");
+  assert.equal(inventoryCategory({ type: "spell", system: {} }), null);
+
+  assert.deepEqual(itemUsesData({ system: { uses: { value: 2, max: 3 } } }), {
+    value: 2,
+    max: 3
+  });
+  assert.deepEqual(itemUsesData({ system: { uses: { spent: 2, max: 5 } } }), {
+    value: 3,
+    max: 5
+  });
+  assert.equal(itemUsesData({ system: { uses: { max: 0 } } }), null);
+});
+
+test("D&D adapter displays attack and damage formulas without duplicating ability modifiers", () => {
+  const originalRoll = globalThis.Roll;
+  globalThis.Roll = {
+    replaceFormulaData(formula) {
+      return formula
+        .replaceAll("@mod", "3")
+        .replaceAll("@abilities.str.mod", "3");
+    }
+  };
+
+  try {
+    const actor = {
+      system: { abilities: { str: { mod: 3 } } },
+      getRollData: () => ({})
+    };
+    const legacy = {
+      type: "weapon",
+      labels: { attack: "5" },
+      system: {
+        ability: "str",
+        damage: { parts: [["1d8 + @mod", "piercing"]] }
+      }
+    };
+    const explicitAbilityPath = {
+      type: "weapon",
+      system: {
+        ability: "str",
+        damage: {
+          parts: [["1d8 + @abilities.str.mod", "piercing"]]
+        }
+      }
+    };
+    const structured = {
+      type: "weapon",
+      system: {
+        ability: "str",
+        activities: new Map([
+          [
+            "attack",
+            {
+              type: "attack",
+              attack: true,
+              damage: { parts: [{ number: 1, denomination: 8 }] }
+            }
+          ]
+        ])
+      }
+    };
+
+    assert.equal(dnd5eAdapter.itemAttackBonus(legacy), "+5");
+    assert.equal(dnd5eAdapter.itemDamageFormula(actor, legacy), "1d8 + 3");
+    assert.equal(
+      dnd5eAdapter.itemDamageFormula(actor, explicitAbilityPath),
+      "1d8 + 3"
+    );
+    assert.equal(dnd5eAdapter.itemDamageFormula(actor, structured), "1d8 + 3");
+  } finally {
+    globalThis.Roll = originalRoll;
+  }
+});
+
+test("D&D adapter normalizes resources and spell-slot pools", () => {
+  const actor = {
+    items: [
+      {
+        id: "focus",
+        name: "Focus Points",
+        type: "feat",
+        system: { uses: { spent: 1, max: 4 } }
+      }
+    ],
+    system: {
+      resources: { primary: { label: "Sorcery", value: 2, max: 5 } },
+      spells: {
+        spell2: { value: 1, max: 3 },
+        pact: { level: 2, value: 2, max: 2 }
+      }
+    }
+  };
+
+  assert.deepEqual(dnd5eAdapter.actorResources(actor), [
+    {
+      id: "primary",
+      itemId: null,
+      label: "Sorcery",
+      max: 5,
+      value: 2
+    }
+  ]);
+  assert.deepEqual(dnd5eAdapter.featureResources(actor), [
+    {
+      id: "focus",
+      itemId: "focus",
+      label: "Focus Points",
+      max: 4,
+      value: 3
+    }
+  ]);
+  assert.deepEqual(dnd5eAdapter.spellSlots(actor, 2), [
+    [1, 3],
+    [2, 2]
+  ]);
+});
+
+test("D&D adapter delegates roll actions to the owning documents", async () => {
+  const calls = [];
+  const actor = {
+    rollAbilityCheck: options => calls.push(["check", options]),
+    rollSavingThrow: options => calls.push(["save", options]),
+    rollSkill: options => calls.push(["skill", options]),
+    rollToolCheck: options => calls.push(["tool", options]),
+    rollDeathSave: options => calls.push(["death", options])
+  };
+  const event = { shiftKey: true };
+
+  await dnd5eAdapter.rollAbility(actor, { type: "check", key: "str", event });
+  await dnd5eAdapter.rollAbility(actor, { type: "save", key: "dex", event });
+  await dnd5eAdapter.rollSkill(actor, { key: "ath", event });
+  await dnd5eAdapter.rollTool(actor, { key: "thief", event });
+  await dnd5eAdapter.rollDeathSave(actor, { event });
+
+  assert.deepEqual(calls, [
+    ["check", { ability: "str", event }],
+    ["save", { ability: "dex", event }],
+    ["skill", { skill: "ath", event }],
+    ["tool", { tool: "thief", event }],
+    ["death", { event }]
+  ]);
 });

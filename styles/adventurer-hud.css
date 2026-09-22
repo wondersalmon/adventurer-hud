@@ -814,17 +814,26 @@
 
 .ws-rolls-dialog .ws-ability-row {
   display: grid;
-  grid-template-columns: 58px repeat(6, minmax(54px, 110px));
+  grid-template-columns: 58px repeat(
+      var(--ws-ability-count, 6),
+      minmax(54px, 110px)
+    );
   justify-content: start;
   gap: 5px;
 }
 
 .ws-rolls-dialog .ws-ability-row.ws-label-free {
-  grid-template-columns: repeat(6, minmax(54px, 110px));
+  grid-template-columns: repeat(
+    var(--ws-ability-count, 6),
+    minmax(54px, 110px)
+  );
 }
 
 .ws-rolls-dialog .ws-combat-view .ws-ability-row {
-  grid-template-columns: repeat(6, minmax(54px, 110px));
+  grid-template-columns: repeat(
+    var(--ws-ability-count, 6),
+    minmax(54px, 110px)
+  );
 }
 
 .ws-rolls-dialog .ws-combat-view .ws-row-label {
