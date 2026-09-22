@@ -54,9 +54,10 @@ test("active-effect names are escaped before entering status attributes", () => 
   }
 });
 
-test("checks and combat saves start expanded", () => {
+test("exploration checks and combat saves start expanded", () => {
   const hudState = {
     abilityChecksExpanded: true,
+    combatAbilityChecksExpanded: false,
     combatSavingThrowsExpanded: true,
     savingThrowsExpanded: true
   };
@@ -82,6 +83,14 @@ test("checks and combat saves start expanded", () => {
 
   assert.match(components.abilityChecksSection(), /aria-expanded="true"/);
   assert.match(components.abilityChecksSection(), /data-action="ability"/);
+  assert.match(
+    components.abilityChecksSection("combat"),
+    /aria-expanded="false"/
+  );
+  assert.doesNotMatch(
+    components.abilityChecksSection("combat"),
+    /data-action="ability"/
+  );
   assert.match(
     components.savingThrowsSection("combat"),
     /aria-expanded="true"/

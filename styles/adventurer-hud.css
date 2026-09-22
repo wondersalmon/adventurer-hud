@@ -107,6 +107,11 @@
   min-width: 420px;
 }
 
+.ws-rolls-dialog .window-header [data-action="togglepin"].ws-active {
+  color: var(--color-text-accent, #c19a58);
+  text-shadow: 0 0 6px currentcolor;
+}
+
 .ws-rolls-dialog .window-content {
   min-height: 0;
   overflow: hidden auto !important;

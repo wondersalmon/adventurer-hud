@@ -5,6 +5,7 @@ export function createCombatRenderer(context) {
     actor,
     actorHeader,
     adapter,
+    abilityChecksSection,
     canRollActor,
     DialogV2,
     escapeHTML,
@@ -746,6 +747,17 @@ export function createCombatRenderer(context) {
           ${combatResources()}
 
           ${combatStatuses()}
+
+          ${
+            visibility.abilityChecks
+              ? `
+                <div class="ws-divider"></div>
+                <div class="ws-ability-table">
+                  ${abilityChecksSection("combat")}
+                </div>
+              `
+              : ""
+          }
 
           ${
             visibility.savingThrows

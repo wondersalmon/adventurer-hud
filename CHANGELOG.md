@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.2
+
+- Added a collapsed-by-default ability-check section to combat mode and moved the pin toggle from the title menu to a dedicated, stateful title-bar button.
+- Small fixes
+
 ## 0.9.1
 
 - Split the HUD monolith into a focused application controller, shared components, and separate exploration, combat, and death-save renderers.

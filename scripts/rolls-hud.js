@@ -723,6 +723,12 @@ export async function openRollsHud(actorOverride = null) {
         refreshHud();
       },
 
+      togglecombatchecks: function () {
+        hudState.combatAbilityChecksExpanded =
+          !hudState.combatAbilityChecksExpanded;
+        refreshHud();
+      },
+
       togglechecks: function () {
         hudState.abilityChecksExpanded = !hudState.abilityChecksExpanded;
         refreshHud();
@@ -854,6 +860,7 @@ export async function openRollsHud(actorOverride = null) {
       togglepin: async function () {
         pinned = !pinned;
         await setSetting(SETTINGS.pinWindow, pinned);
+        app.updatePinControl();
       },
 
       resetwindow: async function () {
@@ -914,6 +921,39 @@ export async function openRollsHud(actorOverride = null) {
     const storedPosition = loadStoredPosition(dialogWidth);
 
     class AdventurerHudDialog extends DialogV2 {
+      _onRender(context, options) {
+        super._onRender(context, options);
+        this.updatePinControl();
+      }
+
+      updatePinControl() {
+        const header = this.element?.querySelector(".window-header");
+        const menu = header?.querySelector('[data-action="controls"]');
+
+        if (!header || !menu) {
+          return;
+        }
+
+        let control = header.querySelector('[data-action="togglepin"]');
+
+        if (!control) {
+          control = document.createElement("button");
+          control.type = "button";
+          control.classList.add("header-control", "icon");
+          control.dataset.action = "togglepin";
+          menu.before(control);
+        }
+
+        const label = t(pinned ? "Window.Unpin" : "Window.Pin");
+        control.classList.toggle("fa-thumbtack", pinned);
+        control.classList.toggle("fa-thumbtack-slash", !pinned);
+        control.classList.toggle("ws-active", pinned);
+        control.classList.add("fa-solid");
+        control.title = label;
+        control.setAttribute("aria-label", label);
+        control.setAttribute("aria-pressed", String(pinned));
+      }
+
       async close(options = {}) {
         if (pinned && options.closeKey) {
           return this;
@@ -934,13 +974,6 @@ export async function openRollsHud(actorOverride = null) {
         title: dialogTitle(),
         resizable: true,
         controls: [
-          {
-            icon: pinned
-              ? "fa-solid fa-thumbtack"
-              : "fa-solid fa-thumbtack-slash",
-            label: t(pinned ? "Window.Unpin" : "Window.Pin"),
-            action: "togglepin"
-          },
           {
             icon: keepOpen ? "fa-solid fa-toggle-on" : "fa-solid fa-toggle-off",
             label: t("Window.KeepOpenMenu"),

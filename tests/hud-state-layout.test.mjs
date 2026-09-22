@@ -13,6 +13,7 @@ import { renderHudMode, renderRegularView } from "../scripts/render/index.js";
 test("one forced mode replaces the former three-flag state", () => {
   const state = createHudState({ currentView: "skills" });
   assert.equal(state.abilityChecksExpanded, true);
+  assert.equal(state.combatAbilityChecksExpanded, false);
   assert.equal(state.combatSavingThrowsExpanded, true);
   setForcedMode(state, "combat");
   assert.equal(state.forcedMode, "combat");
@@ -116,6 +117,15 @@ test("extra-large typography and resource shortcut keys have dedicated styles", 
   assert.match(source, /<kbd>\$\{t\("Combat\.ResourceConsumeKeys"\)\}<\/kbd>/);
 });
 
+test("combat HUD renders its own collapsed check section", async () => {
+  const source = await readFile(
+    new URL("../scripts/hud/combat.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(source, /abilityChecksSection\("combat"\)/);
+});
+
 test("regular HUD exposes inventory filters and item charges", async () => {
   const regularSource = await readFile(
     new URL("../scripts/hud/regular.js", import.meta.url),
@@ -180,4 +190,7 @@ test("pinned HUD ignores only close-key requests", async () => {
 
   assert.match(controller, /if \(pinned && options\.closeKey\)/);
   assert.match(controller, /return super\.close\(options\)/);
+  assert.match(controller, /menu\.before\(control\)/);
+  assert.match(controller, /control\.setAttribute\("aria-pressed"/);
+  assert.doesNotMatch(controller, /controls:\s*\[\s*\{\s*icon:\s*pinned/s);
 });

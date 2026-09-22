@@ -94,24 +94,33 @@ export function createHudComponents(context) {
       `;
   }
 
-  const abilityChecksSection = () => `
-      <div class="ws-ability-checks ${hudState.abilityChecksExpanded ? "ws-expanded" : ""}">
+  const abilityChecksSection = (mode = "regular") => {
+    const stateKey =
+      mode === "combat"
+        ? "combatAbilityChecksExpanded"
+        : "abilityChecksExpanded";
+    const expanded = hudState[stateKey];
+    const action = mode === "combat" ? "togglecombatchecks" : "togglechecks";
+
+    return `
+      <div class="ws-ability-checks ${expanded ? "ws-expanded" : ""}">
         <button
           type="button"
           class="ws-section-toggle ws-button"
-          data-action="togglechecks"
-          aria-expanded="${hudState.abilityChecksExpanded}"
+          data-action="${action}"
+          aria-expanded="${expanded}"
         >
           <span><i class="fa-solid fa-dice"></i>${t("Labels.Check")}</span>
-          <i class="fa-solid fa-chevron-${hudState.abilityChecksExpanded ? "up" : "down"}"></i>
+          <i class="fa-solid fa-chevron-${expanded ? "up" : "down"}"></i>
         </button>
         ${
-          hudState.abilityChecksExpanded
+          expanded
             ? abilityRow("check", t("Labels.Check"), "fa-dice", false)
             : ""
         }
       </div>
     `;
+  };
 
   const savingThrowsSection = (mode = "regular") => {
     const stateKey =
