@@ -102,19 +102,13 @@ test("regular HUD keeps initiative beside the actor controls", async () => {
   );
 });
 
-test("extra-large typography and resource shortcut keys have dedicated styles", async () => {
+test("extra-large typography has dedicated styles", async () => {
   const css = await readFile(
     new URL("../styles/adventurer-hud.css", import.meta.url),
     "utf8"
   );
-  const source = await readFile(
-    new URL("../scripts/hud/combat.js", import.meta.url),
-    "utf8"
-  );
 
   assert.match(css, /\.ws-font-extralarge \.ws-view/);
-  assert.match(source, /ws-resource-shortcuts ws-shortcuts/);
-  assert.match(source, /<kbd>\$\{t\("Combat\.ResourceConsumeKeys"\)\}<\/kbd>/);
 });
 
 test("combat HUD renders its own collapsed check section", async () => {
@@ -149,9 +143,14 @@ test("HUD mode renderers are split from the application controller", async () =>
   );
 
   assert.match(controller, /from "\.\/hud\/components\.js"/);
+  assert.match(controller, /from "\.\/hud\/actor-picker\.js"/);
   assert.match(controller, /from "\.\/hud\/regular\.js"/);
   assert.match(controller, /from "\.\/hud\/combat\.js"/);
   assert.match(controller, /from "\.\/hud\/death-saves\.js"/);
+  assert.match(controller, /from "\.\/hud\/refresh\.js"/);
+  assert.match(controller, /from "\.\/hud\/subscriptions\.js"/);
+  assert.match(controller, /from "\.\/hud\/window-controls\.js"/);
+  assert.match(controller, /from "\.\/hud\/geometry\.js"/);
   assert.doesNotMatch(controller, /function normalHTML\(/);
   assert.doesNotMatch(controller, /function combatHTML\(/);
   assert.doesNotMatch(controller, /function deathHTML\(/);
@@ -180,18 +179,4 @@ test("Token Controls button visibility follows its client setting", async () => 
 
   assert.match(entrypoint, /getSetting\(SETTINGS\.showTokenControl\)/);
   assert.match(entrypoint, /ui\.controls\?\.render\(\{ force: true \}\)/);
-});
-
-test("pinned HUD ignores only close-key requests", async () => {
-  const controller = await readFile(
-    new URL("../scripts/rolls-hud.js", import.meta.url),
-    "utf8"
-  );
-
-  assert.match(controller, /if \(pinned && options\.closeKey\)/);
-  assert.match(controller, /return super\.close\(options\)/);
-  assert.match(controller, /menu\.before\(control\)/);
-  assert.match(controller, /data-action="toggleControls"/);
-  assert.match(controller, /control\.setAttribute\("aria-pressed"/);
-  assert.doesNotMatch(controller, /controls:\s*\[\s*\{\s*icon:\s*pinned/s);
 });

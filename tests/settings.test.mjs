@@ -8,8 +8,10 @@ import {
   moveSettingsMenusToBottom,
   registerSettings,
   resetSettings,
+  SETTING_DEFINITIONS,
   SETTING_DEFAULTS,
   SETTING_GROUPS,
+  settingRefreshStrategy,
   SETTINGS
 } from "../scripts/settings.js";
 
@@ -97,6 +99,17 @@ test("system capabilities control system-specific settings", () => {
   assert.equal(isSettingSupported(SETTINGS.showInventory, "dnd5e"), true);
   assert.equal(isSettingSupported(SETTINGS.showDeathSaves, "unknown"), false);
   assert.equal(isSettingSupported(SETTINGS.fontSize, "unknown"), true);
+});
+
+test("setting metadata drives defaults, placement, and refresh behavior", () => {
+  assert.deepEqual(
+    new Set(Object.keys(SETTING_DEFINITIONS)),
+    new Set(Object.keys(SETTING_DEFAULTS))
+  );
+  assert.equal(settingRefreshStrategy(SETTINGS.pinWindow), "runtime");
+  assert.equal(settingRefreshStrategy(SETTINGS.showSkills), "content");
+  assert.equal(settingRefreshStrategy(SETTINGS.fontSize), "reopen");
+  assert.equal(settingRefreshStrategy("unknown"), "none");
 });
 
 test("migration preserves navigation and moves legacy spell visibility", async () => {

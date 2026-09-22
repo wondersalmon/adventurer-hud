@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createCombatRenderer } from "../scripts/hud/combat.js";
+import { createCombatResourceController } from "../scripts/hud/combat-resources.js";
 import { createHudComponents } from "../scripts/hud/components.js";
 import { createDeathRenderer } from "../scripts/hud/death-saves.js";
 
@@ -126,6 +127,77 @@ test("actor class summary keeps its full value in a tooltip", () => {
   const html = components.actorHeader();
   assert.match(html, /title="Monk 7 \/ Barbarian 1"/);
   assert.match(html, />Monk 7 \/ Barbarian 1<\/span>/);
+});
+
+test("adapter-provided ability markup is escaped", () => {
+  const components = createHudComponents({
+    abilities: [
+      ['str" data-injected="yes', "<STR>", 'fa-hand-fist\" onclick=\"bad']
+    ],
+    actor: {},
+    adapter: {
+      abilityData: () => ({ mod: 2 }),
+      abilityTotal: data => data.mod
+    },
+    canRollActor: true,
+    escapeHTML,
+    formatMod: value => `+${value}`,
+    hudState: { abilityChecksExpanded: true },
+    marker: () => ["", "", ""],
+    saveProf: () => 0,
+    skillProf: () => 0,
+    skills: [],
+    t: key => key,
+    tf: (_key, data) => `${data.ability} check`,
+    visibility: {}
+  });
+
+  const html = components.abilityChecksSection();
+  assert.match(html, /data-key="str&quot; data-injected=&quot;yes"/);
+  assert.match(html, /&lt;STR&gt;/);
+  assert.doesNotMatch(html, /onclick="bad"/);
+});
+
+test("combat resources escape adapter identifiers and update through the adapter", async () => {
+  const updates = [];
+  const controller = createCombatResourceController({
+    actor: {},
+    adapter: {
+      actorResources: () => [],
+      featureResources: () => [
+        {
+          id: "resource",
+          itemId: 'item\" injected=\"true',
+          label: "Focus <Points>",
+          max: 5,
+          value: 3
+        }
+      ],
+      resourceData: () => ({ current: 3, max: 5 }),
+      updateResource: (_actor, data) => updates.push(data)
+    },
+    DialogV2: class {},
+    escapeHTML,
+    hudState: { resourcesExpanded: true },
+    t: key => key,
+    tf: key => key,
+    visibility: { combatResources: true }
+  });
+
+  const html = controller.combatResources();
+  assert.match(html, /data-item-id="item&quot; injected=&quot;true"/);
+  assert.match(html, /Focus &lt;Points&gt;/);
+  assert.match(html, /ws-resource-shortcuts ws-shortcuts/);
+  assert.match(html, /Combat\.ResourceConsumeKeys/);
+  assert.equal(
+    await controller.changeResource({
+      amount: 1,
+      direction: "consume",
+      item: { id: "item" }
+    }),
+    true
+  );
+  assert.equal(updates[0].value, 2);
 });
 
 test("death renderer receives mode-heading visibility from its context", () => {

@@ -4,10 +4,19 @@ import {
   setForcedMode,
   setRegularView
 } from "./hud/state.js";
+import { openActorPicker } from "./hud/actor-picker.js";
 import { createCombatRenderer } from "./hud/combat.js";
 import { createHudComponents } from "./hud/components.js";
 import { createDeathRenderer } from "./hud/death-saves.js";
+import {
+  centeredWindowPosition,
+  normalizeWindowGeometry,
+  storedWindowGeometry
+} from "./hud/geometry.js";
+import { createRefreshScheduler } from "./hud/refresh.js";
 import { createRegularRenderer } from "./hud/regular.js";
+import { subscribeHudDocuments } from "./hud/subscriptions.js";
+import { createHudApplicationClass } from "./hud/window-controls.js";
 import { renderHudMode } from "./render/index.js";
 import { findCombatant, tokenForActor } from "./runtime-helpers.js";
 import {
@@ -75,52 +84,16 @@ export async function openRollsHud(actorOverride = null) {
         return openRollsHud(availableActors[0]);
       }
 
-      const pickerContent = document.createElement("div");
-      pickerContent.innerHTML = `<div class="ws-actor-picker-list">${availableActors
-        .sort((a, b) => a.name.localeCompare(b.name, game.i18n.lang))
-        .map(
-          candidate => `
-            <button
-              type="button"
-              class="ws-actor-picker-entry"
-              data-action="selectactor"
-              data-actor-id="${candidate.id}"
-            >
-              <img src="${foundry.utils.escapeHTML(candidate.img ?? "icons/svg/mystery-man.svg")}" alt="">
-              <span>${foundry.utils.escapeHTML(candidate.name)}</span>
-              <i class="fa-solid fa-chevron-right"></i>
-            </button>
-          `
-        )
-        .join("")}</div>`;
-
-      const picker = new DialogV2({
-        classes: ["ws-actor-picker"],
-        window: { title: t("Actor.Select") },
-        position: {
-          width: Math.min(380, Math.max(280, window.innerWidth - 32)),
-          height: "auto"
-        },
-        content: pickerContent,
-        actions: {
-          selectactor: async function (_event, target) {
-            const selectedActor = game.actors.get(target.dataset.actorId);
-            await picker.close();
-
-            if (selectedActor) {
-              void openRollsHud(selectedActor);
-            }
-          }
-        },
-        buttons: [
-          {
-            action: "close",
-            label: t("Actor.Cancel")
-          }
-        ]
+      return openActorPicker({
+        actors: availableActors,
+        DialogV2,
+        document,
+        escapeHTML: foundry.utils.escapeHTML,
+        lang: game.i18n.lang,
+        onSelect: selectedActor => openRollsHud(selectedActor),
+        t,
+        viewportWidth: window.innerWidth
       });
-
-      return picker.render({ force: true });
     }
 
     if (!adapter.isActorSupported(actor)) {
@@ -142,7 +115,7 @@ export async function openRollsHud(actorOverride = null) {
     const adaptiveLayout = Boolean(getSetting(SETTINGS.adaptiveLayout));
     const fontSize = getSetting(SETTINGS.fontSize) || "medium";
 
-    const visibility = {
+    const readVisibility = () => ({
       abilityChecks:
         adapter.capabilities.abilityChecks &&
         getSetting(SETTINGS.showAbilityChecks),
@@ -181,7 +154,8 @@ export async function openRollsHud(actorOverride = null) {
       shortcuts: getSetting(SETTINGS.showShortcuts),
       skills: adapter.capabilities.skills && getSetting(SETTINGS.showSkills),
       tools: adapter.capabilities.tools && getSetting(SETTINGS.showTools)
-    };
+    });
+    const visibility = readVisibility();
 
     const abilities = adapter.abilityDefinitions();
     const skills = adapter.capabilities.skills
@@ -196,68 +170,11 @@ export async function openRollsHud(actorOverride = null) {
 
     const escapeHTML = value => foundry.utils.escapeHTML(String(value ?? ""));
 
-    const loadStoredPosition = defaultWidth => {
-      const saved = getWindowGeometry();
-
-      if (!saved) {
-        return {};
-      }
-
-      const left = Number(saved.left);
-      const top = Number(saved.top);
-      const savedWidth = Number(saved.width);
-      const savedHeight = Number(saved.height);
-
-      if (!Number.isFinite(left) || !Number.isFinite(top)) {
-        return {};
-      }
-
-      const minimumWidth = adaptiveLayout ? 270 : 420;
-      const width = Number.isFinite(savedWidth)
-        ? Math.min(
-            Math.max(minimumWidth, savedWidth),
-            Math.max(minimumWidth, window.innerWidth - 16)
-          )
-        : defaultWidth;
-
-      const height = Number.isFinite(savedHeight)
-        ? Math.min(
-            Math.max(180, savedHeight),
-            Math.max(180, window.innerHeight - 16)
-          )
-        : null;
-
-      return {
-        width,
-        ...(height === null ? {} : { height }),
-        left: Math.min(
-          Math.max(0, left),
-          Math.max(0, window.innerWidth - width)
-        ),
-        top: Math.min(
-          Math.max(0, top),
-          Math.max(0, window.innerHeight - (height ?? 80))
-        )
-      };
-    };
-
     const storePosition = position => {
-      const left = Number(position?.left);
-      const top = Number(position?.top);
-      const width = Number(position?.width);
-      const height = Number(position?.height);
+      const geometry = storedWindowGeometry(position);
+      if (!geometry) return;
 
-      if (!Number.isFinite(left) || !Number.isFinite(top)) {
-        return;
-      }
-
-      state.position = {
-        left,
-        top,
-        ...(Number.isFinite(width) ? { width } : {}),
-        ...(Number.isFinite(height) ? { height } : {})
-      };
-
+      state.position = geometry;
       saveWindowGeometry(state.position);
     };
 
@@ -502,6 +419,7 @@ export async function openRollsHud(actorOverride = null) {
         rollPending = false;
 
         if (app?.rendered) {
+          refreshScheduler.cancel();
           refreshHud();
         }
       }
@@ -519,7 +437,8 @@ export async function openRollsHud(actorOverride = null) {
         return await callback();
       } finally {
         rollPending = false;
-        refreshHud();
+        refreshScheduler.cancel();
+        if (app?.rendered) refreshHud();
       }
     };
 
@@ -557,6 +476,21 @@ export async function openRollsHud(actorOverride = null) {
       }
 
       const mode = currentMode();
+
+      if (mode === "regular") {
+        const visibleViews = {
+          inventory: visibility.inventory,
+          skills: visibility.skills,
+          spells: visibility.combatSpells,
+          tools: visibility.tools
+        };
+        if (
+          hudState.currentView !== "main" &&
+          !visibleViews[hudState.currentView]
+        ) {
+          setRegularView(hudState, "main");
+        }
+      }
 
       if (mode === "combat" && region === "conditions") {
         const current = shell.querySelector(".ws-combat-statuses");
@@ -603,6 +537,8 @@ export async function openRollsHud(actorOverride = null) {
         hudState.currentView = "main";
       }
     };
+
+    const refreshScheduler = createRefreshScheduler(refreshHud);
 
     // =========================================================
     // ApplicationV2 actions
@@ -829,12 +765,13 @@ export async function openRollsHud(actorOverride = null) {
         const statusId = target.dataset.statusId;
         const effectId = target.dataset.effectId;
 
-        if (effectId) {
-          await actor.effects.get(effectId)?.delete();
-        } else if (actor.statuses?.has(statusId)) {
-          await actor.toggleStatusEffect(statusId, { active: false });
-        }
-        refreshHud();
+        return performAndRefresh(async () => {
+          if (effectId) {
+            await actor.effects.get(effectId)?.delete();
+          } else if (actor.statuses?.has(statusId)) {
+            await actor.toggleStatusEffect(statusId, { active: false });
+          }
+        });
       },
 
       settings: async function () {
@@ -873,15 +810,10 @@ export async function openRollsHud(actorOverride = null) {
 
         const rect = app.element.getBoundingClientRect();
 
-        const left = Math.max(
-          0,
-          Math.round((window.innerWidth - rect.width) / 2)
-        );
-
-        const top = Math.max(
-          0,
-          Math.round((window.innerHeight - rect.height) / 2)
-        );
+        const { left, top } = centeredWindowPosition(rect, {
+          width: window.innerWidth,
+          height: window.innerHeight
+        });
 
         app.setPosition({ left, top });
 
@@ -918,52 +850,19 @@ export async function openRollsHud(actorOverride = null) {
 
     const dialogWidth = Math.min(450, Math.max(320, window.innerWidth - 32));
 
-    const storedPosition = loadStoredPosition(dialogWidth);
+    const storedPosition = normalizeWindowGeometry(getWindowGeometry(), {
+      adaptiveLayout,
+      defaultWidth: dialogWidth,
+      viewportHeight: window.innerHeight,
+      viewportWidth: window.innerWidth
+    });
 
-    class AdventurerHudDialog extends DialogV2 {
-      _onRender(context, options) {
-        super._onRender(context, options);
-        this.updatePinControl();
-      }
-
-      updatePinControl() {
-        const header = this.element?.querySelector(".window-header");
-        const menu = header?.querySelector(
-          '[data-action="toggleControls"], [data-action="controls"], .fa-ellipsis-vertical'
-        );
-
-        if (!header || !menu) {
-          return;
-        }
-
-        let control = header.querySelector('[data-action="togglepin"]');
-
-        if (!control) {
-          control = document.createElement("button");
-          control.type = "button";
-          control.classList.add("header-control", "icon");
-          control.dataset.action = "togglepin";
-          menu.before(control);
-        }
-
-        const label = t(pinned ? "Window.Unpin" : "Window.Pin");
-        control.classList.toggle("fa-thumbtack", pinned);
-        control.classList.toggle("fa-thumbtack-slash", !pinned);
-        control.classList.toggle("ws-active", pinned);
-        control.classList.add("fa-solid");
-        control.title = label;
-        control.setAttribute("aria-label", label);
-        control.setAttribute("aria-pressed", String(pinned));
-      }
-
-      async close(options = {}) {
-        if (pinned && options.closeKey) {
-          return this;
-        }
-
-        return super.close(options);
-      }
-    }
+    const AdventurerHudDialog = createHudApplicationClass({
+      DialogV2,
+      document,
+      getPinLabel: value => t(value ? "Window.Unpin" : "Window.Pin"),
+      isPinned: () => pinned
+    });
 
     const app = new AdventurerHudDialog({
       classes: [
@@ -1012,6 +911,29 @@ export async function openRollsHud(actorOverride = null) {
       ]
     });
 
+    app.applySetting = (key, value) => {
+      if (key === SETTINGS.keepOpen) {
+        keepOpen = Boolean(value);
+        const control = app.options?.window?.controls?.find(
+          entry => entry.action === "togglekeepopen"
+        );
+        if (control) {
+          control.icon = keepOpen
+            ? "fa-solid fa-toggle-on"
+            : "fa-solid fa-toggle-off";
+        }
+      }
+      if (key === SETTINGS.pinWindow) {
+        pinned = Boolean(value);
+        app.updatePinControl();
+      }
+    };
+
+    app.refreshFromSettings = () => {
+      Object.assign(visibility, readVisibility());
+      refreshHud();
+    };
+
     await app.render({
       force: true
     });
@@ -1043,58 +965,19 @@ export async function openRollsHud(actorOverride = null) {
 
     app.addEventListener("position", () => storePosition(app.position));
 
-    const refreshActorEffect = effect => {
-      if (effect?.parent?.uuid === actor.uuid) {
-        refreshHud("conditions");
-      }
-    };
-
-    const refreshActorItem = item => {
-      if (item?.parent?.uuid === actor.uuid) {
-        refreshHud();
-      }
-    };
-
-    const hookIds = [
-      [
-        "updateActor",
-        Hooks.on("updateActor", updatedActor => {
-          if (updatedActor.uuid === actor.uuid) {
-            refreshHud();
-          }
-        })
-      ],
-      [
-        "createActiveEffect",
-        Hooks.on("createActiveEffect", refreshActorEffect)
-      ],
-      [
-        "updateActiveEffect",
-        Hooks.on("updateActiveEffect", refreshActorEffect)
-      ],
-      [
-        "deleteActiveEffect",
-        Hooks.on("deleteActiveEffect", refreshActorEffect)
-      ],
-      ["createItem", Hooks.on("createItem", refreshActorItem)],
-      ["updateItem", Hooks.on("updateItem", refreshActorItem)],
-      ["deleteItem", Hooks.on("deleteItem", refreshActorItem)],
-      ["createCombat", Hooks.on("createCombat", refreshHud)],
-      ["updateCombat", Hooks.on("updateCombat", refreshHud)],
-      ["deleteCombat", Hooks.on("deleteCombat", refreshHud)],
-      ["createCombatant", Hooks.on("createCombatant", refreshHud)],
-      ["updateCombatant", Hooks.on("updateCombatant", refreshHud)],
-      ["deleteCombatant", Hooks.on("deleteCombatant", refreshHud)]
-    ];
+    const unsubscribeDocuments = subscribeHudDocuments({
+      actor,
+      hooks: Hooks,
+      scheduleRefresh: refreshScheduler.schedule
+    });
 
     app.addEventListener(
       "close",
       () => {
         void flushWindowGeometry();
 
-        for (const [hook, id] of hookIds) {
-          Hooks.off(hook, id);
-        }
+        refreshScheduler.cancel();
+        unsubscribeDocuments();
 
         if (state.app === app) {
           state.app = null;

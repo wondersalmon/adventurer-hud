@@ -1,11 +1,13 @@
 import { openRollsHud } from "./rolls-hud.js";
 import { MODULE_ID } from "./module-id.js";
 import { actorContextChanged } from "./runtime-helpers.js";
+import { applyHudSettingChange } from "./hud/settings-refresh.js";
 import {
   getSetting,
   migrateLegacySettings,
   moveSettingsMenusToBottom,
   registerSettings,
+  settingRefreshStrategy,
   SETTINGS
 } from "./settings.js";
 import {
@@ -131,48 +133,25 @@ Hooks.on("renderSettingsConfig", (app, html) => {
   moveSettingsMenusToBottom(html ?? app.element);
 });
 
-Hooks.on("adventurerHudSettingChanged", key => {
-  if (key === SETTINGS.showTokenControl) {
-    void ui.controls?.render({ force: true });
-  }
+Hooks.on("adventurerHudSettingChanged", (key, value) => {
+  const strategy = settingRefreshStrategy(key);
+  const app = getOpenApp();
+  applyHudSettingChange({
+    app,
+    key,
+    value,
+    strategy,
+    refreshControls: () => void ui.controls?.render({ force: true }),
+    reopen: () => {
+      clearTimeout(settingsRefreshTimer);
+      settingsRefreshTimer = setTimeout(() => {
+        settingsRefreshTimer = null;
+        const state = globalThis.__adventurerHud;
 
-  const layoutSettings = new Set([
-    SETTINGS.adaptiveLayout,
-    SETTINGS.fontSize,
-    SETTINGS.automaticCombatMode,
-    SETTINGS.keepOpen,
-    SETTINGS.pinWindow,
-    SETTINGS.showAbilityChecks,
-    SETTINGS.showDeathSaves,
-    SETTINGS.showInitiative,
-    SETTINGS.showItemDetails,
-    SETTINGS.showInventory,
-    SETTINGS.showModeNavigation,
-    SETTINGS.showModeHeadings,
-    SETTINGS.showCombatResources,
-    SETTINGS.showCombatStats,
-    SETTINGS.showConditions,
-    SETTINGS.showCombatWeapons,
-    SETTINGS.showSpells,
-    SETTINGS.showCombatActions,
-    SETTINGS.showCombatBonusActions,
-    SETTINGS.showCombatReactions,
-    SETTINGS.showCombatSpecial,
-    SETTINGS.showSavingThrows,
-    SETTINGS.showShortcuts,
-    SETTINGS.showSkills,
-    SETTINGS.showTools
-  ]);
-
-  if (layoutSettings.has(key) && getOpenApp()?.rendered) {
-    clearTimeout(settingsRefreshTimer);
-    settingsRefreshTimer = setTimeout(() => {
-      settingsRefreshTimer = null;
-      const state = globalThis.__adventurerHud;
-
-      if (state?.app?.rendered) {
-        void openRollsHud(state.actor ?? null);
-      }
-    }, 50);
-  }
+        if (state?.app?.rendered) {
+          void openRollsHud(state.actor ?? null);
+        }
+      }, 50);
+    }
+  });
 });

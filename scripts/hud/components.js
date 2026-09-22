@@ -40,6 +40,9 @@ export function createHudComponents(context) {
           ${abilities
             .map(([id, short, icon]) => {
               const data = adapter.abilityData(actor, id);
+              const safeId = escapeHTML(id);
+              const safeShort = escapeHTML(short);
+              const safeIcon = escapeHTML(icon);
 
               const proficient = type === "save" && saveProf(id) > 0;
 
@@ -51,6 +54,7 @@ export function createHudComponents(context) {
                   : "RollLabels.AbilityCheck",
                 { ability: short }
               );
+              const safeRollLabel = escapeHTML(rollLabel);
 
               return `
                   <button
@@ -61,15 +65,15 @@ export function createHudComponents(context) {
                       ${proficient ? "ws-save-prof" : ""}
                     "
                     data-action="ability"
-                    data-type="${type}"
-                    data-key="${id}"
-                    title="${rollLabel}"
-                    aria-label="${rollLabel}"
+                    data-type="${escapeHTML(type)}"
+                    data-key="${safeId}"
+                    title="${safeRollLabel}"
+                    aria-label="${safeRollLabel}"
                     ${canRollActor ? "" : "disabled"}
                   >
                     <span class="ws-ability-label">
-                      <i class="fa-solid ${icon}"></i>
-                      <span>${short}</span>
+                      <i class="fa-solid ${safeIcon}"></i>
+                      <span>${safeShort}</span>
                     </span>
 
                     <span class="ws-ability-value">
@@ -175,7 +179,7 @@ export function createHudComponents(context) {
               <i
                 class="
                   fa-solid
-                  ${icon}
+                  ${escapeHTML(icon)}
                   ws-entry-icon
                 "
               ></i>
@@ -228,7 +232,7 @@ export function createHudComponents(context) {
             <i
               class="
                 fa-solid
-                ${tool.icon}
+                  ${escapeHTML(tool.icon)}
                 ws-entry-icon
               "
             ></i>

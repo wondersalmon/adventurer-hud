@@ -34,111 +34,157 @@ export const SETTINGS = Object.freeze({
   migrationVersion: "migrationVersion"
 });
 
-export const SETTING_GROUPS = Object.freeze({
-  behavior: Object.freeze([
-    SETTINGS.keepOpen,
-    SETTINGS.pinWindow,
-    SETTINGS.showTokenControl,
-    SETTINGS.autoUpdateActor,
-    SETTINGS.automaticCombatMode
-  ]),
-  appearance: Object.freeze([SETTINGS.adaptiveLayout, SETTINGS.fontSize]),
-  regular: Object.freeze([
-    SETTINGS.showAbilityChecks,
-    SETTINGS.showSavingThrows,
-    SETTINGS.showSkills,
-    SETTINGS.showTools,
-    SETTINGS.showSpells,
-    SETTINGS.showInventory,
-    SETTINGS.showDeathSaves,
-    SETTINGS.showShortcuts
-  ]),
-  combat: Object.freeze([
-    SETTINGS.showInitiative,
-    SETTINGS.showItemDetails,
-    SETTINGS.showCombatResources,
-    SETTINGS.showCombatStats,
-    SETTINGS.showConditions,
-    SETTINGS.showCombatWeapons,
-    SETTINGS.showCombatActions,
-    SETTINGS.showCombatBonusActions,
-    SETTINGS.showCombatReactions,
-    SETTINGS.showCombatSpecial
-  ]),
-  advanced: Object.freeze([
-    SETTINGS.showModeNavigation,
-    SETTINGS.showModeHeadings
-  ])
+const FONT_SIZE_CHOICES = Object.freeze({
+  small: "ADVENTURER_HUD.Settings.fontSize.Small",
+  medium: "ADVENTURER_HUD.Settings.fontSize.Medium",
+  large: "ADVENTURER_HUD.Settings.fontSize.Large",
+  extraLarge: "ADVENTURER_HUD.Settings.fontSize.ExtraLarge"
 });
 
-export const BASIC_SETTINGS = Object.freeze([
-  SETTINGS.adaptiveLayout,
-  SETTINGS.fontSize,
-  SETTINGS.keepOpen,
-  SETTINGS.pinWindow,
-  SETTINGS.showTokenControl,
-  SETTINGS.autoUpdateActor,
-  SETTINGS.automaticCombatMode,
-  SETTINGS.showItemDetails,
-  SETTINGS.showDeathSaves
-]);
+const defineSetting = (
+  group,
+  {
+    capability,
+    choices,
+    defaultValue = true,
+    placement = "advanced",
+    refresh = "content",
+    type = Boolean
+  } = {}
+) =>
+  Object.freeze({
+    group,
+    placement,
+    refresh,
+    type,
+    default: defaultValue,
+    ...(capability ? { capability } : {}),
+    ...(choices ? { choices } : {})
+  });
 
-const ADVANCED_SETTING_GROUPS = Object.freeze({
-  behavior: Object.freeze([SETTINGS.showShortcuts]),
-  regular: Object.freeze([
-    SETTINGS.showAbilityChecks,
-    SETTINGS.showSavingThrows,
-    SETTINGS.showSkills,
-    SETTINGS.showTools,
-    SETTINGS.showSpells,
-    SETTINGS.showInventory
-  ]),
-  combat: Object.freeze([
-    SETTINGS.showInitiative,
-    SETTINGS.showCombatResources,
-    SETTINGS.showCombatStats,
-    SETTINGS.showConditions,
-    SETTINGS.showCombatWeapons,
-    SETTINGS.showCombatActions,
-    SETTINGS.showCombatBonusActions,
-    SETTINGS.showCombatReactions,
-    SETTINGS.showCombatSpecial
-  ]),
-  advanced: Object.freeze([
-    SETTINGS.showModeNavigation,
-    SETTINGS.showModeHeadings
-  ])
+export const SETTING_DEFINITIONS = Object.freeze({
+  [SETTINGS.adaptiveLayout]: defineSetting("appearance", {
+    placement: "basic",
+    refresh: "reopen"
+  }),
+  [SETTINGS.fontSize]: defineSetting("appearance", {
+    choices: FONT_SIZE_CHOICES,
+    defaultValue: "medium",
+    placement: "basic",
+    refresh: "reopen",
+    type: String
+  }),
+  [SETTINGS.keepOpen]: defineSetting("behavior", {
+    defaultValue: false,
+    placement: "basic",
+    refresh: "runtime"
+  }),
+  [SETTINGS.pinWindow]: defineSetting("behavior", {
+    defaultValue: false,
+    placement: "basic",
+    refresh: "runtime"
+  }),
+  [SETTINGS.showTokenControl]: defineSetting("behavior", {
+    placement: "basic",
+    refresh: "controls"
+  }),
+  [SETTINGS.autoUpdateActor]: defineSetting("behavior", {
+    defaultValue: false,
+    placement: "basic",
+    refresh: "none"
+  }),
+  [SETTINGS.automaticCombatMode]: defineSetting("behavior", {
+    placement: "basic"
+  }),
+  [SETTINGS.showItemDetails]: defineSetting("combat", {
+    placement: "basic"
+  }),
+  [SETTINGS.showDeathSaves]: defineSetting("regular", {
+    capability: "deathSaves",
+    placement: "basic"
+  }),
+  [SETTINGS.showShortcuts]: defineSetting("regular"),
+  [SETTINGS.showAbilityChecks]: defineSetting("regular", {
+    capability: "abilityChecks"
+  }),
+  [SETTINGS.showSavingThrows]: defineSetting("regular", {
+    capability: "savingThrows"
+  }),
+  [SETTINGS.showSkills]: defineSetting("regular", { capability: "skills" }),
+  [SETTINGS.showTools]: defineSetting("regular", { capability: "tools" }),
+  [SETTINGS.showSpells]: defineSetting("regular", { capability: "spells" }),
+  [SETTINGS.showInventory]: defineSetting("regular", {
+    capability: "inventory"
+  }),
+  [SETTINGS.showInitiative]: defineSetting("combat", {
+    capability: "combat"
+  }),
+  [SETTINGS.showCombatResources]: defineSetting("combat", {
+    capability: "resources"
+  }),
+  [SETTINGS.showCombatStats]: defineSetting("combat", {
+    capability: "combat"
+  }),
+  [SETTINGS.showConditions]: defineSetting("combat", {
+    capability: "conditions"
+  }),
+  [SETTINGS.showCombatWeapons]: defineSetting("combat", {
+    capability: "weapons"
+  }),
+  [SETTINGS.showCombatActions]: defineSetting("combat", {
+    capability: "actions"
+  }),
+  [SETTINGS.showCombatBonusActions]: defineSetting("combat", {
+    capability: "bonusActions"
+  }),
+  [SETTINGS.showCombatReactions]: defineSetting("combat", {
+    capability: "reactions"
+  }),
+  [SETTINGS.showCombatSpecial]: defineSetting("combat", {
+    capability: "specialActions"
+  }),
+  [SETTINGS.showModeNavigation]: defineSetting("advanced", {
+    defaultValue: false
+  }),
+  [SETTINGS.showModeHeadings]: defineSetting("advanced")
 });
 
-export const SETTING_DEFAULTS = Object.freeze({
-  [SETTINGS.adaptiveLayout]: true,
-  [SETTINGS.fontSize]: "medium",
-  [SETTINGS.keepOpen]: false,
-  [SETTINGS.pinWindow]: false,
-  [SETTINGS.showTokenControl]: true,
-  [SETTINGS.autoUpdateActor]: false,
-  [SETTINGS.automaticCombatMode]: true,
-  [SETTINGS.showInitiative]: true,
-  [SETTINGS.showItemDetails]: true,
-  [SETTINGS.showModeNavigation]: false,
-  [SETTINGS.showModeHeadings]: true,
-  [SETTINGS.showCombatResources]: true,
-  [SETTINGS.showCombatStats]: true,
-  [SETTINGS.showConditions]: true,
-  [SETTINGS.showCombatWeapons]: true,
-  [SETTINGS.showSpells]: true,
-  [SETTINGS.showInventory]: true,
-  [SETTINGS.showCombatActions]: true,
-  [SETTINGS.showCombatBonusActions]: true,
-  [SETTINGS.showCombatReactions]: true,
-  [SETTINGS.showCombatSpecial]: true,
-  [SETTINGS.showAbilityChecks]: true,
-  [SETTINGS.showSavingThrows]: true,
-  [SETTINGS.showSkills]: true,
-  [SETTINGS.showTools]: true,
-  [SETTINGS.showDeathSaves]: true,
-  [SETTINGS.showShortcuts]: true
-});
+const definitionsBy = predicate =>
+  Object.entries(SETTING_DEFINITIONS)
+    .filter(([, definition]) => predicate(definition))
+    .map(([key]) => key);
+
+const groupDefinitions = placement =>
+  Object.freeze(
+    Object.fromEntries(
+      ["behavior", "appearance", "regular", "combat", "advanced"]
+        .map(group => [
+          group,
+          Object.freeze(
+            definitionsBy(
+              definition =>
+                definition.group === group &&
+                (!placement || definition.placement === placement)
+            )
+          )
+        ])
+        .filter(([, keys]) => keys.length)
+    )
+  );
+
+export const SETTING_GROUPS = groupDefinitions();
+export const BASIC_SETTINGS = Object.freeze(
+  definitionsBy(definition => definition.placement === "basic")
+);
+const ADVANCED_SETTING_GROUPS = groupDefinitions("advanced");
+export const SETTING_DEFAULTS = Object.freeze(
+  Object.fromEntries(
+    Object.entries(SETTING_DEFINITIONS).map(([key, definition]) => [
+      key,
+      definition.default
+    ])
+  )
+);
 
 let SettingsApplication = null;
 let ResetSettingsApplication = null;
@@ -146,93 +192,28 @@ let ResetSettingsApplication = null;
 const notifyChange = key => value =>
   Hooks.callAll("adventurerHudSettingChanged", key, value);
 
-const SETTING_CAPABILITIES = Object.freeze({
-  [SETTINGS.showAbilityChecks]: "abilityChecks",
-  [SETTINGS.showCombatActions]: "actions",
-  [SETTINGS.showCombatBonusActions]: "bonusActions",
-  [SETTINGS.showCombatReactions]: "reactions",
-  [SETTINGS.showCombatResources]: "resources",
-  [SETTINGS.showCombatSpecial]: "specialActions",
-  [SETTINGS.showCombatStats]: "combat",
-  [SETTINGS.showCombatWeapons]: "weapons",
-  [SETTINGS.showConditions]: "conditions",
-  [SETTINGS.showDeathSaves]: "deathSaves",
-  [SETTINGS.showInitiative]: "combat",
-  [SETTINGS.showInventory]: "inventory",
-  [SETTINGS.showSavingThrows]: "savingThrows",
-  [SETTINGS.showSkills]: "skills",
-  [SETTINGS.showSpells]: "spells",
-  [SETTINGS.showTools]: "tools"
-});
-
 export function isSettingSupported(key, systemId = game.system?.id) {
-  const capability = SETTING_CAPABILITIES[key];
+  const capability = SETTING_DEFINITIONS[key]?.capability;
   if (!capability) return true;
   return Boolean(getSystemAdapter(systemId)?.capabilities?.[capability]);
 }
 
-const registerBoolean = (key, defaultValue = true) => {
-  game.settings.register(MODULE_ID, key, {
-    name: `ADVENTURER_HUD.Settings.${key}.Name`,
-    hint: `ADVENTURER_HUD.Settings.${key}.Hint`,
-    scope: "user",
-    config: BASIC_SETTINGS.includes(key) && isSettingSupported(key),
-    type: Boolean,
-    default: defaultValue,
-    onChange: notifyChange(key)
-  });
-};
-
-const registerChoice = (key, choices, defaultValue) => {
-  game.settings.register(MODULE_ID, key, {
-    name: `ADVENTURER_HUD.Settings.${key}.Name`,
-    hint: `ADVENTURER_HUD.Settings.${key}.Hint`,
-    scope: "user",
-    config: BASIC_SETTINGS.includes(key) && isSettingSupported(key),
-    type: String,
-    choices,
-    default: defaultValue,
-    onChange: notifyChange(key)
-  });
-};
+export const settingRefreshStrategy = key =>
+  SETTING_DEFINITIONS[key]?.refresh ?? "none";
 
 export function registerSettings() {
-  registerBoolean(SETTINGS.adaptiveLayout, true);
-  registerChoice(
-    SETTINGS.fontSize,
-    {
-      small: "ADVENTURER_HUD.Settings.fontSize.Small",
-      medium: "ADVENTURER_HUD.Settings.fontSize.Medium",
-      large: "ADVENTURER_HUD.Settings.fontSize.Large",
-      extraLarge: "ADVENTURER_HUD.Settings.fontSize.ExtraLarge"
-    },
-    "medium"
-  );
-  registerBoolean(SETTINGS.keepOpen, false);
-  registerBoolean(SETTINGS.pinWindow, false);
-  registerBoolean(SETTINGS.showTokenControl, true);
-  registerBoolean(SETTINGS.autoUpdateActor, false);
-  registerBoolean(SETTINGS.automaticCombatMode, true);
-  registerBoolean(SETTINGS.showInitiative);
-  registerBoolean(SETTINGS.showItemDetails);
-  registerBoolean(SETTINGS.showModeNavigation, false);
-  registerBoolean(SETTINGS.showModeHeadings);
-  registerBoolean(SETTINGS.showCombatResources);
-  registerBoolean(SETTINGS.showCombatStats);
-  registerBoolean(SETTINGS.showConditions);
-  registerBoolean(SETTINGS.showCombatWeapons);
-  registerBoolean(SETTINGS.showSpells);
-  registerBoolean(SETTINGS.showInventory);
-  registerBoolean(SETTINGS.showCombatActions);
-  registerBoolean(SETTINGS.showCombatBonusActions);
-  registerBoolean(SETTINGS.showCombatReactions);
-  registerBoolean(SETTINGS.showCombatSpecial);
-  registerBoolean(SETTINGS.showAbilityChecks);
-  registerBoolean(SETTINGS.showSavingThrows);
-  registerBoolean(SETTINGS.showSkills);
-  registerBoolean(SETTINGS.showTools);
-  registerBoolean(SETTINGS.showDeathSaves);
-  registerBoolean(SETTINGS.showShortcuts);
+  for (const [key, definition] of Object.entries(SETTING_DEFINITIONS)) {
+    game.settings.register(MODULE_ID, key, {
+      name: `ADVENTURER_HUD.Settings.${key}.Name`,
+      hint: `ADVENTURER_HUD.Settings.${key}.Hint`,
+      scope: "user",
+      config: definition.placement === "basic" && isSettingSupported(key),
+      type: definition.type,
+      ...(definition.choices ? { choices: definition.choices } : {}),
+      default: definition.default,
+      onChange: notifyChange(key)
+    });
+  }
 
   game.settings.register(MODULE_ID, SETTINGS.showCombatSpells, {
     name: "Legacy spell visibility",

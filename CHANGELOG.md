@@ -1,8 +1,16 @@
 # Changelog
 
+## 0.10.0
+
+- Applied visibility and runtime settings to the open HUD without resetting its current view, filters, or expanded sections.
+- Coalesced Foundry document updates into one prioritized refresh per frame and centralized hook cleanup.
+- Reorganized actor selection, window geometry, title controls, combat resources, and settings refresh behavior into focused modules.
+- Replaced duplicated setting lists with one declarative settings schema and expanded escaping for system-adapter data.
+- Made localization validation discover every JavaScript source file automatically.
+
 ## 0.9.3
 
-- Fix pin issue
+- Fixed the dedicated title-bar pin control and added behavioral coverage for its placement, state, and Escape handling.
 
 ## 0.9.2
 

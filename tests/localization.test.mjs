@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+import { listFiles } from "../tools/files.mjs";
+
 test("Russian and English localization keys stay synchronized", async () => {
   const russian = JSON.parse(await readFile("lang/ru.json", "utf8"));
   const english = JSON.parse(await readFile("lang/en.json", "utf8"));
@@ -28,14 +30,7 @@ test("English is available as the complete module fallback locale", async () => 
 test("all directly referenced localization keys exist", async () => {
   const russian = JSON.parse(await readFile("lang/ru.json", "utf8"));
   const english = JSON.parse(await readFile("lang/en.json", "utf8"));
-  const files = [
-    "scripts/rolls-hud.js",
-    "scripts/adventurer-hud.js",
-    "scripts/hud/components.js",
-    "scripts/hud/regular.js",
-    "scripts/hud/combat.js",
-    "scripts/hud/death-saves.js"
-  ];
+  const files = await listFiles("scripts", file => file.endsWith(".js"));
 
   for (const file of files) {
     const source = await readFile(file, "utf8");

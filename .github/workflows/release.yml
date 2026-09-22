@@ -36,6 +36,9 @@ jobs:
       - name: Build release assets
         run: npm run build
 
+      - name: Prepare release notes
+        run: npm run release:notes
+
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -43,5 +46,5 @@ jobs:
           gh release create "${GITHUB_REF_NAME}"
           dist/module.json
           dist/adventurer-hud.zip
-          --generate-notes
+          --notes-file dist/release-notes.md
           --title "Adventurer HUD ${GITHUB_REF_NAME}"

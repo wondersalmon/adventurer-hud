@@ -1,6 +1,6 @@
 dist/
 node_modules/
-release.ps1
+*.ps1
 .eslintcache
 coverage/
 *.zip
