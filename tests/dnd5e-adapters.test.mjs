@@ -224,21 +224,40 @@ test("D&D adapter delegates roll actions to the owning documents", async () => {
     rollSavingThrow: options => calls.push(["save", options]),
     rollSkill: options => calls.push(["skill", options]),
     rollToolCheck: options => calls.push(["tool", options]),
-    rollDeathSave: options => calls.push(["death", options])
+    rollDeathSave: options => calls.push(["death", options]),
+    rollInitiative: (options, rollOptions) =>
+      calls.push(["initiative", options, rollOptions])
   };
-  const event = { shiftKey: true };
+  const event = { altKey: true, ctrlKey: false, shiftKey: true };
 
   await dnd5eAdapter.rollAbility(actor, { type: "check", key: "str", event });
   await dnd5eAdapter.rollAbility(actor, { type: "save", key: "dex", event });
   await dnd5eAdapter.rollSkill(actor, { key: "ath", event });
   await dnd5eAdapter.rollTool(actor, { key: "thief", event });
   await dnd5eAdapter.rollDeathSave(actor, { event });
+  await dnd5eAdapter.rollInitiative(actor, { event });
+  const disadvantageEvent = { altKey: false, ctrlKey: true };
+  await dnd5eAdapter.rollInitiative(actor, { event: disadvantageEvent });
 
   assert.deepEqual(calls, [
     ["check", { ability: "str", event }],
     ["save", { ability: "dex", event }],
     ["skill", { skill: "ath", event }],
     ["tool", { tool: "thief", event }],
-    ["death", { event }]
+    ["death", { event }],
+    [
+      "initiative",
+      { createCombatants: false },
+      { advantage: true, disadvantage: false, event }
+    ],
+    [
+      "initiative",
+      { createCombatants: false },
+      {
+        advantage: false,
+        disadvantage: true,
+        event: disadvantageEvent
+      }
+    ]
   ]);
 });

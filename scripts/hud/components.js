@@ -94,24 +94,50 @@ export function createHudComponents(context) {
       `;
   }
 
-  const savingThrowsSection = () => `
-      <div class="ws-saving-throws ${hudState.savingThrowsExpanded ? "ws-expanded" : ""}">
+  const abilityChecksSection = () => `
+      <div class="ws-ability-checks ${hudState.abilityChecksExpanded ? "ws-expanded" : ""}">
         <button
           type="button"
           class="ws-section-toggle ws-button"
-          data-action="togglesaves"
-          aria-expanded="${hudState.savingThrowsExpanded}"
+          data-action="togglechecks"
+          aria-expanded="${hudState.abilityChecksExpanded}"
         >
-          <span><i class="fa-solid fa-shield-halved"></i>${t("Labels.Save")}</span>
-          <i class="fa-solid fa-chevron-${hudState.savingThrowsExpanded ? "up" : "down"}"></i>
+          <span><i class="fa-solid fa-dice"></i>${t("Labels.Check")}</span>
+          <i class="fa-solid fa-chevron-${hudState.abilityChecksExpanded ? "up" : "down"}"></i>
         </button>
         ${
-          hudState.savingThrowsExpanded
+          hudState.abilityChecksExpanded
+            ? abilityRow("check", t("Labels.Check"), "fa-dice", false)
+            : ""
+        }
+      </div>
+    `;
+
+  const savingThrowsSection = (mode = "regular") => {
+    const stateKey =
+      mode === "combat" ? "combatSavingThrowsExpanded" : "savingThrowsExpanded";
+    const expanded = hudState[stateKey];
+    const action = mode === "combat" ? "togglecombatsaves" : "togglesaves";
+
+    return `
+      <div class="ws-saving-throws ${expanded ? "ws-expanded" : ""}">
+        <button
+          type="button"
+          class="ws-section-toggle ws-button"
+          data-action="${action}"
+          aria-expanded="${expanded}"
+        >
+          <span><i class="fa-solid fa-shield-halved"></i>${t("Labels.Save")}</span>
+          <i class="fa-solid fa-chevron-${expanded ? "up" : "down"}"></i>
+        </button>
+        ${
+          expanded
             ? abilityRow("save", t("Labels.Save"), "fa-shield-halved", false)
             : ""
         }
       </div>
     `;
+  };
 
   // =========================================================
   // Skills
@@ -307,7 +333,11 @@ export function createHudComponents(context) {
 
         <div class="ws-actor-identity">
           <strong>${escapeHTML(actor.name)}</strong>
-          ${summary ? `<span>${escapeHTML(summary)}</span>` : ""}
+          ${
+            summary
+              ? `<span title="${escapeHTML(summary)}">${escapeHTML(summary)}</span>`
+              : ""
+          }
         </div>
 
         ${extra}
@@ -421,6 +451,7 @@ export function createHudComponents(context) {
     `;
 
   return {
+    abilityChecksSection,
     abilityRow,
     actorHeader,
     back,

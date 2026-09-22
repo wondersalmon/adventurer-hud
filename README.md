@@ -32,13 +32,13 @@ behavior.
 
 ## Features
 
-- Regular, combat, and death-save layouts
+- Exploration, combat, and death-save layouts
 - Checks, saves, skills, tools, spells, weapons, and actions
 - HP, temporary HP, AC, speed, initiative, class resources, conditions, and spell slots
 - Native item use and roll modifier keys
-- Automatic mode detection for regular, combat, and death-save states
+- Automatic mode detection for exploration, combat, and death-save states
 - Responsive layout, font sizing, and persistent window geometry
-- Configurable Token Controls button and keybinding (`Shift+R` by default)
+- Optional Token Controls button and configurable keybinding (`Shift+R` by default)
 
 ![Adventurer HUD demonstration](docs/media/demo.webp)
 
@@ -52,6 +52,10 @@ Combat item cards use the native D&D 5e workflow. Their book buttons open item
 sheets without using the item. Optional details include range, attack bonus,
 damage, activation, resource cost, concentration, and ritual markers.
 
+Roll buttons accept the native modifier keys: `Shift` fast-forwards a normal
+roll, `Alt` requests advantage, and `Ctrl` requests disadvantage. Exact behavior
+can be adjusted by D&D 5e or automation-module settings.
+
 A macro can also open the HUD through its public API:
 
 ```js
@@ -63,7 +67,9 @@ game.modules.get("adventurer-hud").api.open();
 Open **Adventurer HUD settings** from Foundry's Module Settings or the HUD title
 menu. Common options and reset controls appear directly in Foundry's Module
 Settings; granular options are under **Additional settings**. The title menu
-also provides keep-open and window reset controls.
+also opens settings and provides pin, keep-open, and window-reset controls. The
+Token Controls button can be hidden without disabling the configurable
+keybinding.
 
 Settings are stored per user; window size and position are stored per client.
 

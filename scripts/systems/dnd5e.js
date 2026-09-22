@@ -382,5 +382,14 @@ export const dnd5eAdapter = {
   rollTool: (actor, { key, event }) =>
     actor.rollToolCheck({ tool: key, event }),
   rollDeathSave: (actor, { event }) => actor.rollDeathSave({ event }),
+  rollInitiative: (actor, { event }) =>
+    actor.rollInitiative(
+      { createCombatants: false },
+      {
+        advantage: Boolean(event?.altKey),
+        disadvantage: Boolean(event?.ctrlKey),
+        event
+      }
+    ),
   useItem: (item, { event }) => item.use({ event })
 };

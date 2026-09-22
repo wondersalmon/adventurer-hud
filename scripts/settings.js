@@ -6,6 +6,8 @@ export const SETTINGS = Object.freeze({
   automaticCombatMode: "automaticCombatMode",
   autoUpdateActor: "autoUpdateActor",
   keepOpen: "keepOpen",
+  pinWindow: "pinWindow",
+  showTokenControl: "showTokenControl",
   fontSize: "fontSize",
   showAbilityChecks: "showAbilityChecks",
   showDeathSaves: "showDeathSaves",
@@ -35,6 +37,8 @@ export const SETTINGS = Object.freeze({
 export const SETTING_GROUPS = Object.freeze({
   behavior: Object.freeze([
     SETTINGS.keepOpen,
+    SETTINGS.pinWindow,
+    SETTINGS.showTokenControl,
     SETTINGS.autoUpdateActor,
     SETTINGS.automaticCombatMode
   ]),
@@ -71,6 +75,8 @@ export const BASIC_SETTINGS = Object.freeze([
   SETTINGS.adaptiveLayout,
   SETTINGS.fontSize,
   SETTINGS.keepOpen,
+  SETTINGS.pinWindow,
+  SETTINGS.showTokenControl,
   SETTINGS.autoUpdateActor,
   SETTINGS.automaticCombatMode,
   SETTINGS.showItemDetails,
@@ -106,8 +112,10 @@ const ADVANCED_SETTING_GROUPS = Object.freeze({
 
 export const SETTING_DEFAULTS = Object.freeze({
   [SETTINGS.adaptiveLayout]: true,
-  [SETTINGS.fontSize]: "large",
+  [SETTINGS.fontSize]: "medium",
   [SETTINGS.keepOpen]: false,
+  [SETTINGS.pinWindow]: false,
+  [SETTINGS.showTokenControl]: true,
   [SETTINGS.autoUpdateActor]: false,
   [SETTINGS.automaticCombatMode]: true,
   [SETTINGS.showInitiative]: true,
@@ -194,13 +202,15 @@ export function registerSettings() {
     SETTINGS.fontSize,
     {
       small: "ADVENTURER_HUD.Settings.fontSize.Small",
-      normal: "ADVENTURER_HUD.Settings.fontSize.Normal",
+      medium: "ADVENTURER_HUD.Settings.fontSize.Medium",
       large: "ADVENTURER_HUD.Settings.fontSize.Large",
       extraLarge: "ADVENTURER_HUD.Settings.fontSize.ExtraLarge"
     },
-    "large"
+    "medium"
   );
   registerBoolean(SETTINGS.keepOpen, false);
+  registerBoolean(SETTINGS.pinWindow, false);
+  registerBoolean(SETTINGS.showTokenControl, true);
   registerBoolean(SETTINGS.autoUpdateActor, false);
   registerBoolean(SETTINGS.automaticCombatMode, true);
   registerBoolean(SETTINGS.showInitiative);
@@ -478,7 +488,7 @@ export async function flushWindowGeometry() {
 export async function migrateLegacySettings() {
   const version = getSetting(SETTINGS.migrationVersion);
 
-  if (version >= 3) {
+  if (version >= 4) {
     return;
   }
 
@@ -513,5 +523,17 @@ export async function migrateLegacySettings() {
     );
   }
 
-  await setSetting(SETTINGS.migrationVersion, 3);
+  if (version < 4) {
+    const fontSize = getSetting(SETTINGS.fontSize);
+    const migratedFontSize = {
+      normal: "small",
+      large: "medium"
+    }[fontSize];
+
+    if (migratedFontSize) {
+      await setSetting(SETTINGS.fontSize, migratedFontSize);
+    }
+  }
+
+  await setSetting(SETTINGS.migrationVersion, 4);
 }

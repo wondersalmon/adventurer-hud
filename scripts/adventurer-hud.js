@@ -107,7 +107,7 @@ Hooks.once("ready", async () => {
 
 Hooks.on("getSceneControlButtons", controls => {
   const tokenControls = controls.tokens;
-  if (!tokenControls?.tools) {
+  if (!tokenControls?.tools || !getSetting(SETTINGS.showTokenControl)) {
     return;
   }
 
@@ -132,11 +132,16 @@ Hooks.on("renderSettingsConfig", (app, html) => {
 });
 
 Hooks.on("adventurerHudSettingChanged", key => {
+  if (key === SETTINGS.showTokenControl) {
+    void ui.controls?.render({ force: true });
+  }
+
   const layoutSettings = new Set([
     SETTINGS.adaptiveLayout,
     SETTINGS.fontSize,
     SETTINGS.automaticCombatMode,
     SETTINGS.keepOpen,
+    SETTINGS.pinWindow,
     SETTINGS.showAbilityChecks,
     SETTINGS.showDeathSaves,
     SETTINGS.showInitiative,

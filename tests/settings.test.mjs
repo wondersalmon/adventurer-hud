@@ -49,11 +49,21 @@ test("manual mode navigation defaults to hidden and migrations are per user", ()
   assert.equal(registrations.get(SETTINGS.fontSize)?.config, true);
   assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.config, true);
   assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.default, false);
+  assert.equal(registrations.get(SETTINGS.pinWindow)?.config, true);
+  assert.equal(registrations.get(SETTINGS.pinWindow)?.default, false);
+  assert.equal(registrations.get(SETTINGS.showTokenControl)?.config, true);
+  assert.equal(registrations.get(SETTINGS.showTokenControl)?.default, true);
+  assert.deepEqual(
+    Object.keys(registrations.get(SETTINGS.fontSize)?.choices ?? {}),
+    ["small", "medium", "large", "extraLarge"]
+  );
+  assert.equal(registrations.get(SETTINGS.fontSize)?.default, "medium");
   assert.equal(registrations.get(SETTINGS.showShortcuts)?.config, false);
   assert.equal(menus.get("configure")?.restricted, false);
   assert.equal(menus.get("reset")?.restricted, false);
   assert.ok(BASIC_SETTINGS.includes(SETTINGS.fontSize));
   assert.ok(BASIC_SETTINGS.includes(SETTINGS.autoUpdateActor));
+  assert.ok(BASIC_SETTINGS.includes(SETTINGS.showTokenControl));
   assert.ok(!BASIC_SETTINGS.includes(SETTINGS.showShortcuts));
   assert.ok(SETTING_GROUPS.advanced.includes(SETTINGS.showModeNavigation));
   assert.ok(SETTING_GROUPS.combat.includes(SETTINGS.showCombatResources));
@@ -111,7 +121,32 @@ test("migration preserves navigation and moves legacy spell visibility", async (
 
   assert.deepEqual(writes, [
     [SETTINGS.showSpells, false],
-    [SETTINGS.migrationVersion, 3]
+    [SETTINGS.migrationVersion, 4]
+  ]);
+});
+
+test("font size migration preserves the previous visual scale", async () => {
+  const writes = [];
+
+  globalThis.game = {
+    settings: {
+      get(_moduleId, key) {
+        if (key === SETTINGS.migrationVersion) return 3;
+        if (key === SETTINGS.fontSize) return "large";
+        return null;
+      },
+      async set(_moduleId, key, value) {
+        writes.push([key, value]);
+        return value;
+      }
+    }
+  };
+
+  await migrateLegacySettings();
+
+  assert.deepEqual(writes, [
+    [SETTINGS.fontSize, "medium"],
+    [SETTINGS.migrationVersion, 4]
   ]);
 });
 

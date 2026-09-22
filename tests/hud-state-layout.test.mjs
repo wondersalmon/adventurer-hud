@@ -12,6 +12,8 @@ import { renderHudMode, renderRegularView } from "../scripts/render/index.js";
 
 test("one forced mode replaces the former three-flag state", () => {
   const state = createHudState({ currentView: "skills" });
+  assert.equal(state.abilityChecksExpanded, true);
+  assert.equal(state.combatSavingThrowsExpanded, true);
   setForcedMode(state, "combat");
   assert.equal(state.forcedMode, "combat");
   assert.equal(state.currentView, "main");
@@ -158,4 +160,24 @@ test("settings refresh preserves the actor attached to an open HUD", async () =>
   assert.match(entrypoint, /openRollsHud\(state\.actor \?\? null\)/);
   assert.match(controller, /state\.actor = actor/);
   assert.match(controller, /state\.actor = null/);
+});
+
+test("Token Controls button visibility follows its client setting", async () => {
+  const entrypoint = await readFile(
+    new URL("../scripts/adventurer-hud.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(entrypoint, /getSetting\(SETTINGS\.showTokenControl\)/);
+  assert.match(entrypoint, /ui\.controls\?\.render\(\{ force: true \}\)/);
+});
+
+test("pinned HUD ignores only close-key requests", async () => {
+  const controller = await readFile(
+    new URL("../scripts/rolls-hud.js", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(controller, /if \(pinned && options\.closeKey\)/);
+  assert.match(controller, /return super\.close\(options\)/);
 });

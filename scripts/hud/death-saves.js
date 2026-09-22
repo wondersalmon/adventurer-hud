@@ -7,7 +7,8 @@ export function createDeathRenderer(context) {
     inspirationControl,
     modeNavigation,
     shortcutHint,
-    t
+    t,
+    visibility
   } = context;
 
   const deathPips = (value, type) =>

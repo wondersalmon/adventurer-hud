@@ -2,7 +2,7 @@ import { renderRegularView } from "../render/index.js";
 
 export function createRegularRenderer(context) {
   const {
-    abilityRow,
+    abilityChecksSection,
     actorHeader,
     back,
     combatInitiative,
@@ -45,11 +45,7 @@ export function createRegularRenderer(context) {
                 <div class="ws-divider"></div>
 
                 <div class="ws-ability-table">
-                  ${
-                    visibility.abilityChecks
-                      ? abilityRow("check", t("Labels.Check"), "fa-dice")
-                      : ""
-                  }
+                  ${visibility.abilityChecks ? abilityChecksSection() : ""}
 
                   ${visibility.savingThrows ? savingThrowsSection() : ""}
                 </div>

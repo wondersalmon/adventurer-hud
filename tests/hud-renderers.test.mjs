@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createCombatRenderer } from "../scripts/hud/combat.js";
+import { createHudComponents } from "../scripts/hud/components.js";
+import { createDeathRenderer } from "../scripts/hud/death-saves.js";
 
 const escapeHTML = value =>
   String(value)
@@ -50,4 +52,85 @@ test("active-effect names are escaped before entering status attributes", () => 
     globalThis.CONFIG = originalConfig;
     globalThis.game = originalGame;
   }
+});
+
+test("checks and combat saves start expanded", () => {
+  const hudState = {
+    abilityChecksExpanded: true,
+    combatSavingThrowsExpanded: true,
+    savingThrowsExpanded: true
+  };
+  const components = createHudComponents({
+    abilities: [["str", "STR", "fa-hand-fist"]],
+    actor: {},
+    adapter: {
+      abilityData: () => ({ mod: 2 }),
+      abilityTotal: data => data.mod
+    },
+    canRollActor: true,
+    escapeHTML,
+    formatMod: value => `+${value}`,
+    hudState,
+    marker: () => ["", "", ""],
+    saveProf: () => 0,
+    skillProf: () => 0,
+    skills: [],
+    t: key => key,
+    tf: key => key,
+    visibility: {}
+  });
+
+  assert.match(components.abilityChecksSection(), /aria-expanded="true"/);
+  assert.match(components.abilityChecksSection(), /data-action="ability"/);
+  assert.match(
+    components.savingThrowsSection("combat"),
+    /aria-expanded="true"/
+  );
+  assert.match(
+    components.savingThrowsSection("combat"),
+    /data-action="ability"/
+  );
+});
+
+test("actor class summary keeps its full value in a tooltip", () => {
+  const components = createHudComponents({
+    abilities: [],
+    actor: { img: "actor.webp", name: "Rook" },
+    adapter: {
+      classSummary: () => "Monk 7 / Barbarian 1"
+    },
+    canRollActor: true,
+    combatModeAvailable: () => true,
+    deathModeAvailable: () => true,
+    escapeHTML,
+    formatMod: String,
+    hudState: {},
+    marker: () => ["", "", ""],
+    saveProf: () => 0,
+    skillProf: () => 0,
+    skills: [],
+    t: key => key,
+    tf: key => key,
+    visibility: {}
+  });
+
+  const html = components.actorHeader();
+  assert.match(html, /title="Monk 7 \/ Barbarian 1"/);
+  assert.match(html, />Monk 7 \/ Barbarian 1<\/span>/);
+});
+
+test("death renderer receives mode-heading visibility from its context", () => {
+  const renderer = createDeathRenderer({
+    actorHeader: () => "",
+    canRollActor: false,
+    canRollDeathSave: () => false,
+    deathData: () => ({ failure: 0, success: 0 }),
+    inspirationControl: () => "",
+    modeNavigation: () => "",
+    shortcutHint: () => "",
+    t: key => key,
+    visibility: { modeHeadings: false }
+  });
+
+  assert.match(renderer.deathHTML(), /ws-death-heading ws-hidden/);
 });

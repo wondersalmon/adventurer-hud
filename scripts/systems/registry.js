@@ -65,6 +65,7 @@ const ADAPTER_DEFAULTS = Object.freeze({
   resourceData: () => ({ actorResource: null, current: 0, max: 0 }),
   rollAbility: () => unsupported("ability rolls"),
   rollDeathSave: () => unsupported("death saving throws"),
+  rollInitiative: () => unsupported("initiative rolls"),
   rollSkill: () => unsupported("skill rolls"),
   rollTool: () => unsupported("tool rolls"),
   saveProficiency: () => 0,

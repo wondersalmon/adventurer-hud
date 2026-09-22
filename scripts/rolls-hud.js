@@ -140,7 +140,7 @@ export async function openRollsHud(actorOverride = null) {
 
     const canRollActor = actor.isOwner;
     const adaptiveLayout = Boolean(getSetting(SETTINGS.adaptiveLayout));
-    const fontSize = getSetting(SETTINGS.fontSize) || "large";
+    const fontSize = getSetting(SETTINGS.fontSize) || "medium";
 
     const visibility = {
       abilityChecks:
@@ -262,6 +262,7 @@ export async function openRollsHud(actorOverride = null) {
     };
 
     let keepOpen = Boolean(getSetting(SETTINGS.keepOpen));
+    let pinned = Boolean(getSetting(SETTINGS.pinWindow));
 
     const storeKeepOpen = async value => {
       keepOpen = Boolean(value);
@@ -628,7 +629,7 @@ export async function openRollsHud(actorOverride = null) {
         }
 
         return rollAndClose(() =>
-          game.combat.rollInitiative(combatant.id, { event })
+          adapter.rollInitiative(actor, { combatant, event })
         );
       },
 
@@ -713,6 +714,17 @@ export async function openRollsHud(actorOverride = null) {
 
       togglesaves: function () {
         hudState.savingThrowsExpanded = !hudState.savingThrowsExpanded;
+        refreshHud();
+      },
+
+      togglecombatsaves: function () {
+        hudState.combatSavingThrowsExpanded =
+          !hudState.combatSavingThrowsExpanded;
+        refreshHud();
+      },
+
+      togglechecks: function () {
+        hudState.abilityChecksExpanded = !hudState.abilityChecksExpanded;
         refreshHud();
       },
 
@@ -839,6 +851,11 @@ export async function openRollsHud(actorOverride = null) {
         );
       },
 
+      togglepin: async function () {
+        pinned = !pinned;
+        await setSetting(SETTINGS.pinWindow, pinned);
+      },
+
       resetwindow: async function () {
         app.setPosition({
           width: dialogWidth,
@@ -896,7 +913,17 @@ export async function openRollsHud(actorOverride = null) {
 
     const storedPosition = loadStoredPosition(dialogWidth);
 
-    const app = new DialogV2({
+    class AdventurerHudDialog extends DialogV2 {
+      async close(options = {}) {
+        if (pinned && options.closeKey) {
+          return this;
+        }
+
+        return super.close(options);
+      }
+    }
+
+    const app = new AdventurerHudDialog({
       classes: [
         "ws-rolls-dialog",
         adaptiveLayout ? "ws-adaptive" : "ws-fixed",
@@ -907,6 +934,13 @@ export async function openRollsHud(actorOverride = null) {
         title: dialogTitle(),
         resizable: true,
         controls: [
+          {
+            icon: pinned
+              ? "fa-solid fa-thumbtack"
+              : "fa-solid fa-thumbtack-slash",
+            label: t(pinned ? "Window.Unpin" : "Window.Pin"),
+            action: "togglepin"
+          },
           {
             icon: keepOpen ? "fa-solid fa-toggle-on" : "fa-solid fa-toggle-off",
             label: t("Window.KeepOpenMenu"),

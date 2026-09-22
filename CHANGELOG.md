@@ -1,25 +1,33 @@
 # Changelog
 
+## 0.9.1
+
+- Split the HUD monolith into a focused application controller, shared components, and separate exploration, combat, and death-save renderers.
+- Preserved the HUD's attached actor when settings trigger a refresh, escaped custom condition labels, and localized the dialog close action.
+- Expanded adapter and renderer regression coverage for system isolation, damage formulas, resources, spell slots, roll delegation, and condition markup.
+- Forwarded initiative advantage and disadvantage shortcuts through the D&D adapter without creating combatants.
+- Added collapsible exploration checks and combat saves, both expanded by default, improved narrow resource cards, and added an optional Escape-resistant pinned window mode.
+- Rebalanced text sizes to Small, Medium, Large, and Extra Large while migrating existing preferences to equivalent visual scales.
+- Prevented multiclass summaries from colliding with header controls at narrow widths while retaining the full summary in a tooltip.
+- Renamed the user-facing regular mode to Exploration, added a Token Controls visibility setting, and expanded user and adapter documentation.
+
 ## 0.9.0
 
-- Added an inventory browser to regular exploration mode with Equipped, Consumables, and Other filters.
+- Added an inventory browser to exploration mode with Equipped, Consumables, and Other filters.
 - Added remaining-charge indicators to inventory and combat item cards when an item has limited uses.
 - Added an optional inventory visibility setting and English/Russian inventory localization.
 - Added D&D 5e adapter coverage for inventory categories and charge data in both 5.3 and 6.x item shapes.
 - Added a public system-adapter registry with capability-driven UI and safe defaults for unsupported mechanics.
 - Moved D&D-specific data access, rolls, item use, resources, rests, and combat normalization behind the bundled D&D 5e adapter.
 - Added contributor documentation and contract tests for implementing future game-system integrations.
-- Split the HUD monolith into a focused application controller, shared components, and separate regular, combat, and death-save renderers.
-- Preserved the HUD's attached actor when settings trigger a refresh, escaped custom condition labels, and localized the dialog close action.
-- Expanded adapter and renderer regression coverage for system isolation, damage formulas, resources, spell slots, roll delegation, and condition markup.
 
 ## 0.8.7
 
-- Added initiative to the regular HUD for characters already added to an encounter, including before combat starts.
+- Added initiative to the exploration HUD for characters already added to an encounter, including before combat starts.
 - Fixed the extra-large text-size option and aligned class-resource shortcut hints with the HUD's other keyboard hints.
 - Moved selected-token following into the main settings and shortcut hints into Additional Settings; Additional Settings and Reset Settings now remain at the bottom of the module section.
 - Completed the Foundry VTT 14 manifest metadata with the package type, project, documentation, support, license, author, and media links.
-- Added regression coverage for regular-mode initiative, typography, resource hints, settings placement, and release manifest URLs.
+- Added regression coverage for exploration-mode initiative, typography, resource hints, settings placement, and release manifest URLs.
 
 ## 0.8.6
 
@@ -34,7 +42,7 @@
 - Extracted version-tolerant D&D 5e actor and item adapters with dedicated 5.3 and 6.x fixtures.
 - Replaced three manual-mode flags with one explicit HUD state and centralized mode resolution.
 - Centralized layout schemas and saved-layout normalization.
-- Added mode and regular-view render dispatchers; regular subviews are attached one at a time.
+- Added mode and exploration-view render dispatchers; exploration subviews are attached one at a time.
 - Added targeted refreshes for active conditions and combat action filters while retaining full refreshes for structural changes.
 - Replaced the flat Foundry settings list with a grouped Adventurer HUD settings application while preserving existing setting keys and user preferences.
 - Expanded regression coverage for compatibility adapters, mode priority, view dispatch, layouts, and settings groups.
@@ -51,8 +59,8 @@
 ## 0.7.8
 
 - Added a collapsible saving-throw section, expanded by default.
-- Added the spell browser to regular mode with prepared/all filtering.
-- Kept inspiration beside the actor identity and moved rest controls below the header in regular mode.
+- Added the spell browser to exploration mode with prepared/all filtering.
+- Kept inspiration beside the actor identity and moved rest controls below the header in exploration mode.
 - Reduced active condition controls to compact icon-only buttons.
 - Added resource restoration alongside resource consumption.
 - Made active-combat initiative lookup resilient to combat recreation.
@@ -94,7 +102,7 @@
 - Added consumable class features, including Focus Points, to combat resources when they expose limited uses.
 - Added attack bonuses and damage formulas to weapon and spell cards.
 - Added character class and level information, including multiclass summaries.
-- Added Heroic Inspiration controls to every mode and short/long rest controls to regular mode.
+- Added Heroic Inspiration controls to every mode and short/long rest controls to exploration mode.
 - Made death-save mode manually accessible outside zero HP while keeping death-save rolls gated by character state.
 - Moved mode navigation directly below the actor header and added an option to hide manual navigation.
 - Strengthened vertical scrolling for the full HUD, skills, tools, condition picker and combat item lists.
@@ -105,13 +113,13 @@
 - Reworked responsive grids so controls gain columns instead of stretching excessively in wide windows.
 - Added full-window scrolling and independent scrolling for combat item lists.
 - Added selectable HUD font sizes and larger, clearer ability controls.
-- Moved combat initiative beside the actor name, removed it from regular mode and highlighted unrolled initiative.
+- Moved combat initiative beside the actor name, removed it from exploration mode and highlighted unrolled initiative.
 - Hid temporary HP and maximum-HP modifiers when their values are zero.
 - Added class/custom resource cards and per-section combat visibility settings.
 - Grouped spells by level with prepared/all filtering and spell-slot indicators.
 - Added best-effort resource costs to action cards.
 - Added live active-effect updates and direct condition removal.
-- Added consistent navigation among regular, combat and death-save modes.
+- Added consistent navigation among exploration, combat and death-save modes.
 - Removed redundant mode subtitles below actor names.
 
 ## 0.5.0
@@ -136,7 +144,7 @@
 ## 0.3.0
 
 - Added actor portrait and identity to every HUD mode.
-- Added automatic combat mode with combat statistics and regular-mode fallback.
+- Added automatic combat mode with combat statistics and exploration-mode fallback.
 - Converted all source comments to English.
 - Added local validation, linting, tests, release packaging and GitHub Actions workflows.
 - Added initial combat-interface localization.

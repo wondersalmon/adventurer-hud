@@ -752,7 +752,7 @@ export function createCombatRenderer(context) {
               ? `
                 <div class="ws-divider"></div>
                 <div class="ws-ability-table">
-                  ${savingThrowsSection()}
+                  ${savingThrowsSection("combat")}
                 </div>
               `
               : ""
