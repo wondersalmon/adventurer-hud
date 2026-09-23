@@ -70,6 +70,7 @@ export const dnd5eAdapter = {
   id: "dnd5e",
   actorTypes: Object.freeze(["character"]),
   capabilities: Object.freeze({
+    activityChoice: true,
     abilityChecks: true,
     actions: true,
     bonusActions: true,
@@ -266,7 +267,12 @@ export const dnd5eAdapter = {
     return actor.items.filter(item => {
       if (category === "weapons") return item.type === "weapon";
       if (category === "spells") return item.type === "spell";
-      return itemActivation(item) === category;
+      return (
+        itemActivation(item) === category ||
+        itemActivities(item).some(
+          activity => activity?.activation?.type === category
+        )
+      );
     });
   },
   spellLevel: item => Number(item.system?.level ?? 0),
@@ -391,5 +397,11 @@ export const dnd5eAdapter = {
         event
       }
     ),
-  useItem: (item, { event }) => item.use({ event })
+  useItem: (item, { event }) => item.use({ event }),
+  useActivity: (item, activityId, { event }) => {
+    const activity =
+      item.system.activities?.get?.(activityId) ??
+      itemActivities(item).find(candidate => candidate.id === activityId);
+    return activity?.canUse !== false ? activity?.use({ event }) : null;
+  }
 };

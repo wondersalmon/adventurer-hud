@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.0
+
+- Added live search across combat actions, spells, and inventory, matching item and activity names while keeping the query across category changes.
+- Added an inline chooser for items with multiple usable D&D 5e activities. The selected activity uses the native system workflow; Shift-click continues to use the native item shortcut.
+- Added per-user, per-character favorites for items and individual activities, available in exploration and combat modes.
+- Restored Additional Settings with separate controls for search, favorites, and the activity chooser; reorganized settings into quick access, item use, window controls, and death saves.
+- Allowed items with different activity activation types to appear in each matching combat category.
+
 ## 0.11.0
 
 - Moved manual mode navigation into Foundry's main module settings and removed the Additional Settings screen and its template.

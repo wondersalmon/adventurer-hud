@@ -1,9 +1,16 @@
+import {
+  isFavorite,
+  matchesItemSearch,
+  usableActivities
+} from "./quick-access.js";
+
 export function createCombatItemRenderer({
   actor,
   adapter,
   escapeHTML,
   hudState,
   t,
+  tf,
   visibility
 }) {
   const configLabel = config =>
@@ -57,7 +64,26 @@ export function createCombatItemRenderer({
   const inventoryItems = category =>
     actor.items.filter(item => adapter.inventoryCategory(item) === category);
 
-  const combatItemButton = item => {
+  const searchItems = items =>
+    visibility.search
+      ? items.filter(item =>
+          matchesItemSearch(adapter, item, hudState.searchQuery)
+        )
+      : items;
+
+  const searchControl = () =>
+    visibility.search
+      ? `<div class="ws-item-search">
+          <input type="search" data-action="searchitems" value="${escapeHTML(hudState.searchQuery)}" placeholder="${t("Quick.Search")}" aria-label="${t("Quick.Search")}">
+          <button type="button" class="ws-button" data-action="clearsearch" title="${t("Quick.ClearSearch")}" aria-label="${t("Quick.ClearSearch")}"><i class="fa-solid fa-xmark"></i></button>
+        </div>`
+      : "";
+
+  const combatItemButton = (item, { activityId = null } = {}) => {
+    const activities = usableActivities(adapter, item);
+    const offersActivities =
+      visibility.activityPicker && !activityId && activities.length > 1;
+    const favorite = isFavorite(hudState.favoriteEntries, item.id, activityId);
     const role = adapter.itemRole(item);
     const isSpell = role === "spell";
     const isWeapon = role === "weapon";
@@ -75,6 +101,7 @@ export function createCombatItemRenderer({
       isSpell || isWeapon ? adapter.itemDamageFormula(actor, item) : "";
     const uses = adapter.itemUsesData(item);
     const showsDetails =
+      !activityId &&
       visibility.itemDetails &&
       (showsRange ||
         activation ||
@@ -88,18 +115,19 @@ export function createCombatItemRenderer({
     return `
         <div class="ws-combat-item-card ${
           showsDetails ? "ws-detailed-card" : ""
-        }">
+        } ${visibility.favorites && !offersActivities ? "ws-has-favorite" : ""}">
           <button
             type="button"
             class="ws-combat-item ws-button"
-            data-action="useitem"
+            data-action="${activityId ? "useactivity" : "useitem"}"
             data-item-id="${escapeHTML(item.id)}"
+            ${activityId ? `data-activity-id="${escapeHTML(activityId)}"` : ""}
             title="${escapeHTML(item.name)}"
           >
             <img src="${escapeHTML(item.img ?? "icons/svg/item-bag.svg")}" alt="">
 
             <span class="ws-combat-item-content">
-              <strong>${escapeHTML(item.name)}</strong>
+              <strong>${escapeHTML(activityId ? `${item.name}: ${activities.find(activity => activity.id === activityId)?.name ?? ""}` : item.name)}</strong>
               ${
                 showsDetails
                   ? `
@@ -175,8 +203,14 @@ export function createCombatItemRenderer({
               }
             </span>
 
-            <i class="fa-solid fa-dice-d20"></i>
+            <i class="fa-solid ${offersActivities ? "fa-chevron-down" : "fa-dice-d20"}"></i>
           </button>
+
+          ${
+            visibility.favorites && !offersActivities
+              ? `<button type="button" class="ws-item-favorite ws-button ${favorite ? "ws-active" : ""}" data-action="togglefavorite" data-item-id="${escapeHTML(item.id)}" ${activityId ? `data-activity-id="${escapeHTML(activityId)}"` : ""} title="${t(favorite ? "Quick.RemoveFavorite" : "Quick.AddFavorite")}" aria-label="${t(favorite ? "Quick.RemoveFavorite" : "Quick.AddFavorite")}"><i class="fa-${favorite ? "solid" : "regular"} fa-star"></i></button>`
+              : ""
+          }
 
           <button
             type="button"
@@ -188,8 +222,46 @@ export function createCombatItemRenderer({
           >
             <i class="fa-solid fa-book-open"></i>
           </button>
+          ${
+            offersActivities && hudState.openActivityItemId === item.id
+              ? `<div class="ws-activity-menu" role="group" aria-label="${t("Quick.ChooseActivity")}">
+                  ${activities
+                    .map(activity => {
+                      const selected = isFavorite(
+                        hudState.favoriteEntries,
+                        item.id,
+                        activity.id
+                      );
+                      return `<div class="ws-activity-option">
+                        <button type="button" class="ws-button" data-action="useactivity" data-item-id="${escapeHTML(item.id)}" data-activity-id="${escapeHTML(activity.id)}">${escapeHTML(activity.name ?? item.name)}</button>
+                        ${visibility.favorites ? `<button type="button" class="ws-button ws-item-favorite ${selected ? "ws-active" : ""}" data-action="togglefavorite" data-item-id="${escapeHTML(item.id)}" data-activity-id="${escapeHTML(activity.id)}" title="${t(selected ? "Quick.RemoveFavorite" : "Quick.AddFavorite")}" aria-label="${t(selected ? "Quick.RemoveFavorite" : "Quick.AddFavorite")}"><i class="fa-${selected ? "solid" : "regular"} fa-star"></i></button>` : ""}
+                      </div>`;
+                    })
+                    .join("")}
+                </div>`
+              : ""
+          }
         </div>
       `;
+  };
+
+  const favoriteSection = () => {
+    if (!visibility.favorites) return "";
+    const entries = hudState.favoriteEntries
+      .map(entry => ({ ...entry, item: actor.items.get(entry.itemId) }))
+      .filter(
+        entry =>
+          entry.item &&
+          (!entry.activityId ||
+            usableActivities(adapter, entry.item).some(
+              activity => activity.id === entry.activityId
+            ))
+      );
+    if (!entries.length) return "";
+    return `<section class="ws-favorites">
+      <h3><i class="fa-solid fa-star"></i> ${t("Quick.Favorites")}</h3>
+      <div class="ws-combat-item-grid">${entries.map(({ item, activityId }) => combatItemButton(item, { activityId })).join("")}</div>
+    </section>`;
   };
 
   const combatCategories = () =>
@@ -286,7 +358,7 @@ export function createCombatItemRenderer({
       hudState.combatCategory = categories[0][0];
     }
 
-    const items = combatItems(hudState.combatCategory);
+    const items = searchItems(combatItems(hudState.combatCategory));
 
     return `
         <div class="ws-combat-actions">
@@ -312,6 +384,8 @@ export function createCombatItemRenderer({
               .join("")}
           </div>
 
+          ${searchControl()}
+
           ${
             hudState.combatCategory === "spells"
               ? `
@@ -334,7 +408,7 @@ export function createCombatItemRenderer({
                   ? spellGroups(items) ||
                     `<div class="ws-empty">${t("Combat.EmptyPrepared")}</div>`
                   : `<div class="ws-combat-item-grid">${items.map(combatItemButton).join("")}</div>`
-                : `<div class="ws-empty">${t("Combat.Empty")}</div>`
+                : `<div class="ws-empty">${t(hudState.searchQuery ? "Quick.NoResults" : "Combat.Empty")}</div>`
             }
           </div>
         </div>
@@ -345,8 +419,11 @@ export function createCombatItemRenderer({
     combatActions,
     combatItemButton,
     combatItems,
+    favoriteSection,
     inventoryCategories,
     inventoryItems,
+    searchControl,
+    searchItems,
     spellGroups
   };
 }

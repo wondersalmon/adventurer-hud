@@ -10,6 +10,7 @@ import {
   storedWindowGeometry
 } from "./hud/geometry.js";
 import { createRefreshScheduler } from "./hud/refresh.js";
+import { favoriteEntriesForActor, toggleFavorite } from "./hud/quick-access.js";
 import { createRegularRenderer } from "./hud/regular.js";
 import { activateHudWindow } from "./hud/window-session.js";
 import { createHudApplicationClass } from "./hud/window-controls.js";
@@ -117,6 +118,11 @@ export async function openRollsHud(actorOverride = null) {
       inventory: adapter.capabilities.inventory,
       itemDetails: getSetting(SETTINGS.showItemDetails),
       modeNavigation: getSetting(SETTINGS.showModeNavigation),
+      search: getSetting(SETTINGS.showSearch),
+      activityPicker:
+        adapter.capabilities.activityChoice &&
+        getSetting(SETTINGS.showActivityPicker),
+      favorites: getSetting(SETTINGS.showFavorites),
       combatResources: adapter.capabilities.resources,
       combatStats: adapter.capabilities.combat,
       combatWeapons: adapter.capabilities.weapons,
@@ -162,7 +168,12 @@ export async function openRollsHud(actorOverride = null) {
       await setSetting(SETTINGS.closeAfterRoll, closeAfterRoll);
     };
 
-    const hudState = createHudState();
+    const hudState = createHudState({
+      favoriteEntries: favoriteEntriesForActor(
+        getSetting(SETTINGS.favoriteEntries),
+        actor.uuid
+      )
+    });
 
     const formatMod = value => {
       const n = Number(value ?? 0);
@@ -362,6 +373,7 @@ export async function openRollsHud(actorOverride = null) {
             '[data-action="tool"]',
             '[data-action="death"]',
             '[data-action="useitem"]',
+            '[data-action="useactivity"]',
             '[data-action="removestatus"]',
             '[data-action="edithp"]',
             '[data-action="shortrest"]',
@@ -497,6 +509,25 @@ export async function openRollsHud(actorOverride = null) {
 
     const refreshScheduler = createRefreshScheduler(refreshHud);
 
+    const updateSearch = query => {
+      hudState.searchQuery = query;
+      refreshHud(currentMode() === "combat" ? "actions" : null);
+      const input = app.element.querySelector('[data-action="searchitems"]');
+      input?.focus();
+      input?.setSelectionRange?.(query.length, query.length);
+    };
+
+    const toggleFavoriteEntry = async (itemId, activityId) => {
+      const next = toggleFavorite(hudState.favoriteEntries, itemId, activityId);
+      const stored = getSetting(SETTINGS.favoriteEntries) ?? {};
+      await setSetting(SETTINGS.favoriteEntries, {
+        ...stored,
+        [actor.uuid]: next
+      });
+      hudState.favoriteEntries = next;
+      refreshHud();
+    };
+
     // =========================================================
     // ApplicationV2 actions
     // =========================================================
@@ -533,6 +564,9 @@ export async function openRollsHud(actorOverride = null) {
       setView,
       storeCloseAfterRoll,
       t,
+      toggleFavoriteEntry,
+      updateSearch,
+      visibility,
       togglePin: async () => {
         pinned = !pinned;
         await setSetting(SETTINGS.pinWindow, pinned);
@@ -611,6 +645,7 @@ export async function openRollsHud(actorOverride = null) {
       changeResource,
       isCloseAfterRoll: () => closeAfterRoll,
       readVisibility,
+      onSearchInput: query => updateSearch(query),
       refreshHud,
       refreshScheduler,
       setCloseAfterRoll: value => {

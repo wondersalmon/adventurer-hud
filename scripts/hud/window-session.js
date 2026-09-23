@@ -7,6 +7,7 @@ export async function activateHudWindow({
   canRollActor,
   changeResource,
   isCloseAfterRoll,
+  onSearchInput,
   readVisibility,
   refreshHud,
   refreshScheduler,
@@ -60,6 +61,12 @@ export async function activateHudWindow({
       console.error("Rolls HUD | quick resource restore", error);
       ui.notifications.error(`Rolls HUD: ${error?.message ?? error}`);
     });
+  });
+
+  app.element.addEventListener("input", event => {
+    if (event.target?.matches?.('[data-action="searchitems"]')) {
+      onSearchInput(event.target.value);
+    }
   });
 
   app.addEventListener("position", () => storePosition(app.position));

@@ -215,6 +215,28 @@
   min-height: 72px;
 }
 
+.ws-rolls-dialog .ws-item-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  gap: 4px;
+  margin: 5px 0;
+}
+
+.ws-rolls-dialog .ws-item-search input {
+  min-width: 0;
+  height: 32px;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.ws-rolls-dialog .ws-item-search button {
+  height: 32px;
+  color: var(--muted);
+}
+
 .ws-rolls-dialog .ws-combat-item-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 420px));
@@ -296,6 +318,56 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 32px;
   gap: 4px;
+}
+
+.ws-rolls-dialog .ws-combat-item-card.ws-has-favorite {
+  grid-template-columns: minmax(0, 1fr) 32px 32px;
+}
+
+.ws-rolls-dialog .ws-item-favorite {
+  min-width: 32px;
+  min-height: 36px;
+  padding: 0;
+  color: var(--muted);
+}
+
+.ws-rolls-dialog .ws-item-favorite.ws-active {
+  color: var(--accent);
+}
+
+.ws-rolls-dialog .ws-activity-menu {
+  grid-column: 1 / -1;
+  max-height: 180px;
+  display: grid;
+  gap: 3px;
+  overflow-y: auto;
+}
+
+.ws-rolls-dialog .ws-activity-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  gap: 4px;
+}
+
+.ws-rolls-dialog .ws-activity-option > button:first-child {
+  min-width: 0;
+  padding: 5px 9px;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-rolls-dialog .ws-favorites {
+  display: grid;
+  gap: 5px;
+}
+
+.ws-rolls-dialog .ws-favorites h3 {
+  margin: 0;
+  color: var(--accent);
+  font-size: calc(9px * var(--ws-type-scale));
+  letter-spacing: 0.05em;
 }
 
 .ws-rolls-dialog .ws-combat-item {

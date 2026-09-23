@@ -42,10 +42,15 @@ test("window session updates live settings and releases document hooks", async (
 
   try {
     const listeners = new Map();
+    const elementListeners = new Map();
     const control = { action: "togglecloseafterroll", icon: "" };
     const app = {
       options: { window: { controls: [control] } },
-      element: { addEventListener() {} },
+      element: {
+        addEventListener(name, callback) {
+          elementListeners.set(name, callback);
+        }
+      },
       addEventListener(name, callback) {
         listeners.set(name, callback);
       },
@@ -59,12 +64,14 @@ test("window session updates live settings and releases document hooks", async (
     let pinned = false;
     let refreshed = 0;
     let canceled = 0;
+    const searches = [];
 
     await activateHudWindow({
       actor,
       app,
       canRollActor: true,
       isCloseAfterRoll: () => closeAfterRoll,
+      onSearchInput: query => searches.push(query),
       readVisibility: () => ({ itemDetails: false }),
       refreshHud: () => refreshed++,
       refreshScheduler: { schedule() {}, cancel: () => canceled++ },
@@ -87,6 +94,11 @@ test("window session updates live settings and releases document hooks", async (
     assert.equal(pinned, true);
     assert.equal(visibility.itemDetails, false);
     assert.equal(refreshed, 1);
+
+    elementListeners.get("input")({
+      target: { matches: () => true, value: "sword" }
+    });
+    assert.deepEqual(searches, ["sword"]);
 
     listeners.get("close")();
     assert.equal(canceled, 1);

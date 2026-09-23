@@ -1,6 +1,7 @@
 const adapters = new Map();
 
 const CAPABILITY_DEFAULTS = Object.freeze({
+  activityChoice: false,
   abilityChecks: false,
   actions: false,
   bonusActions: false,
@@ -78,7 +79,8 @@ const ADAPTER_DEFAULTS = Object.freeze({
   toggleInspiration: () => unsupported("inspiration"),
   updateHp: () => unsupported("HP updates"),
   updateResource: () => unsupported("resource updates"),
-  useItem: () => unsupported("item use")
+  useItem: () => unsupported("item use"),
+  useActivity: () => unsupported("activity use")
 });
 
 export function defineSystemAdapter(adapter) {

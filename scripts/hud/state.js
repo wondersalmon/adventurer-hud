@@ -19,6 +19,9 @@ export function createHudState(initial = {}) {
     preparedSpellsOnly: true,
     resourcesExpanded: false,
     savingThrowsExpanded: true,
+    searchQuery: "",
+    openActivityItemId: null,
+    favoriteEntries: [],
     ...initial
   };
 }

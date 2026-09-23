@@ -1,5 +1,6 @@
 import { setForcedMode, setRegularView } from "./state.js";
 import { openSettings } from "../settings.js";
+import { usableActivities } from "./quick-access.js";
 
 export function createHudActions({
   actor,
@@ -22,6 +23,9 @@ export function createHudActions({
   setView,
   storeCloseAfterRoll,
   t,
+  toggleFavoriteEntry,
+  updateSearch,
+  visibility,
   togglePin
 }) {
   const actions = {
@@ -198,7 +202,41 @@ export function createHudActions({
         return ui.notifications.warn(t("Combat.ItemMissing"));
       }
 
+      if (
+        visibility.activityPicker &&
+        !event.shiftKey &&
+        usableActivities(adapter, item).length > 1
+      ) {
+        hudState.openActivityItemId =
+          hudState.openActivityItemId === item.id ? null : item.id;
+        refreshHud();
+        return;
+      }
+
       return rollAndClose(() => adapter.useItem(item, { event }));
+    },
+
+    useactivity: async function (event, target) {
+      if (!canRollActor) {
+        return ui.notifications.warn(t("Warnings.NoPermission"));
+      }
+      const item = actor.items.get(target.dataset.itemId);
+      if (!item) return ui.notifications.warn(t("Combat.ItemMissing"));
+      return rollAndClose(() =>
+        adapter.useActivity(item, target.dataset.activityId, { event })
+      );
+    },
+
+    togglefavorite: function (_event, target) {
+      if (!visibility.favorites) return;
+      return toggleFavoriteEntry(
+        target.dataset.itemId,
+        target.dataset.activityId ?? null
+      );
+    },
+
+    clearsearch: function () {
+      updateSearch("");
     },
 
     openitem: function (_event, target) {

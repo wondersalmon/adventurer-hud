@@ -10,6 +10,10 @@ export const SETTINGS = Object.freeze({
   showDeathSaves: "showDeathSaves",
   showItemDetails: "showItemDetails",
   showModeNavigation: "showModeNavigation",
+  showSearch: "showSearch",
+  showActivityPicker: "showActivityPicker",
+  showFavorites: "showFavorites",
+  favoriteEntries: "favoriteEntries",
   windowGeometry: "windowGeometry"
 });
 
@@ -54,14 +58,12 @@ export const SETTING_DEFINITIONS = Object.freeze({
     placement: "basic",
     refresh: "runtime"
   }),
-  [SETTINGS.pinWindow]: defineSetting("behavior", {
+  [SETTINGS.pinWindow]: defineSetting("window", {
     defaultValue: false,
-    placement: "basic",
     refresh: "runtime"
   }),
-  [SETTINGS.showTokenControl]: defineSetting("behavior", {
+  [SETTINGS.showTokenControl]: defineSetting("window", {
     defaultValue: false,
-    placement: "basic",
     refresh: "controls"
   }),
   [SETTINGS.autoUpdateActor]: defineSetting("behavior", {
@@ -69,16 +71,18 @@ export const SETTING_DEFINITIONS = Object.freeze({
     placement: "basic",
     refresh: "none"
   }),
-  [SETTINGS.showItemDetails]: defineSetting("combat", {
-    placement: "basic"
-  }),
-  [SETTINGS.showDeathSaves]: defineSetting("regular", {
-    capability: "deathSaves",
-    placement: "basic"
+  [SETTINGS.showItemDetails]: defineSetting("itemUse"),
+  [SETTINGS.showDeathSaves]: defineSetting("death", {
+    capability: "deathSaves"
   }),
   [SETTINGS.showModeNavigation]: defineSetting("behavior", {
     defaultValue: false,
     placement: "basic"
+  }),
+  [SETTINGS.showSearch]: defineSetting("quickAccess"),
+  [SETTINGS.showFavorites]: defineSetting("quickAccess"),
+  [SETTINGS.showActivityPicker]: defineSetting("itemUse", {
+    capability: "activityChoice"
   })
 });
 
@@ -90,7 +94,7 @@ const definitionsBy = predicate =>
 const groupDefinitions = placement =>
   Object.freeze(
     Object.fromEntries(
-      ["behavior", "appearance", "regular", "combat", "advanced"]
+      ["behavior", "appearance", "quickAccess", "itemUse", "window", "death"]
         .map(group => [
           group,
           Object.freeze(
@@ -109,6 +113,7 @@ export const SETTING_GROUPS = groupDefinitions();
 export const BASIC_SETTINGS = Object.freeze(
   definitionsBy(definition => definition.placement === "basic")
 );
+const ADVANCED_SETTING_GROUPS = groupDefinitions("advanced");
 export const SETTING_DEFAULTS = Object.freeze(
   Object.fromEntries(
     Object.entries(SETTING_DEFINITIONS).map(([key, definition]) => [
@@ -118,6 +123,7 @@ export const SETTING_DEFAULTS = Object.freeze(
   )
 );
 
+let SettingsApplication = null;
 let ResetSettingsApplication = null;
 
 const notifyChange = key => value =>
@@ -155,12 +161,81 @@ export function registerSettings() {
     default: {}
   });
 
-  registerResetSettingsMenu();
+  game.settings.register(MODULE_ID, SETTINGS.favoriteEntries, {
+    name: "Adventurer HUD favorites",
+    hint: "",
+    scope: "user",
+    config: false,
+    type: Object,
+    default: {}
+  });
+
+  registerSettingsMenus();
 }
 
-function registerResetSettingsMenu() {
+function registerSettingsMenus() {
   const { ApplicationV2, HandlebarsApplicationMixin } =
     foundry.applications.api;
+
+  SettingsApplication = class AdventurerHudSettings extends (
+    HandlebarsApplicationMixin(ApplicationV2)
+  ) {
+    static DEFAULT_OPTIONS = {
+      id: "adventurer-hud-settings",
+      tag: "form",
+      classes: ["adventurer-hud-settings"],
+      window: {
+        icon: "fa-solid fa-dice-d20",
+        title: "ADVENTURER_HUD.Settings.Advanced.Name"
+      },
+      position: { width: 620, height: "auto" },
+      form: { closeOnSubmit: true, handler: this.#onSubmit }
+    };
+
+    static PARTS = {
+      form: { template: "modules/adventurer-hud/templates/settings.hbs" }
+    };
+
+    async _prepareContext() {
+      return {
+        groups: Object.entries(ADVANCED_SETTING_GROUPS)
+          .map(([id, keys]) => ({
+            label: game.i18n.localize(`ADVENTURER_HUD.Settings.Groups.${id}`),
+            settings: keys
+              .filter(key => isSettingSupported(key))
+              .map(key => {
+                const definition = game.settings.settings.get(
+                  `${MODULE_ID}.${key}`
+                );
+                return {
+                  hint: game.i18n.localize(definition.hint),
+                  key,
+                  name: game.i18n.localize(definition.name),
+                  value: getSetting(key)
+                };
+              })
+          }))
+          .filter(group => group.settings.length)
+      };
+    }
+
+    static async #onSubmit(_event, _form, formData) {
+      for (const keys of Object.values(ADVANCED_SETTING_GROUPS)) {
+        for (const key of keys.filter(key => isSettingSupported(key))) {
+          await setSetting(key, Boolean(formData.object[key]));
+        }
+      }
+    }
+  };
+
+  game.settings.registerMenu(MODULE_ID, "configure", {
+    name: "ADVENTURER_HUD.Settings.Advanced.Name",
+    hint: "ADVENTURER_HUD.Settings.Advanced.Hint",
+    label: "ADVENTURER_HUD.Settings.Advanced.Label",
+    icon: "fa-solid fa-sliders",
+    type: SettingsApplication,
+    restricted: false
+  });
 
   ResetSettingsApplication = class AdventurerHudResetSettings extends (
     HandlebarsApplicationMixin(ApplicationV2)
@@ -218,18 +293,20 @@ export async function openSettings() {
   return sheet;
 }
 
-export function moveResetSettingsMenuToBottom(root) {
+export function moveSettingsMenusToBottom(root) {
   const element = root?.querySelector ? root : root?.[0];
   if (!element) {
     return;
   }
 
-  const settingId = `${MODULE_ID}.reset`;
-  const control = element.querySelector(
-    `[data-key="${settingId}"], [data-setting-id="${settingId}"], [name="${settingId}"]`
-  );
-  const row = control?.closest?.(".form-group");
-  row?.parentElement?.append(row);
+  for (const key of ["configure", "reset"]) {
+    const settingId = `${MODULE_ID}.${key}`;
+    const control = element.querySelector(
+      `[data-key="${settingId}"], [data-setting-id="${settingId}"], [name="${settingId}"]`
+    );
+    const row = control?.closest?.(".form-group");
+    row?.parentElement?.append(row);
+  }
 }
 
 export async function resetSettings() {

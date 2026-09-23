@@ -67,6 +67,7 @@ actually implements.
 
 | Capability                                               | Required adapter methods                                                |
 | -------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `activityChoice`                                         | `itemActivities`, `useActivity`                                         |
 | `abilityChecks`                                          | `abilityData`, `abilityTotal`, `rollAbility`                            |
 | `savingThrows`                                           | Ability methods above, `saveProficiency`                                |
 | `skills`                                                 | `skillDefinitions`, `skillData`, `skillProficiency`, `rollSkill`        |
@@ -137,22 +138,23 @@ null` for actor fields and the owning item ID for item-backed resources.
 
 ### Items and spells
 
-| Method                                   | Expected result                                                            |
-| ---------------------------------------- | -------------------------------------------------------------------------- |
-| `combatItems(actor, category)`           | Items for `weapons`, `spells`, `action`, `bonus`, `reaction`, or `special` |
-| `inventoryCategory(item)`                | `equipped`, `consumables`, `other`, or `null`                              |
-| `itemRole(item)`                         | `weapon`, `spell`, or `other`                                              |
-| `useItem(item, { event })`               | Native item-use result                                                     |
-| `itemUsesData(item)`                     | `{ value, max }` or `null`                                                 |
-| `itemActivation(item)`                   | Activation identifier                                                      |
-| `itemRangeData(item)`                    | `{ value, long, units, special }`                                          |
-| `itemAttackBonus(item)`                  | Display-ready attack bonus                                                 |
-| `itemDamageFormula(actor, item)`         | Display-ready damage formula                                               |
-| `itemResourceCost(actor, item, helpers)` | Display-ready resource cost                                                |
-| `hasItemProperty(item, property)`        | Whether concentration, ritual, or another property applies                 |
-| `isPreparedSpell(item)`                  | Whether a spell belongs in the prepared filter                             |
-| `spellLevel(item)`                       | Numeric spell level                                                        |
-| `spellSlots(actor, level)`               | Array of `[remaining, maximum]` pools                                      |
+| Method                                     | Expected result                                                                |
+| ------------------------------------------ | ------------------------------------------------------------------------------ |
+| `combatItems(actor, category)`             | Items for `weapons`, `spells`, `action`, `bonus`, `reaction`, or `special`     |
+| `inventoryCategory(item)`                  | `equipped`, `consumables`, `other`, or `null`                                  |
+| `itemRole(item)`                           | `weapon`, `spell`, or `other`                                                  |
+| `useItem(item, { event })`                 | Native item-use result                                                         |
+| `useActivity(item, activityId, { event })` | Native use result for the selected activity; needed for inline activity choice |
+| `itemUsesData(item)`                       | `{ value, max }` or `null`                                                     |
+| `itemActivation(item)`                     | Activation identifier                                                          |
+| `itemRangeData(item)`                      | `{ value, long, units, special }`                                              |
+| `itemAttackBonus(item)`                    | Display-ready attack bonus                                                     |
+| `itemDamageFormula(actor, item)`           | Display-ready damage formula                                                   |
+| `itemResourceCost(actor, item, helpers)`   | Display-ready resource cost                                                    |
+| `hasItemProperty(item, property)`          | Whether concentration, ritual, or another property applies                     |
+| `isPreparedSpell(item)`                    | Whether a spell belongs in the prepared filter                                 |
+| `spellLevel(item)`                         | Numeric spell level                                                            |
+| `spellSlots(actor, level)`                 | Array of `[remaining, maximum]` pools                                          |
 
 Metadata helpers have empty defaults, so integrations can add detailed cards
 incrementally. `activationLabel` and `rangeUnitLabel` may be implemented when

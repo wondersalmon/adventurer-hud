@@ -39,8 +39,11 @@ export function createCombatRenderer(context) {
     combatActions,
     combatItemButton,
     combatItems,
+    favoriteSection,
     inventoryCategories,
     inventoryItems,
+    searchItems,
+    searchControl,
     spellGroups
   } = createCombatItemRenderer({
     actor,
@@ -48,6 +51,7 @@ export function createCombatRenderer(context) {
     escapeHTML,
     hudState,
     t,
+    tf,
     visibility
   });
 
@@ -161,6 +165,8 @@ export function createCombatRenderer(context) {
 
           ${combatStatuses()}
 
+          ${favoriteSection()}
+
           ${
             visibility.abilityChecks
               ? `
@@ -197,9 +203,12 @@ export function createCombatRenderer(context) {
     combatInitiative,
     combatItemButton,
     combatItems,
+    favoriteSection,
     combatStatuses,
     inventoryCategories,
     inventoryItems,
+    searchItems,
+    searchControl,
     openHpDialog,
     openResourceDialog,
     spellGroups

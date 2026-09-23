@@ -8,6 +8,7 @@ export function createRegularRenderer(context) {
     combatInitiative,
     combatItemButton,
     combatItems,
+    favoriteSection,
     hudState,
     inspirationControl,
     instruments,
@@ -18,6 +19,8 @@ export function createRegularRenderer(context) {
     normalTools,
     restControls,
     savingThrowsSection,
+    searchControl,
+    searchItems,
     shortcutHint,
     skillsHTML,
     spellGroups,
@@ -38,6 +41,8 @@ export function createRegularRenderer(context) {
           ${restControls()}
 
           ${modeNavigation("regular")}
+
+          ${favoriteSection()}
 
           ${
             visibility.abilityChecks || visibility.savingThrows
@@ -255,6 +260,8 @@ export function createRegularRenderer(context) {
 
           <div class="ws-divider"></div>
 
+          ${searchControl()}
+
           <div class="ws-spell-filter" role="group" aria-label="${t("Combat.SpellFilter")}">
             <button type="button" class="ws-button ${hudState.preparedSpellsOnly ? "ws-active" : ""}" data-action="spellfilter" data-prepared="true">
               ${t("Combat.Prepared")}
@@ -266,8 +273,8 @@ export function createRegularRenderer(context) {
 
           <div class="ws-combat-item-list">
             ${
-              spellGroups(combatItems("spells")) ||
-              `<div class="ws-empty">${t("Combat.EmptyPrepared")}</div>`
+              spellGroups(searchItems(combatItems("spells"))) ||
+              `<div class="ws-empty">${t(hudState.searchQuery ? "Quick.NoResults" : "Combat.EmptyPrepared")}</div>`
             }
           </div>
 
@@ -278,6 +285,8 @@ export function createRegularRenderer(context) {
           ${back(t("Inventory.Title"), "fa-box-open")}
 
           <div class="ws-divider"></div>
+
+          ${searchControl()}
 
           <div class="ws-combat-filters ws-inventory-filters" role="group" aria-label="${t("Inventory.Filter")}">
             ${inventoryCategories()
@@ -300,13 +309,13 @@ export function createRegularRenderer(context) {
 
           <div class="ws-combat-item-list">
             ${
-              inventoryItems(hudState.inventoryCategory).length
-                ? `<div class="ws-combat-item-grid">${inventoryItems(
-                    hudState.inventoryCategory
+              searchItems(inventoryItems(hudState.inventoryCategory)).length
+                ? `<div class="ws-combat-item-grid">${searchItems(
+                    inventoryItems(hudState.inventoryCategory)
                   )
                     .map(combatItemButton)
                     .join("")}</div>`
-                : `<div class="ws-empty">${t("Inventory.Empty")}</div>`
+                : `<div class="ws-empty">${t(hudState.searchQuery ? "Quick.NoResults" : "Inventory.Empty")}</div>`
             }
           </div>
 

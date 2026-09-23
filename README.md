@@ -36,6 +36,7 @@ behavior.
 - Checks, saves, skills, tools, spells, weapons, and actions
 - HP, temporary HP, AC, speed, initiative, class resources, conditions, and spell slots
 - Native item use and roll modifier keys
+- Live item search, an inline activity chooser, and per-character favorites
 - Automatic mode detection for exploration, combat, and death-save states
 - Responsive layout, font sizing, and persistent window geometry
 - Optional Token Controls button and configurable keybinding (`Shift+R` by default)
@@ -51,6 +52,10 @@ combat; the module never adds or removes combatants.
 Combat item cards use the native D&D 5e workflow. Their book buttons open item
 sheets without using the item. Optional details include range, attack bonus,
 damage, activation, resource cost, concentration, and ritual markers.
+Search matches item and activity names in combat, spells, and inventory. Star
+buttons save items or individual activities to the current user's favorites for
+that character. When an item has multiple usable activities, click it to choose
+one in the HUD; Shift-click keeps the native D&D 5e item shortcut.
 
 Roll buttons accept the native modifier keys: `Shift` fast-forwards a normal
 roll, `Alt` requests advantage, and `Ctrl` requests disadvantage. Exact behavior
@@ -65,13 +70,15 @@ game.modules.get("adventurer-hud").api.open();
 ## Configuration
 
 Open **Adventurer HUD settings** from Foundry's Module Settings or the HUD title
-menu. Options and reset controls appear directly in Foundry's Module
-Settings. The title menu
-also opens settings and provides pin, close-after-roll, and window-reset controls. The
-Token Controls button can be hidden without disabling the configurable
-keybinding.
+menu. Common options appear directly in Foundry's Module Settings. **Additional
+settings** groups quick access, item use, window controls, and death saves;
+each of the three quick-access features has its own switch. Reset is next to the
+additional-settings button. The title menu also provides pin, close-after-roll,
+and window-reset controls. The Token Controls button can be hidden without
+disabling the configurable keybinding.
 
-Settings are stored per user; window size and position are stored per client.
+Settings and favorites are stored per user; window size and position are stored
+per client. Favorites do not change the D&D 5e character sheet's own favorites.
 
 ## AI disclosure
 
