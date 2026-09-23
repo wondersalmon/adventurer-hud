@@ -10,9 +10,10 @@ import {
 } from "../scripts/hud/state.js";
 import { renderHudMode, renderRegularView } from "../scripts/render/index.js";
 
-test("one forced mode replaces the former three-flag state", () => {
+test("manual mode is limited to exploration and combat", () => {
   const state = createHudState({ currentView: "skills" });
   assert.equal(state.abilitiesExpanded, true);
+  assert.equal(state.proficientSkillsOnly, true);
   assert.equal(state.combatAbilitiesExpanded, false);
   setForcedMode(state, "combat");
   assert.equal(state.forcedMode, "combat");
@@ -21,44 +22,28 @@ test("one forced mode replaces the former three-flag state", () => {
   assert.equal(
     resolveHudMode({
       combatAvailable: true,
-      deathActive: false,
-      deathAvailable: true,
       forcedMode: state.forcedMode,
       isActiveCombatant: false
     }),
     "combat"
   );
+  setForcedMode(state, "death");
+  assert.equal(state.forcedMode, null);
 });
 
-test("automatic mode priority remains death, combat, regular", () => {
+test("automatic mode chooses combat for active combatants", () => {
   const base = {
     combatAvailable: true,
-    deathAvailable: true,
     forcedMode: null,
     isActiveCombatant: true
   };
-  assert.equal(resolveHudMode({ ...base, deathActive: true }), "death");
-  assert.equal(resolveHudMode({ ...base, deathActive: false }), "combat");
+  assert.equal(resolveHudMode(base), "combat");
   assert.equal(
     resolveHudMode({
       ...base,
-      combatAvailable: false,
-      deathActive: false
+      combatAvailable: false
     }),
     "regular"
-  );
-});
-
-test("manual death mode remains available before death saves are active", () => {
-  assert.equal(
-    resolveHudMode({
-      combatAvailable: true,
-      deathActive: false,
-      deathAvailable: true,
-      forcedMode: "death",
-      isActiveCombatant: false
-    }),
-    "death"
   );
 });
 
@@ -143,14 +128,12 @@ test("HUD mode renderers are split from the application controller", async () =>
   assert.match(controller, /from "\.\/hud\/regular\.js"/);
   assert.match(controller, /from "\.\/hud\/combat\.js"/);
   assert.match(controller, /from "\.\/hud\/actions\.js"/);
-  assert.match(controller, /from "\.\/hud\/death-saves\.js"/);
   assert.match(controller, /from "\.\/hud\/refresh\.js"/);
   assert.match(controller, /from "\.\/hud\/window-session\.js"/);
   assert.match(controller, /from "\.\/hud\/window-controls\.js"/);
   assert.match(controller, /from "\.\/hud\/geometry\.js"/);
   assert.doesNotMatch(controller, /function normalHTML\(/);
   assert.doesNotMatch(controller, /function combatHTML\(/);
-  assert.doesNotMatch(controller, /function deathHTML\(/);
 });
 
 test("settings refresh preserves the actor attached to an open HUD", async () => {

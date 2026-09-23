@@ -3,8 +3,7 @@
 [Русская версия](README.ru.md)
 
 [![Foundry VTT 14](https://img.shields.io/badge/Foundry_VTT-14-2f855a?style=flat-square)](https://foundryvtt.com/)
-[![D&D 5e 5.3–6.x](https://img.shields.io/badge/D%26D_5e-5.3–6.x-2f855a?style=flat-square)](https://github.com/foundryvtt/dnd5e)
-![Dependencies: none](https://img.shields.io/badge/deps-none-2f855a?style=flat-square)
+[![D&D 5e 5.3+](https://img.shields.io/badge/D%26D_5e-5.3%2B-2f855a?style=flat-square)](https://github.com/foundryvtt/dnd5e)
 
 A player-focused character and combat HUD for Foundry VTT 14 with D&D 5e.
 
@@ -22,44 +21,54 @@ https://github.com/wondersalmon/adventurer-hud/releases/latest/download/module.j
 ## Compatibility
 
 - Foundry VTT 14
-- D&D 5e 5.3–6.x
-- No required module dependencies
+- D&D 5e 5.3 or newer; manifest verified version: 6.0.3
+- No required modules
 
-The HUD uses native Foundry and D&D 5e APIs. It works without automation
-modules and forwards roll events for interoperability with modules such as
-Midi-QOL. Modules that replace native roll workflows can still alter roll
-behavior.
+The HUD uses Foundry and D&D 5e roll workflows. Other modules may change how
+those rolls behave; Adventurer HUD does not require an automation module.
 
 ## Features
 
-- Exploration, combat, and death-save layouts
+- Exploration and combat layouts with an inline death-save control at 0 HP
 - Checks, saves, skills, tools, spells, weapons, and actions
 - HP, temporary HP, AC, speed, initiative, class resources, conditions, and spell slots
 - Native item use and roll modifier keys
 - Live item search, an inline activity chooser, and per-character favorites
-- Automatic mode detection for exploration, combat, and death-save states
-- Responsive layout, font sizing, and persistent window geometry
-- Optional Token Controls button and configurable keybinding (`Shift+R` by default)
+- Automatic switching between exploration and combat
+- Responsive layout, text sizing, optional animated feedback, and saved window position
+- Configurable keybinding (`Shift+R` by default) and optional Token Controls button
 
 ![Adventurer HUD demonstration](docs/media/demo.webp)
 
 ## Usage
 
-Open the HUD with the dice button under Token Controls or its configurable
-keybinding. Combat mode activates when the selected character is in an active
-combat; the module never adds or removes combatants.
+Press `Shift+R` to open the HUD for the selected token, or for your assigned
+character when no token is selected. You can enable a Token Controls button in
+Additional settings. Combat mode activates when the actor joins a started
+combat. The HUD does not add combatants.
 
-Combat item cards use the native D&D 5e workflow. Their book buttons open item
-sheets without using the item. Optional details include range, attack bonus,
-damage, activation, resource cost, concentration, and ritual markers.
-Search matches item and activity names in combat, spells, and inventory. Star
-buttons save items or individual activities to the current user's favorites for
-that character. When an item has multiple usable activities, click it to choose
-one in the HUD; Shift-click keeps the native D&D 5e item shortcut.
+Item cards use the D&D 5e workflow. The book button opens the item sheet.
+Search matches item and activity names in combat, spells, and inventory. The
+star saves an item or activity to your favorites for that character. For items
+with several activities, click the card to choose one, or Shift-click to use
+the native item workflow.
 
 Roll buttons accept the native modifier keys: `Shift` fast-forwards a normal
 roll, `Alt` requests advantage, and `Ctrl` requests disadvantage. Exact behavior
 can be adjusted by D&D 5e or automation-module settings.
+
+Click the HP bar to edit current and temporary HP. Enter `12` to set a value,
+`+5` to add, or `-3` to take damage from temporary HP first and then regular HP.
+The temporary HP field changes temporary HP directly. Leave a field blank to
+keep it unchanged. The bar appears in exploration and combat.
+
+At 0 HP, the HUD turns gray, labels the character Unconscious, and shows a red
+death-save roll button below the HP bar in either layout. It does not show
+success or failure counters; after three failures it shows a death message.
+D&D 5e handles the result of each roll.
+
+The exploration skills view initially shows proficient and expert skills;
+switch to All skills to see the full list. The choice is saved for your user.
 
 A macro can also open the HUD through its public API:
 
@@ -69,22 +78,22 @@ game.modules.get("adventurer-hud").api.open();
 
 ## Configuration
 
-Open **Adventurer HUD settings** from Foundry's Module Settings or the HUD title
-menu. Common options appear directly in Foundry's Module Settings. **Additional
-settings** groups quick access, item use, window controls, and death saves;
-each of the three quick-access features has its own switch. Reset is next to the
-additional-settings button. The title menu also provides pin, close-after-roll,
-and window-reset controls. The Token Controls button can be hidden without
-disabling the configurable keybinding.
+Open the module settings from Foundry's Module Settings or the HUD title menu.
+The main settings cover language, text size, closing after rolls, token
+selection, and manual mode navigation. **Additional settings** groups search
+and favorites, item use, and HUD display and controls.
 
-Settings and favorites are stored per user; window size and position are stored
-per client. Favorites do not change the D&D 5e character sheet's own favorites.
+Turn off **HUD visual effects** to remove damage, healing, HP, and initiative
+animations. HP colors and status labels remain. The Token Controls button
+setting takes effect after reloading Foundry. The HUD title menu also has pin,
+close-after-roll, and window-reset controls.
+
+Options and favorites are saved per user. Window size and position are saved
+for each client. HUD favorites do not change favorites on the D&D 5e sheet.
 
 ## AI disclosure
 
-AI tools were used as coding assistants during development and review. The
-module is maintained and tested by me, and I understand and maintain the
-codebase myself.
+AI tools assisted with development and review.
 
 ## Development
 
@@ -96,10 +105,6 @@ npm run check
 npm run build
 ```
 
-System adapters live in `scripts/systems`, version-specific D&D 5e helpers in
-`scripts/dnd5e`, and mode renderers and shared UI components in `scripts/hud`.
-HUD actions and window lifecycle also live in `scripts/hud`; the combat renderer
-composes focused item, status, and resource modules. CSS files in `styles` load
-in the order declared by `module.json`. Render dispatch lives in `scripts/render`. See the
-[system adapter guide](docs/system-adapters.md) to add
-support for another game system.
+See the [system adapter guide](docs/system-adapters.md) for the adapter contract
+and the steps for adding a game system. HUD code lives in `scripts/hud`, D&D 5e
+helpers in `scripts/dnd5e`, and styles in `styles`.

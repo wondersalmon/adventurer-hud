@@ -26,13 +26,40 @@ test("extracted HUD actions forward roll events through the adapter", async () =
   assert.deepEqual(calls, [["hero", { type: "save", key: "dex", event }]]);
 });
 
+test("skill filter saves the user's choice and refreshes the HUD", async () => {
+  const previousGame = globalThis.game;
+  const writes = [];
+  let refreshed = 0;
+  globalThis.game = {
+    settings: {
+      set: async (_module, key, value) => writes.push([key, value])
+    }
+  };
+
+  try {
+    const hudState = { proficientSkillsOnly: true };
+    const actions = createHudActions({
+      hudState,
+      refreshHud: () => refreshed++
+    });
+    await actions.skillfilter(null, { dataset: { proficient: "false" } });
+    assert.equal(hudState.proficientSkillsOnly, false);
+    assert.deepEqual(writes, [["proficientSkillsOnly", false]]);
+    assert.equal(refreshed, 1);
+  } finally {
+    globalThis.game = previousGame;
+  }
+});
+
 test("window session updates live settings and releases document hooks", async () => {
   const previousHooks = globalThis.Hooks;
   const hookIds = [];
+  const hookCallbacks = new Map();
   const removed = [];
   globalThis.Hooks = {
-    on(name) {
+    on(name, callback) {
       hookIds.push(name);
+      hookCallbacks.set(name, callback);
       return name;
     },
     off(name, id) {
@@ -43,10 +70,17 @@ test("window session updates live settings and releases document hooks", async (
   try {
     const listeners = new Map();
     const elementListeners = new Map();
+    const elementClasses = new Set();
     const control = { action: "togglecloseafterroll", icon: "" };
     const app = {
       options: { window: { controls: [control] } },
       element: {
+        classList: {
+          add: name => elementClasses.add(name),
+          remove: (...names) =>
+            names.forEach(name => elementClasses.delete(name))
+        },
+        offsetWidth: 100,
         addEventListener(name, callback) {
           elementListeners.set(name, callback);
         }
@@ -71,6 +105,8 @@ test("window session updates live settings and releases document hooks", async (
       app,
       canRollActor: true,
       isCloseAfterRoll: () => closeAfterRoll,
+      visualEffectsEnabled: false,
+      isCurrentCombatant: combatant => combatant.id === "own",
       onSearchInput: query => searches.push(query),
       readVisibility: () => ({ itemDetails: false }),
       refreshHud: () => refreshed++,
@@ -94,6 +130,22 @@ test("window session updates live settings and releases document hooks", async (
     assert.equal(pinned, true);
     assert.equal(visibility.itemDetails, false);
     assert.equal(refreshed, 1);
+
+    assert.equal(elementClasses.has("ws-effects-disabled"), true);
+    hookCallbacks.get("createCombatant")({ id: "own", initiative: null });
+    assert.equal(elementClasses.has("ws-initiative-flash"), false);
+    app.applySetting("showVisualEffects", true);
+    hookCallbacks.get("createCombatant")({ id: "own", initiative: null });
+    assert.equal(elementClasses.has("ws-initiative-flash"), true);
+    app.applySetting("showVisualEffects", false);
+    assert.equal(elementClasses.has("ws-effects-disabled"), true);
+    assert.equal(elementClasses.has("ws-initiative-flash"), false);
+    hookCallbacks.get("createCombatant")({ id: "own", initiative: null });
+    assert.equal(elementClasses.has("ws-initiative-flash"), false);
+    app.applySetting("showVisualEffects", true);
+    assert.equal(elementClasses.has("ws-effects-disabled"), false);
+    hookCallbacks.get("createCombatant")({ id: "own", initiative: null });
+    assert.equal(elementClasses.has("ws-initiative-flash"), true);
 
     elementListeners.get("input")({
       target: { matches: () => true, value: "sword" }

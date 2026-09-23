@@ -1,4 +1,5 @@
 import { calculateResourceValue } from "../runtime-helpers.js";
+import { resolveHpChanges } from "./hp-input.js";
 
 export function createCombatResourceController({
   actor,
@@ -138,12 +139,13 @@ export function createCombatResourceController({
       <div class="ws-hp-dialog-content">
         <label>
           <span>${t("Combat.HP")}</span>
-          <input type="number" name="value" value="${Number(hp.value ?? 0)}" min="0" step="1">
+          <input type="text" name="value" placeholder="${Number(hp.value ?? 0)}" inputmode="numeric" pattern="[+-]?[0-9]+" autocomplete="off">
         </label>
         <label>
           <span>${t("Combat.TempHP")}</span>
-          <input type="number" name="temp" value="${Number(hp.temp ?? 0)}" min="0" step="1">
+          <input type="text" name="temp" placeholder="${Number(hp.temp ?? 0)}" inputmode="numeric" pattern="[+-]?[0-9]+" autocomplete="off">
         </label>
+        <small>${t("Combat.HPInputHint")}</small>
       </div>
     `;
 
@@ -158,22 +160,24 @@ export function createCombatResourceController({
           label: t("Combat.SaveHP"),
           icon: "fa-solid fa-check",
           default: true,
-          callback: async () => {
-            const value = Math.min(
-              Math.max(
-                0,
-                Number(content.querySelector('[name="value"]')?.value) || 0
-              ),
-              Math.max(0, Number(hp.max ?? 0))
-            );
-            const temp = Math.max(
-              0,
-              Number(content.querySelector('[name="temp"]')?.value) || 0
-            );
-            if (value !== Number(hp.value ?? 0))
-              await adapter.updateHp(actor, "value", value);
-            if (temp !== Number(hp.temp ?? 0))
-              await adapter.updateHp(actor, "temp", temp);
+          callback: async (_event, button) => {
+            const fields = button.form.elements;
+            const latestHp = adapter.combatStats(actor).hp;
+            const next = resolveHpChanges({
+              valueInput: fields.namedItem("value")?.value,
+              tempInput: fields.namedItem("temp")?.value,
+              value: Number(latestHp.value ?? 0),
+              temp: Number(latestHp.temp ?? 0),
+              max: Number(latestHp.max ?? 0)
+            });
+            if (!next) return;
+            const { value, temp } = next;
+            if (
+              value !== Number(latestHp.value ?? 0) ||
+              temp !== Number(latestHp.temp ?? 0)
+            ) {
+              await adapter.updateHp(actor, { value, temp });
+            }
           }
         },
         { action: "close", label: t("Actor.Cancel") }

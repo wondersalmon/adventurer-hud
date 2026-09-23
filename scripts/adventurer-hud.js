@@ -4,6 +4,7 @@ import { actorContextChanged } from "./runtime-helpers.js";
 import { applyHudSettingChange } from "./hud/settings-refresh.js";
 import {
   getSetting,
+  localizeSettingsRows,
   moveSettingsMenusToBottom,
   registerSettings,
   settingRefreshStrategy,
@@ -127,7 +128,11 @@ Hooks.on("controlToken", scheduleActorRefresh);
 Hooks.on("canvasReady", scheduleActorRefresh);
 
 Hooks.on("renderSettingsConfig", (app, html) => {
-  moveSettingsMenusToBottom(html ?? app.element);
+  const root = html ?? app.element;
+  moveSettingsMenusToBottom(root);
+  void localizeSettingsRows(root).catch(error => {
+    console.warn("Adventurer HUD | settings translation failed", error);
+  });
 });
 
 Hooks.on("adventurerHudSettingChanged", (key, value) => {

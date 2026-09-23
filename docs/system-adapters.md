@@ -64,6 +64,8 @@ to `register` intentionally replaces an existing adapter.
 
 All capabilities default to `false`. Enable only mechanics that the adapter
 actually implements.
+When `deathSaves` is enabled, the death-save control appears beneath the HP bar
+at 0 HP in both exploration and combat; it does not create a separate mode.
 
 | Capability                                               | Required adapter methods                                                |
 | -------------------------------------------------------- | ----------------------------------------------------------------------- |
@@ -123,11 +125,11 @@ after the action; cancellation should return `null`, `undefined`, or `false`.
 | Method                                                    | Expected result                                                |
 | --------------------------------------------------------- | -------------------------------------------------------------- |
 | `combatStats(actor)`                                      | `{ hp: { value, max, temp, tempmax }, ac, speed, speedUnits }` |
-| `deathData(actor)`                                        | `{ hp, success, failure }`                                     |
+| `deathData(actor)`                                        | `{ hp, success, failure, dead, stable }`                       |
 | `inspiration(actor)`                                      | Boolean inspiration state                                      |
 | `toggleInspiration(actor)`                                | Promise for the document update                                |
 | `shortRest(actor)`, `longRest(actor)`                     | Rest result                                                    |
-| `updateHp(actor, field, value)`                           | Update `value` or `temp` HP                                    |
+| `updateHp(actor, { value, temp })`                        | Update current and temporary HP together                       |
 | `actorResources(actor)`                                   | Normalized actor-resource array                                |
 | `featureResources(actor)`                                 | Normalized item-resource array                                 |
 | `resourceData(actor, { item, resourceId })`               | `{ actorResource, current, max }`                              |
@@ -164,44 +166,12 @@ See [`scripts/systems/registry.js`](../scripts/systems/registry.js) for every
 default and [`scripts/systems/dnd5e.js`](../scripts/systems/dnd5e.js) for the
 complete production implementation.
 
-## External integration manifest
+## Compatibility declaration
 
-An external adapter module should require Adventurer HUD and declare its target
-system. Replace the example IDs and compatibility versions with tested values:
-
-```json
-{
-  "id": "example-adventurer-hud-integration",
-  "type": "module",
-  "relationships": {
-    "requires": [
-      {
-        "id": "adventurer-hud",
-        "type": "module",
-        "compatibility": {
-          "minimum": "0.9.1"
-        }
-      }
-    ],
-    "systems": [
-      {
-        "id": "example-system",
-        "type": "system",
-        "compatibility": {
-          "minimum": "1.0.0",
-          "verified": "1.0.0"
-        }
-      }
-    ]
-  }
-}
-```
-
-Adventurer HUD's own `module.json` currently declares only D&D 5e. Before an
-external adapter can be distributed for another system, that system must also
-be added to Adventurer HUD's `relationships.systems` with honest tested bounds.
-Coordinate that manifest change with the main project instead of claiming
-untested compatibility.
+Adventurer HUD's `module.json` currently declares D&D 5e only. To distribute
+an adapter for another system, add that system to `relationships.systems` with
+tested compatibility bounds. An external adapter module must also declare
+Adventurer HUD as a required module.
 
 ## Adding a bundled system
 

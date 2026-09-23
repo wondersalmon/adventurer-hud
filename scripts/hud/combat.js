@@ -1,6 +1,8 @@
 import { createCombatItemRenderer } from "./combat-items.js";
 import { createCombatResourceController } from "./combat-resources.js";
 import { createCombatStatusRenderer } from "./combat-statuses.js";
+import { renderHealthBar } from "./health-bar.js";
+import { renderDeathSaveControl } from "./death-save-control.js";
 
 export function createCombatRenderer(context) {
   const {
@@ -9,6 +11,8 @@ export function createCombatRenderer(context) {
     adapter,
     abilitiesSection,
     canRollActor,
+    canRollDeathSave,
+    deathData,
     DialogV2,
     escapeHTML,
     formatMod,
@@ -85,22 +89,25 @@ export function createCombatRenderer(context) {
       `;
   };
 
+  const healthBar = (hp = adapter.combatStats(actor).hp) =>
+    renderHealthBar({
+      hp,
+      canEdit: canRollActor,
+      formatMod,
+      t
+    });
+
+  const healthPanel = (hp = adapter.combatStats(actor).hp) => `
+    <div class="ws-health-stack">
+      ${healthBar(hp)}
+      ${adapter.capabilities?.deathSaves ? renderDeathSaveControl({ canRoll: canRollDeathSave(), canRollActor, death: deathData(), t }) : ""}
+    </div>
+  `;
+
   function combatHTML() {
     const combatant = getCombatant();
     const { ac, hp, speed, speedUnits: units } = adapter.combatStats(actor);
     const isTurn = game.combat?.combatant?.id === combatant?.id;
-    const hpValue = Number(hp.value ?? 0);
-    const hpMax = Number(hp.max ?? 0);
-    const tempHp = Number(hp.temp ?? 0);
-    const hpPercent =
-      hpMax > 0 ? Math.min(100, Math.max(0, (hpValue / hpMax) * 100)) : 0;
-    const barScale = Math.max(1, hpMax, hpValue + tempHp);
-    const normalWidth = Math.max(0, (hpValue / barScale) * 100);
-    const tempWidth = Math.max(0, (tempHp / barScale) * 100);
-    const hpColor =
-      hpPercent > 50
-        ? "var(--success)"
-        : `hsl(3 65% ${Math.round(35 + hpPercent * 0.3)}%)`;
 
     return `
         <div
@@ -114,7 +121,7 @@ export function createCombatRenderer(context) {
           ${
             isTurn || !visibility.modeNavigation
               ? `
-            <div class="ws-combat-heading">
+            <div class="ws-combat-heading ${isTurn ? "ws-current-turn" : ""}">
               ${visibility.modeNavigation ? "" : `<span><i class="fa-solid fa-shield-halved"></i>${t("Labels.Combat")}</span>`}
               ${isTurn ? `<b>${t("Combat.YourTurn")}</b>` : ""}
             </div>`
@@ -122,17 +129,7 @@ export function createCombatRenderer(context) {
           }
 
           <div class="ws-combat-stats ${visibility.combatStats ? "" : "ws-hidden"}">
-            <button type="button" class="ws-combat-health ws-button" data-action="edithp"
-              title="${t("Combat.EditHP")}" ${canRollActor ? "" : "disabled"}>
-              <span class="ws-health-label"><span>${t("Combat.HP")}</span><strong>${hpValue}/${hpMax}</strong>
-                ${tempHp > 0 ? `<small>+${tempHp} ${t("Combat.TempHP")}</small>` : ""}
-              </span>
-              <span class="ws-health-track" aria-hidden="true">
-                <span class="ws-health-fill" style="width: ${normalWidth}%; background: ${hpColor}"></span>
-                <span class="ws-health-temp-fill" style="width: ${tempWidth}%"></span>
-              </span>
-              ${Number(hp.tempmax ?? 0) !== 0 ? `<small>${t("Combat.TempMax")} ${formatMod(hp.tempmax)}</small>` : ""}
-            </button>
+            ${healthPanel(hp)}
 
             <div class="ws-combat-stat">
               <span>${t("Combat.AC")}</span>
@@ -152,11 +149,11 @@ export function createCombatRenderer(context) {
 
           ${combatActions()}
 
-          ${combatResources()}
-
           ${abilitiesSection("combat")}
 
           ${shortcutHint()}
+
+          ${combatResources()}
         </div>
       `;
   }
@@ -166,6 +163,8 @@ export function createCombatRenderer(context) {
     combatActions,
     combatHTML,
     combatInitiative,
+    healthBar,
+    healthPanel,
     combatItemButton,
     combatItems,
     favoriteSection,

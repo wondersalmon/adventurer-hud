@@ -3,14 +3,15 @@ import { createHudActions } from "./hud/actions.js";
 import { openActorPicker } from "./hud/actor-picker.js";
 import { createCombatRenderer } from "./hud/combat.js";
 import { createHudComponents } from "./hud/components.js";
-import { createDeathRenderer } from "./hud/death-saves.js";
+import { syncHealthAppearance as syncHealthAppearanceClass } from "./hud/health-feedback.js";
 import {
   centeredWindowPosition,
   normalizeWindowGeometry,
   storedWindowGeometry
 } from "./hud/geometry.js";
-import { createRefreshScheduler } from "./hud/refresh.js";
+import { createRefreshScheduler, refreshHudView } from "./hud/refresh.js";
 import { favoriteEntriesForActor, toggleFavorite } from "./hud/quick-access.js";
+import { createModuleTranslator } from "./localization.js";
 import { createRegularRenderer } from "./hud/regular.js";
 import { activateHudWindow } from "./hud/window-session.js";
 import { createHudApplicationClass } from "./hud/window-controls.js";
@@ -32,10 +33,14 @@ export async function openRollsHud(actorOverride = null) {
     // System
     // =========================================================
 
+    const { language, t, tf } = await createModuleTranslator({
+      language: getSetting(SETTINGS.language),
+      i18n: game.i18n
+    });
     const adapter = getSystemAdapter(game.system.id);
     if (!adapter) {
       throw new Error(
-        game.i18n.format("ADVENTURER_HUD.Errors.UnsupportedSystem", {
+        tf("Errors.UnsupportedSystem", {
           system: game.system.title ?? game.system.id
         })
       );
@@ -48,10 +53,6 @@ export async function openRollsHud(actorOverride = null) {
     state.actor ??= null;
     state.position ??= null;
     state.toolNames ??= new Map();
-
-    const t = key => game.i18n.localize(`ADVENTURER_HUD.${key}`);
-
-    const tf = (key, data) => game.i18n.format(`ADVENTURER_HUD.${key}`, data);
 
     // =========================================================
     // Actor
@@ -85,7 +86,7 @@ export async function openRollsHud(actorOverride = null) {
         DialogV2,
         document,
         escapeHTML: foundry.utils.escapeHTML,
-        lang: game.i18n.lang,
+        lang: language,
         onSelect: selectedActor => openRollsHud(selectedActor),
         t,
         viewportWidth: window.innerWidth
@@ -112,12 +113,10 @@ export async function openRollsHud(actorOverride = null) {
 
     const readVisibility = () => ({
       abilityChecks: adapter.capabilities.abilityChecks,
-      deathSaves:
-        adapter.capabilities.deathSaves && getSetting(SETTINGS.showDeathSaves),
       initiative: adapter.capabilities.combat,
       inventory: adapter.capabilities.inventory,
       itemDetails: getSetting(SETTINGS.showItemDetails),
-      groupActionTypes: getSetting(SETTINGS.groupActionTypes),
+      showActionTypes: getSetting(SETTINGS.showActionTypes),
       modeNavigation: getSetting(SETTINGS.showModeNavigation),
       search: getSetting(SETTINGS.showSearch),
       activityPicker:
@@ -170,6 +169,7 @@ export async function openRollsHud(actorOverride = null) {
     };
 
     const hudState = createHudState({
+      proficientSkillsOnly: getSetting(SETTINGS.proficientSkillsOnly),
       favoriteEntries: favoriteEntriesForActor(
         getSetting(SETTINGS.favoriteEntries),
         actor.uuid
@@ -220,20 +220,9 @@ export async function openRollsHud(actorOverride = null) {
 
     const deathData = () => adapter.deathData(actor);
 
-    const showDeathSaves = () =>
-      visibility.deathSaves &&
-      adapter.capabilities.deathSaves &&
-      adapter.isActorSupported(actor) &&
-      deathData().hp <= 0;
-
-    const deathModeAvailable = () =>
-      visibility.deathSaves &&
-      adapter.capabilities.deathSaves &&
-      adapter.isActorSupported(actor);
-
     const canRollDeathSave = () => {
-      const { failure, hp, success } = deathData();
-      return hp <= 0 && failure < 3 && success < 3;
+      const { dead, failure, hp, stable, success } = deathData();
+      return hp <= 0 && !dead && !stable && failure < 3 && success < 3;
     };
 
     const isActiveCombatant = () =>
@@ -245,8 +234,6 @@ export async function openRollsHud(actorOverride = null) {
     const currentMode = () =>
       resolveHudMode({
         combatAvailable: combatModeAvailable(),
-        deathActive: showDeathSaves(),
-        deathAvailable: deathModeAvailable(),
         forcedMode: hudState.forcedMode,
         isActiveCombatant: isActiveCombatant()
       });
@@ -273,7 +260,6 @@ export async function openRollsHud(actorOverride = null) {
       adapter,
       canRollActor,
       combatModeAvailable,
-      deathModeAvailable,
       escapeHTML,
       formatMod,
       hudState,
@@ -290,6 +276,8 @@ export async function openRollsHud(actorOverride = null) {
       actor,
       adapter,
       canRollActor,
+      canRollDeathSave,
+      deathData,
       DialogV2,
       escapeHTML,
       formatMod,
@@ -312,14 +300,6 @@ export async function openRollsHud(actorOverride = null) {
       visibility
     });
 
-    const deathRenderer = createDeathRenderer({
-      canRollActor,
-      canRollDeathSave,
-      deathData,
-      ...components,
-      t
-    });
-
     const {
       changeResource,
       combatActions,
@@ -327,8 +307,7 @@ export async function openRollsHud(actorOverride = null) {
       openHpDialog,
       openResourceDialog
     } = combatRenderer;
-    const { normalHTML } = regularRenderer;
-    const { deathHTML } = deathRenderer;
+    const { availableViews, normalHTML } = regularRenderer;
 
     // =========================================================
     // Content
@@ -345,7 +324,6 @@ export async function openRollsHud(actorOverride = null) {
       {
         body: renderHudMode(currentMode(), {
           combat: combatHTML,
-          death: deathHTML,
           regular: normalHTML
         })
       }
@@ -356,11 +334,9 @@ export async function openRollsHud(actorOverride = null) {
     // =========================================================
 
     const dialogTitle = () =>
-      currentMode() === "death"
-        ? tf("Window.DeathTitle", { actor: actor.name })
-        : currentMode() === "combat"
-          ? tf("Window.CombatTitle", { actor: actor.name })
-          : tf("Window.Title", { actor: actor.name });
+      currentMode() === "combat"
+        ? tf("Window.CombatTitle", { actor: actor.name })
+        : tf("Window.Title", { actor: actor.name });
 
     let rollPending = false;
 
@@ -447,65 +423,32 @@ export async function openRollsHud(actorOverride = null) {
       app.element.querySelector(`#ws-${view}`)?.classList.remove("ws-hidden");
     };
 
+    const syncHealthAppearance = () =>
+      syncHealthAppearanceClass(
+        app?.element,
+        adapter.capabilities.combat ? adapter.combatStats(actor).hp : null,
+        adapter.capabilities.combat
+      );
+
     const refreshHud = (region = null) => {
-      if (!app?.rendered) {
-        return;
-      }
-
-      const shell = app.element.querySelector(".ws-shell");
-
-      if (!shell) {
-        return;
-      }
-
-      if (!showDeathSaves() && !combatModeAvailable()) {
+      if (!combatModeAvailable()) {
         hudState.forcedMode = null;
       }
-
-      const mode = currentMode();
-
-      if (mode === "regular") {
-        const visibleViews = {
-          inventory: visibility.inventory,
-          skills: visibility.skills,
-          spells: visibility.combatSpells && combatItems("spells").length > 0,
-          tools: visibility.tools
-        };
-        if (
-          hudState.currentView !== "main" &&
-          !visibleViews[hudState.currentView]
-        ) {
-          setRegularView(hudState, "main");
-        }
-      }
-
-      if (mode === "combat" && region === "actions") {
-        const current = shell.querySelector(".ws-combat-actions");
-        if (current) {
-          const template = document.createElement("template");
-          template.innerHTML = combatActions();
-          current.replaceWith(template.content.firstElementChild);
-          return;
-        }
-      }
-
-      shell.innerHTML = renderHudMode(mode, {
-        combat: combatHTML,
-        death: deathHTML,
-        regular: normalHTML
+      syncHealthAppearance();
+      refreshHudView({
+        app,
+        availableViews,
+        hudState,
+        mode: currentMode(),
+        region,
+        renderers: {
+          actions: combatActions,
+          combat: combatHTML,
+          regular: normalHTML
+        },
+        setView,
+        title: dialogTitle()
       });
-
-      const windowTitle = app.element.querySelector(".window-title");
-
-      if (windowTitle) {
-        windowTitle.textContent = dialogTitle();
-      }
-
-      if (mode === "regular") {
-        setView(hudState.currentView);
-      } else {
-        hudState.currentView = "main";
-      }
     };
 
     const refreshScheduler = createRefreshScheduler(refreshHud);
@@ -541,7 +484,6 @@ export async function openRollsHud(actorOverride = null) {
       changeResource,
       combatModeAvailable,
       currentMode,
-      deathModeAvailable,
       getCombatant,
       hudState,
       isCloseAfterRoll: () => closeAfterRoll,
@@ -645,12 +587,30 @@ export async function openRollsHud(actorOverride = null) {
       canRollActor,
       changeResource,
       isCloseAfterRoll: () => closeAfterRoll,
+      visualEffectsEnabled: getSetting(SETTINGS.showVisualEffects),
+      isCurrentCombatant: combatant => {
+        const tokenId = token?.document?.id ?? token?.id;
+        return (
+          Boolean(combatant?.tokenId) &&
+          getCombatant()?.id === combatant?.id &&
+          (!tokenId || combatant?.tokenId === tokenId)
+        );
+      },
       readVisibility,
+      syncPreferences: () => {
+        hudState.proficientSkillsOnly = getSetting(
+          SETTINGS.proficientSkillsOnly
+        );
+      },
       onSearchInput: query => updateSearch(query),
       readHp: adapter.capabilities.combat
         ? () => {
             const hp = adapter.combatStats(actor).hp;
-            return { value: Number(hp.value ?? 0), temp: Number(hp.temp ?? 0) };
+            return {
+              value: Number(hp.value ?? 0),
+              temp: Number(hp.temp ?? 0),
+              max: Number(hp.max ?? 0)
+            };
           }
         : null,
       refreshHud,
@@ -665,6 +625,8 @@ export async function openRollsHud(actorOverride = null) {
       storePosition,
       visibility
     });
+
+    syncHealthAppearance();
 
     if (currentMode() === "regular") {
       setView(hudState.currentView);

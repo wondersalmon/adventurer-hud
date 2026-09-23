@@ -1,4 +1,4 @@
-export const HUD_MODES = Object.freeze(["regular", "combat", "death"]);
+export const HUD_MODES = Object.freeze(["regular", "combat"]);
 export const REGULAR_VIEWS = Object.freeze([
   "main",
   "skills",
@@ -18,7 +18,9 @@ export function createHudState(initial = {}) {
     forcedMode: null,
     inventoryCategory: "equipped",
     preparedSpellsOnly: true,
+    proficientSkillsOnly: true,
     resourcesExpanded: false,
+    renderedMode: null,
     searchQuery: "",
     openActivityItemId: null,
     favoriteEntries: [],
@@ -39,15 +41,11 @@ export function setRegularView(state, view) {
 
 export function resolveHudMode({
   combatAvailable,
-  deathActive,
-  deathAvailable,
   forcedMode,
   isActiveCombatant
 }) {
   if (forcedMode === "regular") return "regular";
   if (forcedMode === "combat" && combatAvailable) return "combat";
-  if (forcedMode === "death" && deathAvailable) return "death";
-  if (deathActive) return "death";
   if (combatAvailable && isActiveCombatant) return "combat";
   return "regular";
 }

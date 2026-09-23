@@ -9,6 +9,13 @@
   justify-content: space-between;
 }
 
+.ws-rolls-dialog .ws-combat-heading.ws-current-turn {
+  padding: 4px 6px;
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  background: var(--accent-bg);
+}
+
 .ws-rolls-dialog .ws-combat-heading span {
   display: inline-flex;
   align-items: center;
@@ -34,14 +41,119 @@
   gap: 6px;
 }
 
-.ws-rolls-dialog .ws-combat-health {
+.ws-rolls-dialog .ws-health-button {
+  position: relative;
   min-width: 0;
+  min-height: 52px;
+  height: auto;
   padding: 6px 8px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 5px;
   text-align: left;
+}
+
+.ws-rolls-dialog .ws-health-stack {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ws-rolls-dialog .ws-health-stack > * {
+  width: 100%;
+}
+
+.ws-rolls-dialog .ws-regular-health .ws-health-button {
+  width: 100%;
+}
+
+.ws-rolls-dialog .ws-health-condition {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: #f0a49e;
+  background: rgb(153 57 53 / 0.19);
+  font-size: calc(8px * var(--ws-type-scale));
+  font-weight: 750;
+}
+
+.ws-rolls-dialog .ws-health-condition.ws-health-critical {
+  color: #ffc2b8;
+  background: rgb(157 34 30 / 0.38);
+}
+
+.ws-rolls-dialog .ws-health-condition.ws-health-unconscious {
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 15%, transparent);
+}
+
+.ws-rolls-dialog.ws-hp-feedback .ws-health-button::after {
+  position: absolute;
+  top: -13px;
+  right: 3px;
+  z-index: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--danger);
+  content: var(--ws-hp-delta);
+  font-size: calc(11px * var(--ws-type-scale));
+  font-weight: 850;
+  pointer-events: none;
+  animation: ws-health-delta 1150ms ease-out both;
+}
+
+.ws-rolls-dialog.ws-hp-feedback.ws-heal-flash .ws-health-button::after {
+  color: var(--success);
+}
+
+.ws-rolls-dialog.ws-hp-feedback .ws-health-fill {
+  animation: ws-health-normal-change 650ms ease-out both;
+}
+
+.ws-rolls-dialog.ws-hp-feedback .ws-health-temp-fill {
+  animation: ws-health-temp-change 650ms ease-out both;
+}
+
+@keyframes ws-health-delta {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  20%,
+  75% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes ws-health-normal-change {
+  0% {
+    width: var(--ws-hp-old-normal);
+  }
+
+  100% {
+    width: var(--ws-hp-new-normal);
+  }
+}
+
+@keyframes ws-health-temp-change {
+  0% {
+    width: var(--ws-hp-old-temp);
+  }
+
+  100% {
+    width: var(--ws-hp-new-temp);
+  }
 }
 
 .ws-rolls-dialog .ws-health-label {
@@ -61,17 +173,20 @@
   color: #7cc2d9;
 }
 
-.ws-rolls-dialog .ws-combat-health > small {
+.ws-rolls-dialog .ws-health-button > small {
   color: var(--muted);
   font-size: calc(8px * var(--ws-type-scale));
 }
 
 .ws-rolls-dialog .ws-health-track {
-  height: 6px;
+  width: 100%;
+  min-height: 8px;
+  height: 8px;
   display: flex;
+  flex: 0 0 8px;
   overflow: hidden;
-  border-radius: 4px;
-  background: var(--subtle);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--text) 20%, transparent);
 }
 
 .ws-rolls-dialog .ws-health-fill,
@@ -285,13 +400,15 @@
   gap: 5px;
 }
 
-.ws-rolls-dialog .ws-spell-filter {
+.ws-rolls-dialog .ws-spell-filter,
+.ws-rolls-dialog .ws-skill-filter {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 5px;
 }
 
-.ws-rolls-dialog .ws-spell-filter button {
+.ws-rolls-dialog .ws-spell-filter button,
+.ws-rolls-dialog .ws-skill-filter button {
   min-height: 30px;
   padding: 4px 8px;
   color: var(--muted) !important;
@@ -299,7 +416,8 @@
   font-weight: 800;
 }
 
-.ws-rolls-dialog .ws-spell-filter button.ws-active {
+.ws-rolls-dialog .ws-spell-filter button.ws-active,
+.ws-rolls-dialog .ws-skill-filter button.ws-active {
   border-color: rgb(193 154 88 / 0.45) !important;
   background: var(--accent-bg) !important;
   color: var(--accent) !important;
@@ -427,6 +545,15 @@
 
 .ws-rolls-dialog .ws-combat-item.ws-item-depleted .ws-spell-meta {
   color: var(--danger);
+}
+
+.ws-rolls-dialog .ws-item-unavailable {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--danger);
+  font-size: calc(8px * var(--ws-type-scale));
+  font-weight: 750;
 }
 
 .ws-rolls-dialog .ws-detailed-card .ws-combat-item,

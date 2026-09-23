@@ -21,15 +21,11 @@
     gap: 5px 8px;
   }
 
-  .ws-rolls-dialog .ws-death-tracker {
-    grid-template-columns: 1fr;
-  }
-
   .ws-rolls-dialog .ws-combat-stats {
     grid-template-columns: 1fr 1fr;
   }
 
-  .ws-rolls-dialog .ws-combat-health {
+  .ws-rolls-dialog .ws-health-stack {
     grid-column: 1 / -1;
   }
 

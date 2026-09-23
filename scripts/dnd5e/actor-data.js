@@ -49,9 +49,13 @@ export function abilityTotal(data = {}, type) {
 }
 
 export function actorDeathData(actor) {
+  const failure = Number(actor.system.attributes.death?.failure ?? 0);
+  const success = Number(actor.system.attributes.death?.success ?? 0);
   return {
-    failure: Number(actor.system.attributes.death?.failure ?? 0),
+    failure,
     hp: Number(actor.system.attributes.hp?.value ?? 0),
-    success: Number(actor.system.attributes.death?.success ?? 0)
+    success,
+    dead: failure >= 3 || Boolean(actor.statuses?.has?.("dead")),
+    stable: Boolean(actor.statuses?.has?.("stable"))
   };
 }

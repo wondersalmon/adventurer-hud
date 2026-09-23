@@ -204,8 +204,11 @@ export const dnd5eAdapter = {
       speedUnits: movement.units ?? ""
     };
   },
-  updateHp(actor, field, value) {
-    return actor.update({ [`system.attributes.hp.${field}`]: value });
+  updateHp(actor, { value, temp }) {
+    return actor.update({
+      "system.attributes.hp.value": value,
+      "system.attributes.hp.temp": temp
+    });
   },
 
   actorResources(actor) {

@@ -3,6 +3,32 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { listFiles } from "../tools/files.mjs";
+import { createModuleTranslator } from "../scripts/localization.js";
+
+test("module language choice overrides Foundry only for module strings", async () => {
+  const i18n = {
+    lang: "en",
+    localize: key => `Foundry:${key}`,
+    format: (key, data) => `Foundry:${key}:${data.actor}`
+  };
+  const ru = await createModuleTranslator({
+    language: "ru",
+    i18n,
+    fetchCatalog: async () => ({
+      "ADVENTURER_HUD.Window.Title": "Окно {actor}"
+    })
+  });
+  assert.equal(ru.language, "ru");
+  assert.equal(ru.t("Window.Title"), "Окно {actor}");
+  assert.equal(ru.tf("Window.Title", { actor: "Рук" }), "Окно Рук");
+  assert.equal(i18n.lang, "en");
+
+  const automatic = await createModuleTranslator({ language: "auto", i18n });
+  assert.equal(
+    automatic.t("Window.Title"),
+    "Foundry:ADVENTURER_HUD.Window.Title"
+  );
+});
 
 test("Russian and English localization keys stay synchronized", async () => {
   const russian = JSON.parse(await readFile("lang/ru.json", "utf8"));

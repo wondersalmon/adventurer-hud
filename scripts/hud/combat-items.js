@@ -101,11 +101,13 @@ export function createCombatItemRenderer({
     const damageFormula =
       isSpell || isWeapon ? adapter.itemDamageFormula(actor, item) : "";
     const uses = adapter.itemUsesData(item);
+    const unavailableLabel = uses?.value === 0 ? t("Quick.NoCharges") : "";
     const showsDetails = Boolean(
       showsRange ||
       activation ||
       resourceCost ||
       uses ||
+      unavailableLabel ||
       (visibility.itemDetails &&
         (concentration || ritual || attackBonus || damageFormula))
     );
@@ -116,7 +118,7 @@ export function createCombatItemRenderer({
         } ${visibility.favorites && !offersActivities ? "ws-has-favorite" : ""}">
           <button
             type="button"
-            class="ws-combat-item ws-button ${uses?.value === 0 ? "ws-item-depleted" : ""}"
+            class="ws-combat-item ws-button ${unavailableLabel ? "ws-item-depleted" : ""}"
             data-action="${activityId ? "useactivity" : "useitem"}"
             data-item-id="${escapeHTML(item.id)}"
             ${activityId ? `data-activity-id="${escapeHTML(activityId)}"` : ""}
@@ -175,7 +177,7 @@ export function createCombatItemRenderer({
                           ? `
                             <span title="${t("Inventory.Charges")}">
                               <i class="fa-solid fa-battery-half"></i>
-                              ${uses.value}/${uses.max}${uses.value === 0 ? ` · ${t("Quick.NoCharges")}` : ""}
+                              ${uses.value}/${uses.max}
                             </span>
                           `
                           : ""
@@ -199,6 +201,7 @@ export function createCombatItemRenderer({
                   `
                   : ""
               }
+              ${unavailableLabel ? `<small class="ws-item-unavailable"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>${unavailableLabel}</small>` : ""}
             </span>
 
             <i class="fa-solid ${offersActivities ? "fa-chevron-down" : "fa-dice-d20"}"></i>
@@ -275,10 +278,30 @@ export function createCombatItemRenderer({
         "Combat.Spells",
         visibility.combatSpells
       ],
-      ["action", "fa-circle-play", "Combat.Action", visibility.combatActions],
-      ["bonus", "fa-bolt", "Combat.BonusAction", visibility.combatBonusActions],
-      ["reaction", "fa-shield", "Combat.Reaction", visibility.combatReactions],
-      ["special", "fa-star", "Combat.Special", visibility.combatSpecial]
+      [
+        "action",
+        "fa-circle-play",
+        "Combat.Action",
+        visibility.showActionTypes && visibility.combatActions
+      ],
+      [
+        "bonus",
+        "fa-bolt",
+        "Combat.BonusAction",
+        visibility.showActionTypes && visibility.combatBonusActions
+      ],
+      [
+        "reaction",
+        "fa-shield",
+        "Combat.Reaction",
+        visibility.showActionTypes && visibility.combatReactions
+      ],
+      [
+        "special",
+        "fa-star",
+        "Combat.Special",
+        visibility.showActionTypes && visibility.combatSpecial
+      ]
     ].filter(
       ([category, , , visible]) => visible && combatItems(category).length > 0
     );
@@ -382,9 +405,9 @@ export function createCombatItemRenderer({
     return `
         <div class="ws-combat-actions">
           <div class="ws-combat-filters">
-            ${visibility.groupActionTypes ? primary.map(categoryButton).join("") : categories.map(categoryButton).join("")}
+            ${primary.map(categoryButton).join("")}
             ${
-              visibility.groupActionTypes && actionTypes.length
+              actionTypes.length
                 ? `
               <button type="button" class="ws-combat-filter ws-button ${selectedAction ? "ws-active" : ""}"
                 data-action="toggleactionmenu" aria-expanded="${hudState.actionMenuOpen}">
@@ -395,7 +418,7 @@ export function createCombatItemRenderer({
                 : ""
             }
           </div>
-          ${visibility.groupActionTypes && hudState.actionMenuOpen ? `<div class="ws-action-menu">${actionTypes.map(categoryButton).join("")}</div>` : ""}
+          ${hudState.actionMenuOpen && actionTypes.length ? `<div class="ws-action-menu">${actionTypes.map(categoryButton).join("")}</div>` : ""}
 
           ${searchControl()}
 

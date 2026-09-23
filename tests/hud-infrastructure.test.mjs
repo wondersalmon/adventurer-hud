@@ -7,7 +7,11 @@ import {
   normalizeWindowGeometry,
   storedWindowGeometry
 } from "../scripts/hud/geometry.js";
-import { createRefreshScheduler } from "../scripts/hud/refresh.js";
+import { syncHealthAppearance } from "../scripts/hud/health-feedback.js";
+import {
+  createRefreshScheduler,
+  refreshHudView
+} from "../scripts/hud/refresh.js";
 import { applyHudSettingChange } from "../scripts/hud/settings-refresh.js";
 import { subscribeHudDocuments } from "../scripts/hud/subscriptions.js";
 import {
@@ -31,6 +35,14 @@ class FakeClassList {
     else this.#classes.delete(value);
   }
 }
+
+test("HUD becomes gray at zero HP and regains color after healing", () => {
+  const element = { classList: new FakeClassList() };
+  syncHealthAppearance(element, { value: 0 });
+  assert.equal(element.classList.contains("ws-unconscious"), true);
+  syncHealthAppearance(element, { value: 1 });
+  assert.equal(element.classList.contains("ws-unconscious"), false);
+});
 
 test("actor picker escapes actor data and resolves the selected actor", async () => {
   let configuration;
@@ -177,6 +189,52 @@ test("refresh scheduler coalesces updates and keeps the broadest region", () => 
   assert.deepEqual(refreshes, ["actions", "full"]);
 });
 
+test("HUD refresh follows combat changes and shows a newly rolled initiative", () => {
+  let mode = "regular";
+  let initiative = null;
+  const shell = { innerHTML: "" };
+  const title = { textContent: "" };
+  const app = {
+    rendered: true,
+    element: {
+      querySelector: selector =>
+        selector === ".ws-shell"
+          ? shell
+          : selector === ".window-title"
+            ? title
+            : null
+    }
+  };
+  const hudState = { currentView: "main" };
+  const options = {
+    app,
+    availableViews: () => ({ spells: false }),
+    hudState,
+    renderers: {
+      combat: () => `<div>Initiative ${initiative ?? "—"}</div>`,
+      regular: () => "<div>Exploration</div>"
+    },
+    setView() {},
+    title: "Rook"
+  };
+
+  refreshHudView({ ...options, mode });
+  assert.match(shell.innerHTML, /Exploration/);
+
+  mode = "combat";
+  refreshHudView({ ...options, mode });
+  assert.match(shell.innerHTML, /Initiative —/);
+
+  initiative = 26;
+  refreshHudView({ ...options, mode });
+  assert.match(shell.innerHTML, /Initiative 26/);
+
+  mode = "regular";
+  refreshHudView({ ...options, mode });
+  assert.match(shell.innerHTML, /Exploration/);
+  assert.equal(title.textContent, "Rook");
+});
+
 test("runtime and content settings update an open HUD without reopening it", () => {
   const calls = [];
   const app = {
@@ -240,8 +298,11 @@ test("document subscriptions filter actor documents and clean up hooks", () => {
   callbacks.get("updateActiveEffect")({ parent: { uuid: "Actor.hero" } });
   callbacks.get("updateItem")({ parent: { uuid: "Actor.other" } });
   callbacks.get("updateCombat")();
+  callbacks.get("createCombatant")();
+  callbacks.get("updateCombatant")();
+  callbacks.get("deleteCombat")();
 
-  assert.deepEqual(refreshes, ["full", "full", "full"]);
+  assert.deepEqual(refreshes, ["full", "full", "full", "full", "full", "full"]);
   unsubscribe();
   assert.equal(removed.length, callbacks.size);
 });
@@ -268,8 +329,87 @@ test("HP changes emit one subtle damage or healing signal", () => {
   hp = { value: 12, temp: 1 };
   callbacks.get("updateActor")({ uuid: "Actor.hero" });
   callbacks.get("updateActor")({ uuid: "Actor.other" });
-  assert.deepEqual(changes, ["damage", "heal"]);
+  assert.deepEqual(
+    changes.map(change => [change.kind, change.delta]),
+    [
+      ["damage", -2],
+      ["heal", 2]
+    ]
+  );
   unsubscribe();
+});
+
+test("initiative request flashes only when own token enters combat without initiative", () => {
+  const callbacks = new Map();
+  const flashes = [];
+  subscribeHudDocuments({
+    actor: { uuid: "Actor.hero" },
+    hooks: {
+      on: (name, callback) => callbacks.set(name, callback),
+      off() {}
+    },
+    isCurrentCombatant: combatant => combatant.id === "own",
+    onInitiativeRequest: () => flashes.push("flash"),
+    scheduleRefresh() {}
+  });
+  callbacks.get("createCombatant")({ id: "other", initiative: null });
+  callbacks.get("createCombatant")({ id: "own", initiative: 15 });
+  callbacks.get("createCombatant")({ id: "own", initiative: null });
+  callbacks.get("updateCombatant")({ id: "own", initiative: null });
+  assert.deepEqual(flashes, ["flash"]);
+});
+
+test("initiative result feedback follows combatant updates", () => {
+  const callbacks = new Map();
+  const feedback = [];
+  subscribeHudDocuments({
+    actor: { uuid: "Actor.hero" },
+    hooks: { on: (name, callback) => callbacks.set(name, callback), off() {} },
+    scheduleRefresh: () => feedback.push("refresh"),
+    isCurrentCombatant: combatant => combatant.id === "own",
+    onInitiativeRolled: () => feedback.push("initiative")
+  });
+  callbacks.get("updateCombatant")(
+    { id: "other", initiative: 12 },
+    { initiative: 12 }
+  );
+  callbacks.get("updateCombatant")(
+    { id: "own", initiative: 12 },
+    { initiative: 12 }
+  );
+  assert.deepEqual(feedback, ["refresh", "refresh", "initiative"]);
+});
+
+test("regular subviews reset when switching to combat", () => {
+  const shell = { innerHTML: "" };
+  const app = {
+    rendered: true,
+    element: {
+      querySelector: selector => (selector === ".ws-shell" ? shell : null)
+    }
+  };
+  const hudState = { currentView: "inventory" };
+  const views = [];
+  const options = {
+    app,
+    availableViews: () => ({ inventory: true, skills: true }),
+    hudState,
+    mode: "regular",
+    renderers: { regular: () => "<div>Exploration</div>" },
+    setView: view => views.push(view),
+    title: "Rook"
+  };
+
+  refreshHudView(options);
+  assert.equal(hudState.currentView, "inventory");
+  assert.deepEqual(views, ["inventory"]);
+
+  refreshHudView({
+    ...options,
+    mode: "combat",
+    renderers: { combat: () => "" }
+  });
+  assert.equal(hudState.currentView, "main");
 });
 
 test("window geometry is clamped, serialized, and centered", () => {

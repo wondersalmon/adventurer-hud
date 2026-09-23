@@ -2,23 +2,97 @@
   min-width: 270px;
 }
 
+.ws-rolls-dialog.ws-unconscious .window-header,
+.ws-rolls-dialog.ws-unconscious
+  .ws-view
+  > :not(:has(.ws-death-roll, .ws-death-outcome)),
+.ws-rolls-dialog.ws-unconscious .ws-health-button,
+.ws-rolls-dialog.ws-unconscious .ws-combat-stats > :not(.ws-health-stack) {
+  filter: grayscale(1);
+}
+
 .ws-rolls-dialog.ws-damage-flash {
-  animation: ws-hp-damage 650ms ease-out;
+  animation: ws-hp-damage 950ms ease-out;
 }
 
 .ws-rolls-dialog.ws-heal-flash {
-  animation: ws-hp-heal 650ms ease-out;
+  animation: ws-hp-heal 950ms ease-out;
+}
+
+.ws-rolls-dialog.ws-initiative-flash {
+  animation: ws-initiative-request 1100ms ease-out;
+}
+
+.ws-rolls-dialog.ws-initiative-rolled .ws-header-initiative {
+  animation: ws-initiative-result 1400ms ease-out;
+}
+
+.ws-rolls-dialog.ws-initiative-rolled .ws-header-initiative strong {
+  animation: ws-initiative-value 1400ms ease-out;
+}
+
+@keyframes ws-initiative-result {
+  30% {
+    border-color: rgb(221 177 82 / 0.85);
+    background: rgb(221 177 82 / 0.2);
+    color: #f4d391;
+  }
+}
+
+@keyframes ws-initiative-value {
+  30%,
+  65% {
+    color: #ffe3a0;
+    text-shadow: 0 0 10px rgb(239 184 73 / 0.8);
+    transform: scale(1.16);
+  }
+}
+
+@keyframes ws-initiative-request {
+  0%,
+  100% {
+    outline: 3px solid transparent;
+    outline-offset: 1px;
+  }
+
+  35% {
+    outline: 3px solid rgb(221 177 82 / 0.8);
+    outline-offset: 1px;
+    box-shadow:
+      0 0 0 3px rgb(221 177 82 / 0.75),
+      0 0 20px 4px rgb(221 177 82 / 0.5);
+  }
 }
 
 @keyframes ws-hp-damage {
-  40% {
-    box-shadow: 0 0 0 2px rgb(197 101 94 / 0.38);
+  0%,
+  100% {
+    outline: 3px solid transparent;
+    outline-offset: 1px;
+  }
+
+  30% {
+    outline: 3px solid rgb(197 101 94 / 0.7);
+    outline-offset: 1px;
+    box-shadow:
+      0 0 0 3px rgb(197 101 94 / 0.7),
+      0 0 18px 3px rgb(197 101 94 / 0.45);
   }
 }
 
 @keyframes ws-hp-heal {
-  40% {
-    box-shadow: 0 0 0 2px rgb(121 168 102 / 0.38);
+  0%,
+  100% {
+    outline: 3px solid transparent;
+    outline-offset: 1px;
+  }
+
+  30% {
+    outline: 3px solid rgb(121 168 102 / 0.7);
+    outline-offset: 1px;
+    box-shadow:
+      0 0 0 3px rgb(121 168 102 / 0.7),
+      0 0 18px 3px rgb(121 168 102 / 0.45);
   }
 }
 
@@ -27,11 +101,29 @@
   .ws-rolls-dialog.ws-heal-flash {
     animation: none;
   }
+
+  .ws-rolls-dialog.ws-initiative-flash {
+    animation: none;
+  }
+
+  .ws-rolls-dialog.ws-initiative-rolled .ws-header-initiative,
+  .ws-rolls-dialog.ws-initiative-rolled .ws-header-initiative strong,
+  .ws-rolls-dialog.ws-hp-feedback .ws-health-button::after,
+  .ws-rolls-dialog.ws-hp-feedback .ws-health-fill,
+  .ws-rolls-dialog.ws-hp-feedback .ws-health-temp-fill {
+    animation: none;
+  }
 }
 
 .ws-rolls-dialog .window-header [data-action="togglepin"].ws-active {
   color: var(--color-text-accent, #c19a58);
   text-shadow: 0 0 6px currentcolor;
+}
+
+.ws-rolls-dialog.ws-effects-disabled
+  .window-header
+  [data-action="togglepin"].ws-active {
+  text-shadow: none;
 }
 
 .ws-rolls-dialog .window-content {
@@ -199,6 +291,7 @@
 }
 
 .ws-rolls-dialog .ws-header-initiative strong {
+  display: inline-block;
   color: var(--text);
   font-size: calc(12px * var(--ws-type-scale));
 }
@@ -207,6 +300,10 @@
   border-color: rgb(193 154 88 / 0.7) !important;
   background: var(--accent-bg) !important;
   box-shadow: 0 0 0 1px rgb(193 154 88 / 0.16) !important;
+}
+
+.ws-rolls-dialog.ws-effects-disabled .ws-header-initiative.ws-unrolled {
+  box-shadow: none !important;
 }
 
 .ws-rolls-dialog .ws-header-initiative:not(.ws-unrolled):disabled {

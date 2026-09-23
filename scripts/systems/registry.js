@@ -39,7 +39,13 @@ const ADAPTER_DEFAULTS = Object.freeze({
     speed: "—",
     speedUnits: ""
   }),
-  deathData: () => ({ failure: 0, hp: 1, success: 0 }),
+  deathData: () => ({
+    dead: false,
+    failure: 0,
+    hp: 1,
+    stable: false,
+    success: 0
+  }),
   featureResources: () => [],
   getTools: async () => [],
   hasItemProperty: () => false,

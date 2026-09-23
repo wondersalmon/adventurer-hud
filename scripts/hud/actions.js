@@ -1,5 +1,5 @@
 import { setForcedMode, setRegularView } from "./state.js";
-import { openSettings } from "../settings.js";
+import { openSettings, setSetting, SETTINGS } from "../settings.js";
 import { usableActivities } from "./quick-access.js";
 
 export function createHudActions({
@@ -10,7 +10,6 @@ export function createHudActions({
   changeResource,
   combatModeAvailable,
   currentMode,
-  deathModeAvailable,
   getCombatant,
   hudState,
   isCloseAfterRoll,
@@ -136,6 +135,14 @@ export function createHudActions({
     spellfilter: function (_event, target) {
       hudState.preparedSpellsOnly = target.dataset.prepared === "true";
       refreshHud(currentMode() === "combat" ? "actions" : null);
+    },
+
+    skillfilter: async function (_event, target) {
+      const proficientOnly = target.dataset.proficient === "true";
+      if (hudState.proficientSkillsOnly === proficientOnly) return;
+      await setSetting(SETTINGS.proficientSkillsOnly, proficientOnly);
+      hudState.proficientSkillsOnly = proficientOnly;
+      refreshHud();
     },
 
     toggleabilities: function () {
@@ -292,15 +299,6 @@ export function createHudActions({
 
     settings: async function () {
       return openSettings();
-    },
-
-    deathmode: function () {
-      if (!deathModeAvailable()) {
-        return ui.notifications.warn(t("Combat.NotAvailable"));
-      }
-
-      setForcedMode(hudState, "death");
-      refreshHud();
     },
 
     togglecloseafterroll: async function () {

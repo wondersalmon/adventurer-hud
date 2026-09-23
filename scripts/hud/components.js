@@ -5,7 +5,6 @@ export function createHudComponents(context) {
     adapter,
     canRollActor,
     combatModeAvailable,
-    deathModeAvailable,
     escapeHTML,
     formatMod,
     hudState,
@@ -27,7 +26,7 @@ export function createHudComponents(context) {
       .map(([id, short, icon]) => {
         const data = adapter.abilityData(actor, id);
         const safeId = escapeHTML(id);
-        const rollButton = (type, label, labelIcon) => {
+        const rollButton = (type, label) => {
           const rollLabel = escapeHTML(
             tf(
               type === "save"
@@ -40,14 +39,14 @@ export function createHudComponents(context) {
           return `<button type="button" class="ws-ability-roll ws-button ${proficient ? "ws-save-prof" : ""}"
           data-action="ability" data-type="${type}" data-key="${safeId}"
           title="${rollLabel}" aria-label="${rollLabel}" ${canRollActor ? "" : "disabled"}>
-          <i class="fa-solid ${labelIcon}"></i><span>${label}</span>
+          <span>${label}</span>
           <strong>${formatMod(adapter.abilityTotal(data, type))}</strong>
         </button>`;
         };
         return `<div class="ws-ability-card">
         <div class="ws-ability-card-title"><i class="fa-solid ${escapeHTML(icon)}"></i>${escapeHTML(short)}</div>
-        ${visibility.savingThrows ? rollButton("save", t("Labels.Save"), "fa-shield-halved") : ""}
-        ${visibility.abilityChecks ? rollButton("check", t("Labels.Check"), "fa-dice") : ""}
+        ${visibility.savingThrows ? rollButton("save", t("Labels.Save")) : ""}
+        ${visibility.abilityChecks ? rollButton("check", t("Labels.Check")) : ""}
       </div>`;
       })
       .join("")}</div>`;
@@ -82,7 +81,14 @@ export function createHudComponents(context) {
   // =========================================================
 
   function skillsHTML() {
-    return skills
+    const visibleSkills = hudState.proficientSkillsOnly
+      ? skills.filter(([id]) => skillProf(id) >= 1)
+      : skills;
+    if (!visibleSkills.length) {
+      return `<div class="ws-empty">${t("Skills.EmptyFiltered")}</div>`;
+    }
+
+    return visibleSkills
       .map(([id, name, icon]) => {
         const data = adapter.skillData(actor, id);
 
@@ -322,16 +328,6 @@ export function createHudComponents(context) {
           mode === "combat"
         )
       );
-    if (deathModeAvailable())
-      buttons.push(
-        modeButton(
-          "deathmode",
-          "fa-heart-pulse",
-          t("Mode.Death"),
-          mode === "death"
-        )
-      );
-
     return buttons.length > 1
       ? `<nav class="ws-mode-navigation" aria-label="${t("Labels.Mode")}">${buttons.join("")}</nav>`
       : "";

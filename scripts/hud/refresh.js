@@ -1,3 +1,6 @@
+import { renderHudMode } from "../render/index.js";
+import { setRegularView } from "./state.js";
+
 const REFRESH_PRIORITY = Object.freeze({
   actions: 1,
   full: 2
@@ -46,4 +49,47 @@ export function createRefreshScheduler(
   };
 
   return { cancel, flush, schedule };
+}
+
+export function refreshHudView({
+  app,
+  availableViews,
+  hudState,
+  mode,
+  region,
+  renderers,
+  setView,
+  title
+}) {
+  if (!app?.rendered) return;
+  const shell = app.element.querySelector(".ws-shell");
+  if (!shell) return;
+
+  if (hudState.renderedMode && hudState.renderedMode !== mode) {
+    setRegularView(hudState, "main");
+  }
+
+  if (mode === "regular" && hudState.currentView !== "main") {
+    if (!availableViews()[hudState.currentView]) {
+      setRegularView(hudState, "main");
+    }
+  }
+
+  if (mode === "combat" && region === "actions") {
+    const current = shell.querySelector(".ws-combat-actions");
+    if (current) {
+      const template = document.createElement("template");
+      template.innerHTML = renderers.actions();
+      current.replaceWith(template.content.firstElementChild);
+      return;
+    }
+  }
+
+  shell.innerHTML = renderHudMode(mode, renderers);
+  hudState.renderedMode = mode;
+  const windowTitle = app.element.querySelector(".window-title");
+  if (windowTitle) windowTitle.textContent = title;
+
+  if (mode === "regular") setView(hudState.currentView);
+  else hudState.currentView = "main";
 }

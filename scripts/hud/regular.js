@@ -9,6 +9,7 @@ export function createRegularRenderer(context) {
     combatItemButton,
     combatItems,
     favoriteSection,
+    healthPanel,
     hudState,
     inspirationControl,
     instruments,
@@ -29,15 +30,62 @@ export function createRegularRenderer(context) {
     visibility
   } = context;
 
+  const availableViews = () => ({
+    inventory: visibility.inventory,
+    skills: visibility.skills,
+    spells: visibility.combatSpells && combatItems("spells").length > 0,
+    tools: visibility.tools
+  });
+
+  const inventoryHTML = () => {
+    const items = searchItems(inventoryItems(hudState.inventoryCategory));
+    return `
+    <div id="ws-inventory" class="ws-view ws-hidden">
+      ${back(t("Inventory.Title"), "fa-box-open")}
+
+      <div class="ws-divider"></div>
+
+      ${searchControl()}
+
+      <div class="ws-combat-filters ws-inventory-filters" role="group" aria-label="${t("Inventory.Filter")}">
+        ${inventoryCategories()
+          .map(
+            ([category, icon, label]) => `
+              <button type="button"
+                class="ws-combat-filter ws-button ${hudState.inventoryCategory === category ? "ws-active" : ""}"
+                data-action="inventoryfilter" data-category="${category}">
+                <i class="fa-solid ${icon}"></i>
+                <span>${t(label)}</span>
+                <small>${inventoryItems(category).length}</small>
+              </button>
+            `
+          )
+          .join("")}
+      </div>
+
+      <div class="ws-combat-item-list">
+        ${
+          items.length
+            ? `<div class="ws-combat-item-grid">${items.map(combatItemButton).join("")}</div>`
+            : `<div class="ws-empty">${t(hudState.searchQuery ? "Quick.NoResults" : "Inventory.Empty")}</div>`
+        }
+      </div>
+
+      ${shortcutHint()}
+    </div>
+  `;
+  };
+
   function normalHTML() {
-    const hasSpells =
-      visibility.combatSpells && combatItems("spells").length > 0;
+    const { spells: hasSpells } = availableViews();
     const markup = `
         <div
           id="ws-main"
           class="ws-view"
         >
           ${actorHeader()}
+
+          ${visibility.combatStats ? `<div class="ws-regular-health">${healthPanel()}</div>` : ""}
 
           ${restControls(`${combatInitiative()}${inspirationControl()}`)}
 
@@ -172,6 +220,17 @@ export function createRegularRenderer(context) {
 
           <div class="ws-divider"></div>
 
+          <div class="ws-skill-filter" role="group" aria-label="${t("Skills.Filter")}">
+            <button type="button" class="ws-button ${hudState.proficientSkillsOnly ? "ws-active" : ""}"
+              data-action="skillfilter" data-proficient="true" aria-pressed="${hudState.proficientSkillsOnly}">
+              ${t("Skills.Trained")}
+            </button>
+            <button type="button" class="ws-button ${hudState.proficientSkillsOnly ? "" : "ws-active"}"
+              data-action="skillfilter" data-proficient="false" aria-pressed="${!hudState.proficientSkillsOnly}">
+              ${t("Skills.All")}
+            </button>
+          </div>
+
           <div class="ws-scroll">
             <div class="ws-entry-grid">
               ${skillsHTML()}
@@ -270,46 +329,7 @@ export function createRegularRenderer(context) {
           ${shortcutHint()}
         </div>
 
-        <div id="ws-inventory" class="ws-view ws-hidden">
-          ${back(t("Inventory.Title"), "fa-box-open")}
-
-          <div class="ws-divider"></div>
-
-          ${searchControl()}
-
-          <div class="ws-combat-filters ws-inventory-filters" role="group" aria-label="${t("Inventory.Filter")}">
-            ${inventoryCategories()
-              .map(
-                ([category, icon, label]) => `
-                  <button
-                    type="button"
-                    class="ws-combat-filter ws-button ${hudState.inventoryCategory === category ? "ws-active" : ""}"
-                    data-action="inventoryfilter"
-                    data-category="${category}"
-                  >
-                    <i class="fa-solid ${icon}"></i>
-                    <span>${t(label)}</span>
-                    <small>${inventoryItems(category).length}</small>
-                  </button>
-                `
-              )
-              .join("")}
-          </div>
-
-          <div class="ws-combat-item-list">
-            ${
-              searchItems(inventoryItems(hudState.inventoryCategory)).length
-                ? `<div class="ws-combat-item-grid">${searchItems(
-                    inventoryItems(hudState.inventoryCategory)
-                  )
-                    .map(combatItemButton)
-                    .join("")}</div>`
-                : `<div class="ws-empty">${t(hudState.searchQuery ? "Quick.NoResults" : "Inventory.Empty")}</div>`
-            }
-          </div>
-
-          ${shortcutHint()}
-        </div>
+        ${visibility.inventory ? inventoryHTML() : ""}
       `;
 
     const template = document.createElement("template");
@@ -326,5 +346,5 @@ export function createRegularRenderer(context) {
     });
   }
 
-  return { normalHTML };
+  return { availableViews, inventoryHTML, normalHTML };
 }

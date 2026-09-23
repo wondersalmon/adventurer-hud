@@ -1,9 +1,14 @@
+import { hpChange } from "./health-feedback.js";
+
 export function subscribeHudDocuments({
   actor,
   hooks,
   scheduleRefresh,
   readHp,
-  onHpChange
+  onHpChange,
+  onInitiativeRequest,
+  onInitiativeRolled,
+  isCurrentCombatant
 }) {
   let previousHp = readHp?.() ?? null;
   const refreshActorEffect = effect => {
@@ -24,12 +29,8 @@ export function subscribeHudDocuments({
       updatedActor => {
         if (updatedActor.uuid !== actor.uuid) return;
         const nextHp = readHp?.() ?? null;
-        if (previousHp && nextHp) {
-          const before = previousHp.value + previousHp.temp;
-          const after = nextHp.value + nextHp.temp;
-          if (after !== before)
-            onHpChange?.(after > before ? "heal" : "damage");
-        }
+        const change = hpChange(previousHp, nextHp);
+        if (change) onHpChange?.(change);
         previousHp = nextHp;
         scheduleRefresh();
       }
@@ -43,8 +44,28 @@ export function subscribeHudDocuments({
     ["createCombat", () => scheduleRefresh()],
     ["updateCombat", () => scheduleRefresh()],
     ["deleteCombat", () => scheduleRefresh()],
-    ["createCombatant", () => scheduleRefresh()],
-    ["updateCombatant", () => scheduleRefresh()],
+    [
+      "createCombatant",
+      combatant => {
+        if (combatant?.initiative == null && isCurrentCombatant?.(combatant)) {
+          onInitiativeRequest?.();
+        }
+        scheduleRefresh();
+      }
+    ],
+    [
+      "updateCombatant",
+      (combatant, changes) => {
+        scheduleRefresh();
+        if (
+          changes?.initiative != null &&
+          combatant?.initiative != null &&
+          isCurrentCombatant?.(combatant)
+        ) {
+          onInitiativeRolled?.();
+        }
+      }
+    ],
     ["deleteCombatant", () => scheduleRefresh()]
   ];
 

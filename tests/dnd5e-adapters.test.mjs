@@ -45,6 +45,33 @@ const dnd6 = {
   }
 };
 
+test("D&D 5e HP update saves current and temporary HP together", async () => {
+  const updates = [];
+  await dnd5eAdapter.updateHp(
+    { update: values => updates.push(values) },
+    { value: 8, temp: 4 }
+  );
+  assert.deepEqual(updates, [
+    {
+      "system.attributes.hp.value": 8,
+      "system.attributes.hp.temp": 4
+    }
+  ]);
+});
+
+test("death data recognizes terminal counters and stable status", () => {
+  const actor = {
+    system: {
+      attributes: { death: { failure: 3, success: 0 }, hp: { value: 0 } }
+    },
+    statuses: new Set()
+  };
+  assert.equal(actorDeathData(actor).dead, true);
+  actor.system.attributes.death.failure = 0;
+  actor.statuses.add("stable");
+  assert.equal(actorDeathData(actor).stable, true);
+});
+
 test("D&D 5e 5.3 item shape remains supported", () => {
   assert.equal(itemActivation(dnd53), "bonus");
   assert.deepEqual(itemRangeData(dnd53), {
@@ -117,7 +144,7 @@ test("actor adapters prefer prepared totals and retain legacy fallbacks", () => 
         attributes: { death: { failure: 1, success: 2 }, hp: { value: 0 } }
       }
     }),
-    { failure: 1, hp: 0, success: 2 }
+    { dead: false, failure: 1, hp: 0, stable: false, success: 2 }
   );
 });
 

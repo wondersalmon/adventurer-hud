@@ -84,7 +84,30 @@ test("multi-activity cards show a chooser and activity favorites", () => {
   assert.match(renderer.searchControl(), /value="staff"/);
 });
 
-test("combat filters hide empty categories in grouped and separate layouts", () => {
+test("an item with zero charges shows the reason on its card", () => {
+  const item = { id: "wand", name: "Wand", img: "wand.webp" };
+  const renderer = createCombatItemRenderer({
+    actor: { items: new Map([[item.id, item]]) },
+    adapter: {
+      itemActivities: () => [],
+      itemRole: () => "other",
+      hasItemProperty: () => false,
+      itemActivation: () => "",
+      itemResourceCost: () => "",
+      itemUsesData: () => ({ value: 0, max: 3 })
+    },
+    escapeHTML,
+    hudState: { favoriteEntries: [] },
+    t: key => key,
+    visibility: {}
+  });
+  const html = renderer.combatItemButton(item);
+  assert.match(html, /class="ws-item-unavailable"/);
+  assert.match(html, /Quick.NoCharges/);
+  assert.doesNotMatch(html, /Combat.NoSlots/);
+});
+
+test("combat filters hide empty categories and respect action-type visibility", () => {
   const item = { id: "blade", name: "Blade" };
   const actor = { items: new Map([[item.id, item]]) };
   const hudState = {
@@ -106,7 +129,7 @@ test("combat filters hide empty categories in grouped and separate layouts", () 
     combatWeapons: true,
     combatSpells: true,
     combatActions: true,
-    groupActionTypes: true
+    showActionTypes: true
   };
   const renderer = createCombatItemRenderer({
     actor,
@@ -123,7 +146,7 @@ test("combat filters hide empty categories in grouped and separate layouts", () 
     /data-category="spells"|data-action="toggleactionmenu"/
   );
   assert.equal(hudState.combatCategory, "weapons");
-  visibility.groupActionTypes = false;
+  visibility.showActionTypes = false;
   assert.doesNotMatch(renderer.combatActions(), /data-category="spells"/);
 });
 
@@ -152,13 +175,51 @@ test("grouped action menu keeps nonempty action types selectable", () => {
     visibility: {
       combatActions: true,
       combatBonusActions: true,
-      groupActionTypes: true
+      showActionTypes: true
     }
   });
   const html = renderer.combatActions();
   assert.match(html, /data-action="toggleactionmenu"/);
   assert.match(html, /data-category="action"/);
   assert.doesNotMatch(html, /data-category="bonus"/);
+});
+
+test("action-type setting hides its menu while keeping weapon actions", () => {
+  const item = { id: "blade", name: "Blade" };
+  const visibility = {
+    combatWeapons: true,
+    combatActions: true,
+    showActionTypes: true
+  };
+  const renderer = createCombatItemRenderer({
+    actor: { items: new Map([[item.id, item]]) },
+    adapter: {
+      combatItems: (_actor, category) =>
+        ["weapons", "action"].includes(category) ? [item] : [],
+      itemActivities: () => [],
+      itemRole: () => "other",
+      hasItemProperty: () => false,
+      itemActivation: () => "action",
+      itemResourceCost: () => "",
+      itemUsesData: () => null,
+      activationLabel: () => "Action"
+    },
+    escapeHTML,
+    hudState: {
+      combatCategory: "action",
+      actionMenuOpen: true,
+      searchQuery: "",
+      favoriteEntries: []
+    },
+    t: key => key,
+    visibility
+  });
+
+  assert.match(renderer.combatActions(), /data-action="toggleactionmenu"/);
+  visibility.showActionTypes = false;
+  const html = renderer.combatActions();
+  assert.match(html, /data-category="weapons"/);
+  assert.doesNotMatch(html, /data-action="toggleactionmenu"|ws-action-menu/);
 });
 
 test("selected activity uses its native workflow with the original event", async () => {

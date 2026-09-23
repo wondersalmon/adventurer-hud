@@ -1,4 +1,5 @@
 import { MODULE_ID } from "./module-id.js";
+import { createModuleTranslator } from "./localization.js";
 import { getSystemAdapter } from "./systems/index.js";
 
 export const SETTINGS = Object.freeze({
@@ -7,14 +8,16 @@ export const SETTINGS = Object.freeze({
   pinWindow: "pinWindow",
   showTokenControl: "showTokenControl",
   fontSize: "fontSize",
-  showDeathSaves: "showDeathSaves",
+  language: "language",
+  showVisualEffects: "showVisualEffects",
   showItemDetails: "showItemDetails",
-  groupActionTypes: "groupActionTypes",
+  showActionTypes: "showActionTypes",
   showModeNavigation: "showModeNavigation",
   showSearch: "showSearch",
   showActivityPicker: "showActivityPicker",
   showFavorites: "showFavorites",
   favoriteEntries: "favoriteEntries",
+  proficientSkillsOnly: "proficientSkillsOnly",
   windowGeometry: "windowGeometry"
 });
 
@@ -23,6 +26,12 @@ const FONT_SIZE_CHOICES = Object.freeze({
   medium: "ADVENTURER_HUD.Settings.fontSize.Medium",
   large: "ADVENTURER_HUD.Settings.fontSize.Large",
   extraLarge: "ADVENTURER_HUD.Settings.fontSize.ExtraLarge"
+});
+
+const LANGUAGE_CHOICES = Object.freeze({
+  auto: "ADVENTURER_HUD.Settings.language.Auto",
+  en: "English",
+  ru: "Русский"
 });
 
 const defineSetting = (
@@ -47,6 +56,13 @@ const defineSetting = (
   });
 
 export const SETTING_DEFINITIONS = Object.freeze({
+  [SETTINGS.language]: defineSetting("appearance", {
+    choices: LANGUAGE_CHOICES,
+    defaultValue: "auto",
+    placement: "basic",
+    refresh: "reopen",
+    type: String
+  }),
   [SETTINGS.fontSize]: defineSetting("appearance", {
     choices: FONT_SIZE_CHOICES,
     defaultValue: "medium",
@@ -54,16 +70,19 @@ export const SETTING_DEFINITIONS = Object.freeze({
     refresh: "reopen",
     type: String
   }),
+  [SETTINGS.showVisualEffects]: defineSetting("interface", {
+    refresh: "runtime"
+  }),
   [SETTINGS.closeAfterRoll]: defineSetting("behavior", {
     defaultValue: false,
     placement: "basic",
     refresh: "runtime"
   }),
-  [SETTINGS.pinWindow]: defineSetting("window", {
+  [SETTINGS.pinWindow]: defineSetting("interface", {
     defaultValue: false,
     refresh: "runtime"
   }),
-  [SETTINGS.showTokenControl]: defineSetting("window", {
+  [SETTINGS.showTokenControl]: defineSetting("interface", {
     defaultValue: false,
     refresh: "controls"
   }),
@@ -73,10 +92,7 @@ export const SETTING_DEFINITIONS = Object.freeze({
     refresh: "none"
   }),
   [SETTINGS.showItemDetails]: defineSetting("itemUse"),
-  [SETTINGS.groupActionTypes]: defineSetting("itemUse"),
-  [SETTINGS.showDeathSaves]: defineSetting("death", {
-    capability: "deathSaves"
-  }),
+  [SETTINGS.showActionTypes]: defineSetting("itemUse"),
   [SETTINGS.showModeNavigation]: defineSetting("behavior", {
     defaultValue: false,
     placement: "basic"
@@ -96,7 +112,7 @@ const definitionsBy = predicate =>
 const groupDefinitions = placement =>
   Object.freeze(
     Object.fromEntries(
-      ["behavior", "appearance", "quickAccess", "itemUse", "window", "death"]
+      ["behavior", "appearance", "quickAccess", "itemUse", "interface"]
         .map(group => [
           group,
           Object.freeze(
@@ -138,7 +154,9 @@ export function isSettingSupported(key, systemId = game.system?.id) {
 }
 
 export const settingRefreshStrategy = key =>
-  SETTING_DEFINITIONS[key]?.refresh ?? "none";
+  key === SETTINGS.proficientSkillsOnly
+    ? "content"
+    : (SETTING_DEFINITIONS[key]?.refresh ?? "none");
 
 export function registerSettings() {
   for (const [key, definition] of Object.entries(SETTING_DEFINITIONS)) {
@@ -172,6 +190,16 @@ export function registerSettings() {
     default: {}
   });
 
+  game.settings.register(MODULE_ID, SETTINGS.proficientSkillsOnly, {
+    name: "Adventurer HUD trained skills filter",
+    hint: "",
+    scope: "user",
+    config: false,
+    type: Boolean,
+    default: true,
+    onChange: notifyChange(SETTINGS.proficientSkillsOnly)
+  });
+
   registerSettingsMenus();
 }
 
@@ -199,10 +227,18 @@ function registerSettingsMenus() {
     };
 
     async _prepareContext() {
+      const { t } = await createModuleTranslator({
+        language: getSetting(SETTINGS.language),
+        i18n: game.i18n
+      });
+      if (this.options?.window) {
+        this.options.window.title = t("Settings.Advanced.Name");
+      }
       return {
+        saveLabel: t("Settings.Save"),
         groups: Object.entries(ADVANCED_SETTING_GROUPS)
           .map(([id, keys]) => ({
-            label: game.i18n.localize(`ADVENTURER_HUD.Settings.Groups.${id}`),
+            label: t(`Settings.Groups.${id}`),
             settings: keys
               .filter(key => isSettingSupported(key))
               .map(key => {
@@ -210,9 +246,9 @@ function registerSettingsMenus() {
                   `${MODULE_ID}.${key}`
                 );
                 return {
-                  hint: game.i18n.localize(definition.hint),
+                  hint: t(definition.hint.replace("ADVENTURER_HUD.", "")),
                   key,
-                  name: game.i18n.localize(definition.name),
+                  name: t(definition.name.replace("ADVENTURER_HUD.", "")),
                   value: getSetting(key)
                 };
               })
@@ -262,11 +298,27 @@ function registerSettingsMenus() {
       }
     };
 
+    async _prepareContext() {
+      const { t } = await createModuleTranslator({
+        language: getSetting(SETTINGS.language),
+        i18n: game.i18n
+      });
+      if (this.options?.window) {
+        this.options.window.title = t("Settings.Reset.Name");
+      }
+      return {
+        confirmLabel: t("Settings.Reset.Confirm"),
+        resetLabel: t("Settings.Reset.Label")
+      };
+    }
+
     static async #onSubmit() {
       await resetSettings();
-      ui.notifications.info(
-        game.i18n.localize("ADVENTURER_HUD.Settings.Reset.Done")
-      );
+      const { t } = await createModuleTranslator({
+        language: getSetting(SETTINGS.language),
+        i18n: game.i18n
+      });
+      ui.notifications.info(t("Settings.Reset.Done"));
     }
   };
 
@@ -311,10 +363,76 @@ export function moveSettingsMenusToBottom(root) {
   }
 }
 
+export async function localizeSettingsRows(root) {
+  const element = root?.querySelector ? root : root?.[0];
+  if (!element) return;
+
+  const { t } = await createModuleTranslator({
+    language: getSetting(SETTINGS.language),
+    i18n: game.i18n
+  });
+
+  for (const key of Object.keys(SETTING_DEFINITIONS)) {
+    const settingId = `${MODULE_ID}.${key}`;
+    const control = element.querySelector(
+      `[data-key="${settingId}"], [data-setting-id="${settingId}"], [name="${settingId}"]`
+    );
+    const row = control?.closest?.(".form-group");
+    if (!row) continue;
+
+    const label = row.querySelector("label");
+    if (label) label.textContent = t(`Settings.${key}.Name`);
+    const hint = row.querySelector(".hint");
+    if (hint) hint.textContent = t(`Settings.${key}.Hint`);
+
+    for (const [value, choice] of Object.entries(
+      SETTING_DEFINITIONS[key].choices ?? {}
+    )) {
+      const option = row.querySelector(`option[value="${value}"]`);
+      if (option) {
+        option.textContent = choice.startsWith("ADVENTURER_HUD.")
+          ? t(choice.slice("ADVENTURER_HUD.".length))
+          : choice;
+      }
+    }
+  }
+
+  for (const [key, section] of [
+    ["configure", "Advanced"],
+    ["reset", "Reset"]
+  ]) {
+    const settingId = `${MODULE_ID}.${key}`;
+    const control = element.querySelector(
+      `[data-key="${settingId}"], [data-setting-id="${settingId}"], [name="${settingId}"]`
+    );
+    const row = control?.closest?.(".form-group");
+    if (!row) continue;
+    const label = row.querySelector("label, h4");
+    if (label) label.textContent = t(`Settings.${section}.Name`);
+    const hint = row.querySelector(".hint");
+    if (hint) hint.textContent = t(`Settings.${section}.Hint`);
+    const button = row.querySelector("button");
+    if (button) {
+      const textNodes = [];
+      const visit = node => {
+        if (node.nodeType === 3 && node.textContent.trim())
+          textNodes.push(node);
+        for (const child of node.childNodes ?? []) visit(child);
+      };
+      visit(button);
+      const textNode = textNodes.at(-1);
+      if (textNode) textNode.textContent = t(`Settings.${section}.Label`);
+      else
+        button.append(document.createTextNode(t(`Settings.${section}.Label`)));
+    }
+  }
+}
+
 export async function resetSettings() {
   for (const [key, value] of Object.entries(SETTING_DEFAULTS)) {
     await setSetting(key, value);
   }
+  await setSetting(SETTINGS.proficientSkillsOnly, true);
 }
 
 export const getSetting = key => game.settings.get(MODULE_ID, key);

@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.0.0
+
+- Removed the separate death-save mode. At 0 HP, exploration and combat show a red death-save control under the HP bar, an Unconscious label, and a grayscale HUD; after three failures the control shows a death message.
+- Added a per-user switch in Additional Settings to disable animated damage, healing, HP, and initiative feedback without hiding health colors or status labels.
+- Consolidated one-option settings groups, clarified action-menu descriptions, and revised both READMEs and the adapter guide to match current defaults and verified compatibility.
+- Highlighted the rolled initiative value after the HUD refresh and added the shared HP bar to exploration.
+- Reused the HP renderer across exploration and combat and removed stale health selectors during code review.
+- Added a persistent, default-on filter in exploration skills for proficiency and expertise, with a one-click switch to all skills.
+- Added relative HP input: plain numbers set current or temporary HP, while signed numbers add or subtract; both values are saved in one actor update.
+- Added a per-user Adventurer HUD language setting with automatic, English, and Russian choices, independent of Foundry's interface language.
+- Fixed live HUD updates after combat changes and initiative rolls, including a missing function reference during exploration refresh.
+- Fixed the HP dialog saving current and temporary HP, including when temporary HP starts at zero; made the combined HP bar reliably visible.
+- Increased the visibility of damage and healing flashes, simplified check and save cards, and moved class resources to the bottom of the combat HUD.
+- Replaced the action-type grouping option with a visibility option for the grouped action-type menu.
+- Localized the Additional Settings and Reset Settings menus to the selected HUD language; clarified that the Token Controls button setting takes effect after a page reload.
+- Applied negative HP input to temporary HP before regular HP, and added a gold initiative flash only when the current token enters combat without initiative.
+- Added local HP change feedback, bloodied and critical markers, initiative result highlighting, turn emphasis, and a clear no-charges label on item cards.
+- Reviewed the affected settings, combat hooks, HP input, and death-save rendering; added targeted tests for their behavior.
+
 ## 0.15.1
 
 - Replaced duplicate check and save grids with six ability cards containing directly accessible save and check buttons.
