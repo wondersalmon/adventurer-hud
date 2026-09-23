@@ -1,6 +1,6 @@
 {
   "name": "adventurer-hud",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "private": true,
   "type": "module",
   "description": "A player-focused character, rolls and combat HUD for Foundry VTT D&D 5e.",

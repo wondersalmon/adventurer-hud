@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.1
+
+- Disabled the optional Token Controls button by default; it can still be enabled in the module settings.
+- Replaced the keep-open preference with an opt-in close-after-roll setting.
+- Removed redundant exploration and combat visibility controls; supported sections are now always available when provided by the active system adapter.
+- Removed obsolete settings migrations and legacy storage keys ahead of the public release.
+
 ## 0.10.0
 
 - Applied visibility and runtime settings to the open HUD without resetting its current view, filters, or expanded sections.

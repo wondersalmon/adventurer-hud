@@ -116,44 +116,27 @@ export async function openRollsHud(actorOverride = null) {
     const fontSize = getSetting(SETTINGS.fontSize) || "medium";
 
     const readVisibility = () => ({
-      abilityChecks:
-        adapter.capabilities.abilityChecks &&
-        getSetting(SETTINGS.showAbilityChecks),
+      abilityChecks: adapter.capabilities.abilityChecks,
       deathSaves:
         adapter.capabilities.deathSaves && getSetting(SETTINGS.showDeathSaves),
-      initiative: getSetting(SETTINGS.showInitiative),
-      inventory:
-        adapter.capabilities.inventory && getSetting(SETTINGS.showInventory),
+      initiative: adapter.capabilities.combat,
+      inventory: adapter.capabilities.inventory,
       itemDetails: getSetting(SETTINGS.showItemDetails),
       modeNavigation: getSetting(SETTINGS.showModeNavigation),
       modeHeadings: getSetting(SETTINGS.showModeHeadings),
-      combatResources:
-        adapter.capabilities.resources &&
-        getSetting(SETTINGS.showCombatResources),
-      combatStats: getSetting(SETTINGS.showCombatStats),
-      combatWeapons:
-        adapter.capabilities.weapons && getSetting(SETTINGS.showCombatWeapons),
-      conditions:
-        adapter.capabilities.conditions && getSetting(SETTINGS.showConditions),
-      combatSpells:
-        adapter.capabilities.spells && getSetting(SETTINGS.showSpells),
-      combatActions:
-        adapter.capabilities.actions && getSetting(SETTINGS.showCombatActions),
-      combatBonusActions:
-        adapter.capabilities.bonusActions &&
-        getSetting(SETTINGS.showCombatBonusActions),
-      combatReactions:
-        adapter.capabilities.reactions &&
-        getSetting(SETTINGS.showCombatReactions),
-      combatSpecial:
-        adapter.capabilities.specialActions &&
-        getSetting(SETTINGS.showCombatSpecial),
-      savingThrows:
-        adapter.capabilities.savingThrows &&
-        getSetting(SETTINGS.showSavingThrows),
-      shortcuts: getSetting(SETTINGS.showShortcuts),
-      skills: adapter.capabilities.skills && getSetting(SETTINGS.showSkills),
-      tools: adapter.capabilities.tools && getSetting(SETTINGS.showTools)
+      combatResources: adapter.capabilities.resources,
+      combatStats: adapter.capabilities.combat,
+      combatWeapons: adapter.capabilities.weapons,
+      conditions: adapter.capabilities.conditions,
+      combatSpells: adapter.capabilities.spells,
+      combatActions: adapter.capabilities.actions,
+      combatBonusActions: adapter.capabilities.bonusActions,
+      combatReactions: adapter.capabilities.reactions,
+      combatSpecial: adapter.capabilities.specialActions,
+      savingThrows: adapter.capabilities.savingThrows,
+      shortcuts: true,
+      skills: adapter.capabilities.skills,
+      tools: adapter.capabilities.tools
     });
     const visibility = readVisibility();
 
@@ -178,12 +161,12 @@ export async function openRollsHud(actorOverride = null) {
       saveWindowGeometry(state.position);
     };
 
-    let keepOpen = Boolean(getSetting(SETTINGS.keepOpen));
+    let closeAfterRoll = Boolean(getSetting(SETTINGS.closeAfterRoll));
     let pinned = Boolean(getSetting(SETTINGS.pinWindow));
 
-    const storeKeepOpen = async value => {
-      keepOpen = Boolean(value);
-      await setSetting(SETTINGS.keepOpen, keepOpen);
+    const storeCloseAfterRoll = async value => {
+      closeAfterRoll = Boolean(value);
+      await setSetting(SETTINGS.closeAfterRoll, closeAfterRoll);
     };
 
     const hudState = createHudState();
@@ -410,7 +393,7 @@ export async function openRollsHud(actorOverride = null) {
       try {
         const result = await callback();
 
-        if (result && !keepOpen) {
+        if (result && closeAfterRoll) {
           await app.close();
         }
 
@@ -787,10 +770,14 @@ export async function openRollsHud(actorOverride = null) {
         refreshHud();
       },
 
-      togglekeepopen: async function () {
-        await storeKeepOpen(!keepOpen);
+      togglecloseafterroll: async function () {
+        await storeCloseAfterRoll(!closeAfterRoll);
         ui.notifications.info(
-          t(keepOpen ? "Window.KeepOpenEnabled" : "Window.KeepOpenDisabled")
+          t(
+            closeAfterRoll
+              ? "Window.CloseAfterRollEnabled"
+              : "Window.CloseAfterRollDisabled"
+          )
         );
       },
 
@@ -876,9 +863,11 @@ export async function openRollsHud(actorOverride = null) {
         resizable: true,
         controls: [
           {
-            icon: keepOpen ? "fa-solid fa-toggle-on" : "fa-solid fa-toggle-off",
-            label: t("Window.KeepOpenMenu"),
-            action: "togglekeepopen"
+            icon: closeAfterRoll
+              ? "fa-solid fa-toggle-on"
+              : "fa-solid fa-toggle-off",
+            label: t("Window.CloseAfterRollMenu"),
+            action: "togglecloseafterroll"
           },
           {
             icon: "fa-solid fa-arrow-rotate-left",
@@ -912,13 +901,13 @@ export async function openRollsHud(actorOverride = null) {
     });
 
     app.applySetting = (key, value) => {
-      if (key === SETTINGS.keepOpen) {
-        keepOpen = Boolean(value);
+      if (key === SETTINGS.closeAfterRoll) {
+        closeAfterRoll = Boolean(value);
         const control = app.options?.window?.controls?.find(
-          entry => entry.action === "togglekeepopen"
+          entry => entry.action === "togglecloseafterroll"
         );
         if (control) {
-          control.icon = keepOpen
+          control.icon = closeAfterRoll
             ? "fa-solid fa-toggle-on"
             : "fa-solid fa-toggle-off";
         }

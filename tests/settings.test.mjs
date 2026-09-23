@@ -4,7 +4,6 @@ import test from "node:test";
 import {
   BASIC_SETTINGS,
   isSettingSupported,
-  migrateLegacySettings,
   moveSettingsMenusToBottom,
   registerSettings,
   resetSettings,
@@ -27,7 +26,7 @@ function installFoundryApplicationStub() {
   };
 }
 
-test("manual mode navigation defaults to hidden and migrations are per user", () => {
+test("manual mode navigation and optional controls default to hidden", () => {
   const registrations = new Map();
   const menus = new Map();
 
@@ -47,28 +46,28 @@ test("manual mode navigation defaults to hidden and migrations are per user", ()
   registerSettings();
 
   assert.equal(registrations.get(SETTINGS.showModeNavigation)?.default, false);
-  assert.equal(registrations.get(SETTINGS.migrationVersion)?.scope, "user");
   assert.equal(registrations.get(SETTINGS.fontSize)?.config, true);
   assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.config, true);
   assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.default, false);
   assert.equal(registrations.get(SETTINGS.pinWindow)?.config, true);
   assert.equal(registrations.get(SETTINGS.pinWindow)?.default, false);
+  assert.equal(registrations.get(SETTINGS.closeAfterRoll)?.config, true);
+  assert.equal(registrations.get(SETTINGS.closeAfterRoll)?.default, false);
   assert.equal(registrations.get(SETTINGS.showTokenControl)?.config, true);
-  assert.equal(registrations.get(SETTINGS.showTokenControl)?.default, true);
+  assert.equal(registrations.get(SETTINGS.showTokenControl)?.default, false);
   assert.deepEqual(
     Object.keys(registrations.get(SETTINGS.fontSize)?.choices ?? {}),
     ["small", "medium", "large", "extraLarge"]
   );
   assert.equal(registrations.get(SETTINGS.fontSize)?.default, "medium");
-  assert.equal(registrations.get(SETTINGS.showShortcuts)?.config, false);
   assert.equal(menus.get("configure")?.restricted, false);
   assert.equal(menus.get("reset")?.restricted, false);
   assert.ok(BASIC_SETTINGS.includes(SETTINGS.fontSize));
   assert.ok(BASIC_SETTINGS.includes(SETTINGS.autoUpdateActor));
   assert.ok(BASIC_SETTINGS.includes(SETTINGS.showTokenControl));
-  assert.ok(!BASIC_SETTINGS.includes(SETTINGS.showShortcuts));
   assert.ok(SETTING_GROUPS.advanced.includes(SETTINGS.showModeNavigation));
-  assert.ok(SETTING_GROUPS.combat.includes(SETTINGS.showCombatResources));
+  assert.deepEqual(SETTING_GROUPS.combat, [SETTINGS.showItemDetails]);
+  assert.deepEqual(SETTING_GROUPS.regular, [SETTINGS.showDeathSaves]);
 
   const groupedKeys = Object.values(SETTING_GROUPS).flat();
   const configurableKeys = [...registrations]
@@ -96,7 +95,7 @@ test("reset restores configurable defaults", async () => {
 });
 
 test("system capabilities control system-specific settings", () => {
-  assert.equal(isSettingSupported(SETTINGS.showInventory, "dnd5e"), true);
+  assert.equal(isSettingSupported(SETTINGS.showDeathSaves, "dnd5e"), true);
   assert.equal(isSettingSupported(SETTINGS.showDeathSaves, "unknown"), false);
   assert.equal(isSettingSupported(SETTINGS.fontSize, "unknown"), true);
 });
@@ -107,60 +106,9 @@ test("setting metadata drives defaults, placement, and refresh behavior", () => 
     new Set(Object.keys(SETTING_DEFAULTS))
   );
   assert.equal(settingRefreshStrategy(SETTINGS.pinWindow), "runtime");
-  assert.equal(settingRefreshStrategy(SETTINGS.showSkills), "content");
+  assert.equal(settingRefreshStrategy(SETTINGS.showDeathSaves), "content");
   assert.equal(settingRefreshStrategy(SETTINGS.fontSize), "reopen");
   assert.equal(settingRefreshStrategy("unknown"), "none");
-});
-
-test("migration preserves navigation and moves legacy spell visibility", async () => {
-  const writes = [];
-
-  globalThis.game = {
-    settings: {
-      get(_moduleId, key) {
-        if (key === SETTINGS.migrationVersion) return 1;
-        if (key === SETTINGS.showModeNavigation) return true;
-        if (key === SETTINGS.showCombatSpells) return false;
-        return null;
-      },
-      async set(_moduleId, key, value) {
-        writes.push([key, value]);
-        return value;
-      }
-    }
-  };
-
-  await migrateLegacySettings();
-
-  assert.deepEqual(writes, [
-    [SETTINGS.showSpells, false],
-    [SETTINGS.migrationVersion, 4]
-  ]);
-});
-
-test("font size migration preserves the previous visual scale", async () => {
-  const writes = [];
-
-  globalThis.game = {
-    settings: {
-      get(_moduleId, key) {
-        if (key === SETTINGS.migrationVersion) return 3;
-        if (key === SETTINGS.fontSize) return "large";
-        return null;
-      },
-      async set(_moduleId, key, value) {
-        writes.push([key, value]);
-        return value;
-      }
-    }
-  };
-
-  await migrateLegacySettings();
-
-  assert.deepEqual(writes, [
-    [SETTINGS.fontSize, "medium"],
-    [SETTINGS.migrationVersion, 4]
-  ]);
 });
 
 test("additional and reset settings menus are moved below regular options", () => {

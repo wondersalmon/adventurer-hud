@@ -5,33 +5,15 @@ export const SETTINGS = Object.freeze({
   adaptiveLayout: "adaptiveLayout",
   automaticCombatMode: "automaticCombatMode",
   autoUpdateActor: "autoUpdateActor",
-  keepOpen: "keepOpen",
+  closeAfterRoll: "closeAfterRoll",
   pinWindow: "pinWindow",
   showTokenControl: "showTokenControl",
   fontSize: "fontSize",
-  showAbilityChecks: "showAbilityChecks",
   showDeathSaves: "showDeathSaves",
-  showInitiative: "showInitiative",
-  showInventory: "showInventory",
   showItemDetails: "showItemDetails",
   showModeNavigation: "showModeNavigation",
   showModeHeadings: "showModeHeadings",
-  showCombatResources: "showCombatResources",
-  showCombatStats: "showCombatStats",
-  showCombatWeapons: "showCombatWeapons",
-  showConditions: "showConditions",
-  showCombatSpells: "showCombatSpells",
-  showCombatActions: "showCombatActions",
-  showCombatBonusActions: "showCombatBonusActions",
-  showCombatReactions: "showCombatReactions",
-  showCombatSpecial: "showCombatSpecial",
-  showSavingThrows: "showSavingThrows",
-  showShortcuts: "showShortcuts",
-  showSkills: "showSkills",
-  showSpells: "showSpells",
-  showTools: "showTools",
-  windowGeometry: "windowGeometry",
-  migrationVersion: "migrationVersion"
+  windowGeometry: "windowGeometry"
 });
 
 const FONT_SIZE_CHOICES = Object.freeze({
@@ -74,7 +56,7 @@ export const SETTING_DEFINITIONS = Object.freeze({
     refresh: "reopen",
     type: String
   }),
-  [SETTINGS.keepOpen]: defineSetting("behavior", {
+  [SETTINGS.closeAfterRoll]: defineSetting("behavior", {
     defaultValue: false,
     placement: "basic",
     refresh: "runtime"
@@ -85,6 +67,7 @@ export const SETTING_DEFINITIONS = Object.freeze({
     refresh: "runtime"
   }),
   [SETTINGS.showTokenControl]: defineSetting("behavior", {
+    defaultValue: false,
     placement: "basic",
     refresh: "controls"
   }),
@@ -102,46 +85,6 @@ export const SETTING_DEFINITIONS = Object.freeze({
   [SETTINGS.showDeathSaves]: defineSetting("regular", {
     capability: "deathSaves",
     placement: "basic"
-  }),
-  [SETTINGS.showShortcuts]: defineSetting("regular"),
-  [SETTINGS.showAbilityChecks]: defineSetting("regular", {
-    capability: "abilityChecks"
-  }),
-  [SETTINGS.showSavingThrows]: defineSetting("regular", {
-    capability: "savingThrows"
-  }),
-  [SETTINGS.showSkills]: defineSetting("regular", { capability: "skills" }),
-  [SETTINGS.showTools]: defineSetting("regular", { capability: "tools" }),
-  [SETTINGS.showSpells]: defineSetting("regular", { capability: "spells" }),
-  [SETTINGS.showInventory]: defineSetting("regular", {
-    capability: "inventory"
-  }),
-  [SETTINGS.showInitiative]: defineSetting("combat", {
-    capability: "combat"
-  }),
-  [SETTINGS.showCombatResources]: defineSetting("combat", {
-    capability: "resources"
-  }),
-  [SETTINGS.showCombatStats]: defineSetting("combat", {
-    capability: "combat"
-  }),
-  [SETTINGS.showConditions]: defineSetting("combat", {
-    capability: "conditions"
-  }),
-  [SETTINGS.showCombatWeapons]: defineSetting("combat", {
-    capability: "weapons"
-  }),
-  [SETTINGS.showCombatActions]: defineSetting("combat", {
-    capability: "actions"
-  }),
-  [SETTINGS.showCombatBonusActions]: defineSetting("combat", {
-    capability: "bonusActions"
-  }),
-  [SETTINGS.showCombatReactions]: defineSetting("combat", {
-    capability: "reactions"
-  }),
-  [SETTINGS.showCombatSpecial]: defineSetting("combat", {
-    capability: "specialActions"
   }),
   [SETTINGS.showModeNavigation]: defineSetting("advanced", {
     defaultValue: false
@@ -215,15 +158,6 @@ export function registerSettings() {
     });
   }
 
-  game.settings.register(MODULE_ID, SETTINGS.showCombatSpells, {
-    name: "Legacy spell visibility",
-    hint: "",
-    scope: "user",
-    config: false,
-    type: Boolean,
-    default: true
-  });
-
   game.settings.register(MODULE_ID, SETTINGS.windowGeometry, {
     name: "Adventurer HUD window geometry",
     hint: "",
@@ -231,15 +165,6 @@ export function registerSettings() {
     config: false,
     type: Object,
     default: {}
-  });
-
-  game.settings.register(MODULE_ID, SETTINGS.migrationVersion, {
-    name: "Adventurer HUD migration version",
-    hint: "",
-    scope: "user",
-    config: false,
-    type: Number,
-    default: 0
   });
 
   registerSettingsMenu();
@@ -464,57 +389,4 @@ export async function flushWindowGeometry() {
   const value = pendingGeometry;
   pendingGeometry = null;
   await setSetting(SETTINGS.windowGeometry, value);
-}
-
-export async function migrateLegacySettings() {
-  const version = getSetting(SETTINGS.migrationVersion);
-
-  if (version >= 4) {
-    return;
-  }
-
-  if (version < 1) {
-    const suffix = [game.world?.id ?? "world", game.user.id].join(":");
-
-    try {
-      const rawGeometry = localStorage.getItem(
-        `ws-rolls-hud-position:${suffix}`
-      );
-
-      if (rawGeometry) {
-        await setSetting(SETTINGS.windowGeometry, JSON.parse(rawGeometry));
-      }
-
-      const rawKeepOpen = localStorage.getItem(
-        `ws-rolls-hud-keep-open:${suffix}`
-      );
-
-      if (rawKeepOpen !== null) {
-        await setSetting(SETTINGS.keepOpen, rawKeepOpen === "true");
-      }
-    } catch (error) {
-      console.warn(`${MODULE_ID} | Unable to migrate legacy settings`, error);
-    }
-  }
-
-  if (version < 3) {
-    await setSetting(
-      SETTINGS.showSpells,
-      Boolean(getSetting(SETTINGS.showCombatSpells))
-    );
-  }
-
-  if (version < 4) {
-    const fontSize = getSetting(SETTINGS.fontSize);
-    const migratedFontSize = {
-      normal: "small",
-      large: "medium"
-    }[fontSize];
-
-    if (migratedFontSize) {
-      await setSetting(SETTINGS.fontSize, migratedFontSize);
-    }
-  }
-
-  await setSetting(SETTINGS.migrationVersion, 4);
 }

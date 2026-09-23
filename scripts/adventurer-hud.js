@@ -4,7 +4,6 @@ import { actorContextChanged } from "./runtime-helpers.js";
 import { applyHudSettingChange } from "./hud/settings-refresh.js";
 import {
   getSetting,
-  migrateLegacySettings,
   moveSettingsMenusToBottom,
   registerSettings,
   settingRefreshStrategy,
@@ -99,9 +98,7 @@ Hooks.once("init", () => {
   });
 });
 
-Hooks.once("ready", async () => {
-  await migrateLegacySettings();
-
+Hooks.once("ready", () => {
   const module = game.modules.get(MODULE_ID);
 
   Hooks.callAll("adventurerHudReady", module?.api);

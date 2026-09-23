@@ -67,7 +67,7 @@ game.modules.get("adventurer-hud").api.open();
 Open **Adventurer HUD settings** from Foundry's Module Settings or the HUD title
 menu. Common options and reset controls appear directly in Foundry's Module
 Settings; granular options are under **Additional settings**. The title menu
-also opens settings and provides pin, keep-open, and window-reset controls. The
+also opens settings and provides pin, close-after-roll, and window-reset controls. The
 Token Controls button can be hidden without disabling the configurable
 keybinding.
 
