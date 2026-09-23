@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.1
+
+- Combined ability checks and saving throws into one collapsible matrix in exploration and combat modes, keeping both roll types one click away.
+- Reworked combat HP into a prominent card with a precise value, health bar, and a separate compact temporary HP indicator; kept AC and speed alongside it.
+- Moved combat favorites and actions above reference rolls and resources, and replaced large mode links with a compact mode switcher.
+- Reduced visual weight of secondary cards, improved small labels, and displayed item range, activation, resource costs, and remaining uses directly on action cards.
+
 ## 0.12.0
 
 - Added live search across combat actions, spells, and inventory, matching item and activity names while keeping the query across category changes.

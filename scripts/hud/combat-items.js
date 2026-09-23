@@ -16,8 +16,8 @@ export function createCombatItemRenderer({
   const configLabel = config =>
     game.i18n.localize(config?.label ?? config ?? "");
 
-  const activationLabel = item => {
-    const type = adapter.itemActivation(item);
+  const activationLabel = (item, activityId) => {
+    const type = adapter.itemActivation(item, activityId);
     const common = {
       action: "Combat.Action",
       bonus: "Combat.BonusAction",
@@ -32,8 +32,8 @@ export function createCombatItemRenderer({
     return adapter.activationLabel(type, { localizeConfig: configLabel });
   };
 
-  const itemRange = item => {
-    const range = adapter.itemRangeData(item);
+  const itemRange = (item, activityId) => {
+    const range = adapter.itemRangeData(item, activityId);
     const value = range.value === 0 ? 0 : range.value || "";
     const { long, units } = range;
     const unit = adapter.rangeUnitLabel(units, {
@@ -91,26 +91,24 @@ export function createCombatItemRenderer({
     const concentration =
       isSpell && adapter.hasItemProperty(item, "concentration");
     const ritual = isSpell && adapter.hasItemProperty(item, "ritual");
-    const activation = adapter.itemActivation(item);
+    const activation = adapter.itemActivation(item, activityId);
     const resourceCost = adapter.itemResourceCost(actor, item, {
-      fallbackLabel: t("Combat.Resource")
+      fallbackLabel: t("Combat.Resource"),
+      activityId
     });
     const attackBonus =
       isSpell || isWeapon ? adapter.itemAttackBonus(item) : "";
     const damageFormula =
       isSpell || isWeapon ? adapter.itemDamageFormula(actor, item) : "";
     const uses = adapter.itemUsesData(item);
-    const showsDetails =
-      !activityId &&
-      visibility.itemDetails &&
-      (showsRange ||
-        activation ||
-        concentration ||
-        ritual ||
-        resourceCost ||
-        attackBonus ||
-        damageFormula ||
-        uses);
+    const showsDetails = Boolean(
+      showsRange ||
+      activation ||
+      resourceCost ||
+      uses ||
+      (visibility.itemDetails &&
+        (concentration || ritual || attackBonus || damageFormula))
+    );
 
     return `
         <div class="ws-combat-item-card ${
@@ -118,7 +116,7 @@ export function createCombatItemRenderer({
         } ${visibility.favorites && !offersActivities ? "ws-has-favorite" : ""}">
           <button
             type="button"
-            class="ws-combat-item ws-button"
+            class="ws-combat-item ws-button ${uses?.value === 0 ? "ws-item-depleted" : ""}"
             data-action="${activityId ? "useactivity" : "useitem"}"
             data-item-id="${escapeHTML(item.id)}"
             ${activityId ? `data-activity-id="${escapeHTML(activityId)}"` : ""}
@@ -137,7 +135,7 @@ export function createCombatItemRenderer({
                           ? `
                             <span title="${t("Combat.Range")}">
                               <i class="fa-solid fa-crosshairs"></i>
-                              ${itemRange(item)}
+                              ${itemRange(item, activityId)}
                             </span>
                           `
                           : ""
@@ -147,13 +145,13 @@ export function createCombatItemRenderer({
                           ? `
                             <span title="${t("Combat.Activation")}">
                               <i class="fa-solid fa-hourglass-half"></i>
-                              ${escapeHTML(activationLabel(item))}
+                              ${escapeHTML(activationLabel(item, activityId))}
                             </span>
                           `
                           : ""
                       }
                       ${
-                        attackBonus
+                        visibility.itemDetails && attackBonus
                           ? `
                             <span title="${t("Combat.AttackBonus")}">
                               <i class="fa-solid fa-bullseye"></i>
@@ -163,7 +161,7 @@ export function createCombatItemRenderer({
                           : ""
                       }
                       ${
-                        damageFormula
+                        visibility.itemDetails && damageFormula
                           ? `
                             <span title="${t("Combat.DamageFormula")}">
                               <i class="fa-solid fa-burst"></i>
@@ -177,18 +175,18 @@ export function createCombatItemRenderer({
                           ? `
                             <span title="${t("Inventory.Charges")}">
                               <i class="fa-solid fa-battery-half"></i>
-                              ${uses.value}/${uses.max}
+                              ${uses.value}/${uses.max}${uses.value === 0 ? ` · ${t("Quick.NoCharges")}` : ""}
                             </span>
                           `
                           : ""
                       }
                       ${
-                        concentration
+                        visibility.itemDetails && concentration
                           ? `<b title="${t("Combat.Concentration")}">${t("Combat.ConcentrationShort")}</b>`
                           : ""
                       }
                       ${
-                        ritual
+                        visibility.itemDetails && ritual
                           ? `<b title="${t("Combat.Ritual")}">${t("Combat.RitualShort")}</b>`
                           : ""
                       }

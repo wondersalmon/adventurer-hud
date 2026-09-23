@@ -9,16 +9,14 @@ export const REGULAR_VIEWS = Object.freeze([
 
 export function createHudState(initial = {}) {
   return {
-    abilityChecksExpanded: true,
-    combatAbilityChecksExpanded: false,
+    abilitiesExpanded: true,
+    combatAbilitiesExpanded: false,
     combatCategory: "weapons",
-    combatSavingThrowsExpanded: true,
     currentView: "main",
     forcedMode: null,
     inventoryCategory: "equipped",
     preparedSpellsOnly: true,
     resourcesExpanded: false,
-    savingThrowsExpanded: true,
     searchQuery: "",
     openActivityItemId: null,
     favoriteEntries: [],

@@ -22,20 +22,10 @@ export function createHudComponents(context) {
   // Abilities
   // =========================================================
 
-  function abilityRow(type, label, labelIcon, showLabel = true) {
+  function abilityRow(type, label, labelIcon) {
     return `
-        <div class="ws-ability-row ${showLabel ? "" : "ws-label-free"}" style="--ws-ability-count: ${abilities.length}">
-
-          ${
-            showLabel
-              ? `
-                <div class="ws-row-label">
-                  <i class="fa-solid ${labelIcon}"></i>
-                  ${label}
-                </div>
-              `
-              : ""
-          }
+        <div class="ws-ability-row" style="--ws-ability-count: ${abilities.length}">
+          <div class="ws-row-label"><i class="fa-solid ${labelIcon}"></i>${label}</div>
 
           ${abilities
             .map(([id, short, icon]) => {
@@ -98,57 +88,30 @@ export function createHudComponents(context) {
       `;
   }
 
-  const abilityChecksSection = (mode = "regular") => {
-    const stateKey =
-      mode === "combat"
-        ? "combatAbilityChecksExpanded"
-        : "abilityChecksExpanded";
-    const expanded = hudState[stateKey];
-    const action = mode === "combat" ? "togglecombatchecks" : "togglechecks";
+  const abilitiesSection = (mode = "regular") => {
+    const expanded =
+      hudState[
+        mode === "combat" ? "combatAbilitiesExpanded" : "abilitiesExpanded"
+      ];
+    if (!visibility.abilityChecks && !visibility.savingThrows) return "";
 
     return `
-      <div class="ws-ability-checks ${expanded ? "ws-expanded" : ""}">
-        <button
-          type="button"
-          class="ws-section-toggle ws-button"
-          data-action="${action}"
-          aria-expanded="${expanded}"
-        >
-          <span><i class="fa-solid fa-dice"></i>${t("Labels.Check")}</span>
+      <section class="ws-ability-table ${expanded ? "ws-expanded" : ""}">
+        <button type="button" class="ws-section-toggle ws-button"
+          data-action="toggleabilities" aria-expanded="${expanded}">
+          <span><i class="fa-solid fa-dice"></i>${t("Labels.Abilities")}</span>
           <i class="fa-solid fa-chevron-${expanded ? "up" : "down"}"></i>
         </button>
         ${
           expanded
-            ? abilityRow("check", t("Labels.Check"), "fa-dice", false)
+            ? `
+          <div class="ws-ability-matrix">
+            ${visibility.abilityChecks ? abilityRow("check", t("Labels.Check"), "fa-dice") : ""}
+            ${visibility.savingThrows ? abilityRow("save", t("Labels.Save"), "fa-shield-halved") : ""}
+          </div>`
             : ""
         }
-      </div>
-    `;
-  };
-
-  const savingThrowsSection = (mode = "regular") => {
-    const stateKey =
-      mode === "combat" ? "combatSavingThrowsExpanded" : "savingThrowsExpanded";
-    const expanded = hudState[stateKey];
-    const action = mode === "combat" ? "togglecombatsaves" : "togglesaves";
-
-    return `
-      <div class="ws-saving-throws ${expanded ? "ws-expanded" : ""}">
-        <button
-          type="button"
-          class="ws-section-toggle ws-button"
-          data-action="${action}"
-          aria-expanded="${expanded}"
-        >
-          <span><i class="fa-solid fa-shield-halved"></i>${t("Labels.Save")}</span>
-          <i class="fa-solid fa-chevron-${expanded ? "up" : "down"}"></i>
-        </button>
-        ${
-          expanded
-            ? abilityRow("save", t("Labels.Save"), "fa-shield-halved", false)
-            : ""
-        }
-      </div>
+      </section>
     `;
   };
 
@@ -358,14 +321,14 @@ export function createHudComponents(context) {
     `;
   };
 
-  const modeButton = (action, icon, label, cssClass = "") => `
+  const modeButton = (action, icon, label, active = false) => `
       <button
         type="button"
-        class="ws-mode-link ws-button ${cssClass}"
+        class="ws-mode-link ws-button ${active ? "ws-active" : ""}"
         data-action="${action}"
+        ${active ? 'aria-current="page" disabled' : ""}
       >
         <span><i class="fa-solid ${icon}"></i>${label}</span>
-        <i class="fa-solid fa-chevron-right ws-arrow"></i>
       </button>
     `;
 
@@ -374,36 +337,35 @@ export function createHudComponents(context) {
       return "";
     }
 
-    const buttons = [];
-
-    if (mode !== "regular") {
-      buttons.push(modeButton("normal", "fa-table-cells", t("Combat.Regular")));
-    }
-
-    if (mode !== "combat" && combatModeAvailable()) {
+    const buttons = [
+      modeButton(
+        "normal",
+        "fa-table-cells",
+        t("Mode.Exploration"),
+        mode === "regular"
+      )
+    ];
+    if (combatModeAvailable())
       buttons.push(
         modeButton(
           "combatmode",
           "fa-shield-halved",
-          t("Labels.Combat"),
-          "ws-combat-switch"
+          t("Mode.Combat"),
+          mode === "combat"
         )
       );
-    }
-
-    if (mode !== "death" && deathModeAvailable()) {
+    if (deathModeAvailable())
       buttons.push(
         modeButton(
           "deathmode",
           "fa-heart-pulse",
-          t("Labels.DeathSaves"),
-          "ws-death-switch"
+          t("Mode.Death"),
+          mode === "death"
         )
       );
-    }
 
-    return buttons.length
-      ? `<div class="ws-mode-navigation">${buttons.join("")}</div>`
+    return buttons.length > 1
+      ? `<nav class="ws-mode-navigation" aria-label="${t("Labels.Mode")}">${buttons.join("")}</nav>`
       : "";
   };
 
@@ -464,7 +426,7 @@ export function createHudComponents(context) {
     `;
 
   return {
-    abilityChecksSection,
+    abilitiesSection,
     abilityRow,
     actorHeader,
     back,
@@ -472,7 +434,6 @@ export function createHudComponents(context) {
     legend,
     modeNavigation,
     restControls,
-    savingThrowsSection,
     shortcutHint,
     skillsHTML,
     toolSection

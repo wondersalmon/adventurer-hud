@@ -70,6 +70,37 @@ test("D&D 5e 6.x activity shape remains supported", () => {
   assert.equal(isPreparedSpell(dnd6), false);
 });
 
+test("action cards use the selected activity's activation, range and cost", () => {
+  const item = {
+    system: {
+      activities: [
+        {
+          id: "short",
+          activation: { type: "action" },
+          range: { value: 5, units: "ft" },
+          consumption: { targets: [{ value: 1, target: "focus" }] }
+        },
+        {
+          id: "long",
+          activation: { type: "bonus" },
+          range: { value: 60, units: "ft" },
+          consumption: { targets: [{ value: 2, target: "focus" }] }
+        }
+      ]
+    }
+  };
+  const actor = { items: new Map([["focus", { name: "Focus" }]]) };
+  assert.equal(itemActivation(item, "long"), "bonus");
+  assert.equal(itemRangeData(item, "long").value, 60);
+  assert.equal(
+    dnd5eAdapter.itemResourceCost(actor, item, {
+      fallbackLabel: "Resource",
+      activityId: "long"
+    }),
+    "2 Focus"
+  );
+});
+
 test("actor adapters prefer prepared totals and retain legacy fallbacks", () => {
   assert.equal(proficiencyMultiplier({ prof: { multiplier: 2 } }), 2);
   assert.equal(abilityTotal({ check: { value: 7 }, mod: 2 }, "check"), 7);

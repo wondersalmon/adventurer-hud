@@ -132,25 +132,12 @@ export function createHudActions({
       refreshHud(currentMode() === "combat" ? "actions" : null);
     },
 
-    togglesaves: function () {
-      hudState.savingThrowsExpanded = !hudState.savingThrowsExpanded;
-      refreshHud();
-    },
-
-    togglecombatsaves: function () {
-      hudState.combatSavingThrowsExpanded =
-        !hudState.combatSavingThrowsExpanded;
-      refreshHud();
-    },
-
-    togglecombatchecks: function () {
-      hudState.combatAbilityChecksExpanded =
-        !hudState.combatAbilityChecksExpanded;
-      refreshHud();
-    },
-
-    togglechecks: function () {
-      hudState.abilityChecksExpanded = !hudState.abilityChecksExpanded;
+    toggleabilities: function () {
+      const key =
+        currentMode() === "combat"
+          ? "combatAbilitiesExpanded"
+          : "abilitiesExpanded";
+      hudState[key] = !hudState[key];
       refreshHud();
     },
 

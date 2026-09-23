@@ -276,8 +276,9 @@ export const dnd5eAdapter = {
     });
   },
   spellLevel: item => Number(item.system?.level ?? 0),
-  itemResourceCost(actor, item, { fallbackLabel }) {
+  itemResourceCost(actor, item, { fallbackLabel, activityId = null }) {
     const activityTarget = itemActivities(item)
+      .filter(activity => !activityId || activity.id === activityId)
       .flatMap(activity => activity?.consumption?.targets ?? [])
       .find(target => Number(target?.value ?? target?.amount) > 0);
     const legacy = item.system?.consume;

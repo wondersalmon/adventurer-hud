@@ -2,7 +2,7 @@ import { renderRegularView } from "../render/index.js";
 
 export function createRegularRenderer(context) {
   const {
-    abilityChecksSection,
+    abilitiesSection,
     actorHeader,
     back,
     combatInitiative,
@@ -18,7 +18,6 @@ export function createRegularRenderer(context) {
     modeNavigation,
     normalTools,
     restControls,
-    savingThrowsSection,
     searchControl,
     searchItems,
     shortcutHint,
@@ -44,19 +43,7 @@ export function createRegularRenderer(context) {
 
           ${favoriteSection()}
 
-          ${
-            visibility.abilityChecks || visibility.savingThrows
-              ? `
-                <div class="ws-divider"></div>
-
-                <div class="ws-ability-table">
-                  ${visibility.abilityChecks ? abilityChecksSection() : ""}
-
-                  ${visibility.savingThrows ? savingThrowsSection() : ""}
-                </div>
-              `
-              : ""
-          }
+          ${abilitiesSection()}
 
           ${
             visibility.skills ||

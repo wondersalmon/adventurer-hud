@@ -7,7 +7,7 @@ export function createCombatRenderer(context) {
     actor,
     actorHeader,
     adapter,
-    abilityChecksSection,
+    abilitiesSection,
     canRollActor,
     DialogV2,
     escapeHTML,
@@ -16,7 +16,6 @@ export function createCombatRenderer(context) {
     hudState,
     inspirationControl,
     modeNavigation,
-    savingThrowsSection,
     shortcutHint,
     t,
     tf,
@@ -90,6 +89,13 @@ export function createCombatRenderer(context) {
     const combatant = getCombatant();
     const { ac, hp, speed, speedUnits: units } = adapter.combatStats(actor);
     const isTurn = game.combat?.combatant?.id === combatant?.id;
+    const hpValue = Number(hp.value ?? 0);
+    const hpMax = Number(hp.max ?? 0);
+    const tempHp = Number(hp.temp ?? 0);
+    const hpPercent =
+      hpMax > 0 ? Math.min(100, Math.max(0, (hpValue / hpMax) * 100)) : 0;
+    const tempPercent =
+      hpMax > 0 ? Math.min(100, Math.max(0, (tempHp / hpMax) * 100)) : 100;
 
     return `
         <div
@@ -100,54 +106,34 @@ export function createCombatRenderer(context) {
 
           ${modeNavigation("combat")}
 
-          <div class="ws-combat-heading">
-            <span>
-              <i class="fa-solid fa-shield-halved"></i>
-              ${t("Labels.Combat")}
-            </span>
-
-            ${isTurn ? `<b>${t("Combat.YourTurn")}</b>` : ""}
-          </div>
+          ${
+            isTurn || !visibility.modeNavigation
+              ? `
+            <div class="ws-combat-heading">
+              ${visibility.modeNavigation ? "" : `<span><i class="fa-solid fa-shield-halved"></i>${t("Labels.Combat")}</span>`}
+              ${isTurn ? `<b>${t("Combat.YourTurn")}</b>` : ""}
+            </div>`
+              : ""
+          }
 
           <div class="ws-combat-stats ${visibility.combatStats ? "" : "ws-hidden"}">
-            <button
-              type="button"
-              class="ws-combat-stat ws-combat-hp ws-editable-stat ws-button"
-              data-action="edithp"
-              data-hp-field="value"
-              title="${t("Combat.EditHP")}"
-              ${canRollActor ? "" : "disabled"}
-            >
-              <span>${t("Combat.HP")}</span>
-              <strong>
-                ${Number(hp.value ?? 0)} / ${Number(hp.max ?? 0)}
-              </strong>
-              <i class="fa-solid fa-pen"></i>
-            </button>
-
-            <button
-              type="button"
-              class="ws-combat-stat ws-combat-temp-hp ws-editable-stat ws-button"
-              data-action="edithp"
-              data-hp-field="temp"
-              title="${t("Combat.EditTempHP")}"
-              ${canRollActor ? "" : "disabled"}
-            >
-              <span>${t("Combat.TempHP")}</span>
-              <strong>${Number(hp.temp ?? 0)}</strong>
-              <i class="fa-solid fa-pen"></i>
-            </button>
-
-            ${
-              Number(hp.tempmax ?? 0) !== 0
-                ? `
-                  <div class="ws-combat-stat ws-combat-temp-max">
-                    <span>${t("Combat.TempMax")}</span>
-                    <strong>${formatMod(hp.tempmax)}</strong>
-                  </div>
-                `
-                : ""
-            }
+            <div class="ws-combat-health ${hpMax > 0 && hpPercent <= 25 ? "ws-health-critical" : ""}">
+              <button type="button" class="ws-health-main ws-button" data-action="edithp"
+                data-hp-field="value" title="${t("Combat.EditHP")}" ${canRollActor ? "" : "disabled"}>
+                <span>${t("Combat.HP")}</span>
+                <strong>${hpValue} / ${hpMax}</strong>
+                ${Number(hp.tempmax ?? 0) !== 0 ? `<small>${t("Combat.TempMax")} ${formatMod(hp.tempmax)}</small>` : ""}
+              </button>
+              <div class="ws-health-track" role="meter" aria-label="${t("Combat.HP")}" aria-valuemin="0"
+                aria-valuenow="${Math.min(Math.max(0, hpValue), Math.max(1, hpMax))}" aria-valuemax="${Math.max(1, hpMax)}">
+                <span style="width: ${hpPercent}%"></span>
+              </div>
+              <button type="button" class="ws-health-temp ws-button" data-action="edithp"
+                data-hp-field="temp" title="${t("Combat.EditTempHP")}" ${canRollActor ? "" : "disabled"}>
+                <span>${t("Combat.TempHP")}</span><strong>+${tempHp}</strong>
+              </button>
+              ${tempHp > 0 ? `<div class="ws-temp-track"><span style="width: ${tempPercent}%"></span></div>` : ""}
+            </div>
 
             <div class="ws-combat-stat">
               <span>${t("Combat.AC")}</span>
@@ -161,35 +147,15 @@ export function createCombatRenderer(context) {
 
           </div>
 
-          ${combatResources()}
-
           ${combatStatuses()}
 
           ${favoriteSection()}
 
-          ${
-            visibility.abilityChecks
-              ? `
-                <div class="ws-divider"></div>
-                <div class="ws-ability-table">
-                  ${abilityChecksSection("combat")}
-                </div>
-              `
-              : ""
-          }
-
-          ${
-            visibility.savingThrows
-              ? `
-                <div class="ws-divider"></div>
-                <div class="ws-ability-table">
-                  ${savingThrowsSection("combat")}
-                </div>
-              `
-              : ""
-          }
-
           ${combatActions()}
+
+          ${combatResources()}
+
+          ${abilitiesSection("combat")}
 
           ${shortcutHint()}
         </div>

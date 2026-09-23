@@ -55,12 +55,10 @@ test("active-effect names are escaped before entering status attributes", () => 
   }
 });
 
-test("exploration checks and combat saves start expanded", () => {
+test("checks and saves share one collapsible block in both modes", () => {
   const hudState = {
-    abilityChecksExpanded: true,
-    combatAbilityChecksExpanded: false,
-    combatSavingThrowsExpanded: true,
-    savingThrowsExpanded: true
+    abilitiesExpanded: true,
+    combatAbilitiesExpanded: false
   };
   const components = createHudComponents({
     abilities: [["str", "STR", "fa-hand-fist"]],
@@ -79,27 +77,16 @@ test("exploration checks and combat saves start expanded", () => {
     skills: [],
     t: key => key,
     tf: key => key,
-    visibility: {}
+    visibility: { abilityChecks: true, savingThrows: true }
   });
 
-  assert.match(components.abilityChecksSection(), /aria-expanded="true"/);
-  assert.match(components.abilityChecksSection(), /data-action="ability"/);
-  assert.match(
-    components.abilityChecksSection("combat"),
-    /aria-expanded="false"/
-  );
-  assert.doesNotMatch(
-    components.abilityChecksSection("combat"),
-    /data-action="ability"/
-  );
-  assert.match(
-    components.savingThrowsSection("combat"),
-    /aria-expanded="true"/
-  );
-  assert.match(
-    components.savingThrowsSection("combat"),
-    /data-action="ability"/
-  );
+  const regular = components.abilitiesSection();
+  const combat = components.abilitiesSection("combat");
+  assert.match(regular, /aria-expanded="true"/);
+  assert.match(regular, /data-type="check"/);
+  assert.match(regular, /data-type="save"/);
+  assert.match(combat, /aria-expanded="false"/);
+  assert.doesNotMatch(combat, /data-action="ability"/);
 });
 
 test("actor class summary keeps its full value in a tooltip", () => {
@@ -142,17 +129,17 @@ test("adapter-provided ability markup is escaped", () => {
     canRollActor: true,
     escapeHTML,
     formatMod: value => `+${value}`,
-    hudState: { abilityChecksExpanded: true },
+    hudState: { abilitiesExpanded: true },
     marker: () => ["", "", ""],
     saveProf: () => 0,
     skillProf: () => 0,
     skills: [],
     t: key => key,
     tf: (_key, data) => `${data.ability} check`,
-    visibility: {}
+    visibility: { abilityChecks: true, savingThrows: true }
   });
 
-  const html = components.abilityChecksSection();
+  const html = components.abilitiesSection();
   assert.match(html, /data-key="str&quot; data-injected=&quot;yes"/);
   assert.match(html, /&lt;STR&gt;/);
   assert.doesNotMatch(html, /onclick="bad"/);

@@ -5,8 +5,14 @@ export function itemActivities(item) {
     : Object.values(activities ?? {});
 }
 
-export function itemActivation(item) {
+export function itemActivation(item, activityId = null) {
+  const selected = activityId
+    ? itemActivities(item).find(activity => activity.id === activityId)
+    : null;
+  if (selected)
+    return selected.activation?.type ?? item.system?.activation?.type ?? "";
   return (
+    selected?.activation?.type ??
     item.system?.activation?.type ??
     itemActivities(item).find(activity => activity?.activation?.type)
       ?.activation?.type ??
@@ -14,9 +20,9 @@ export function itemActivation(item) {
   );
 }
 
-export function itemRangeData(item) {
+export function itemRangeData(item, activityId = null) {
   const activityRange = itemActivities(item).find(
-    activity => activity?.range
+    activity => activity?.range && (!activityId || activity.id === activityId)
   )?.range;
   const range = activityRange ?? item.system?.range ?? {};
 

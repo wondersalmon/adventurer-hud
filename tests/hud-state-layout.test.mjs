@@ -12,9 +12,8 @@ import { renderHudMode, renderRegularView } from "../scripts/render/index.js";
 
 test("one forced mode replaces the former three-flag state", () => {
   const state = createHudState({ currentView: "skills" });
-  assert.equal(state.abilityChecksExpanded, true);
-  assert.equal(state.combatAbilityChecksExpanded, false);
-  assert.equal(state.combatSavingThrowsExpanded, true);
+  assert.equal(state.abilitiesExpanded, true);
+  assert.equal(state.combatAbilitiesExpanded, false);
   setForcedMode(state, "combat");
   assert.equal(state.forcedMode, "combat");
   assert.equal(state.currentView, "main");
@@ -108,13 +107,13 @@ test("extra-large typography has dedicated styles", async () => {
   assert.match(css, /\.ws-font-extralarge \.ws-view/);
 });
 
-test("combat HUD renders its own collapsed check section", async () => {
+test("combat HUD renders its own combined ability section", async () => {
   const source = await readFile(
     new URL("../scripts/hud/combat.js", import.meta.url),
     "utf8"
   );
 
-  assert.match(source, /abilityChecksSection\("combat"\)/);
+  assert.match(source, /abilitiesSection\("combat"\)/);
 });
 
 test("regular HUD exposes inventory filters and item charges", async () => {

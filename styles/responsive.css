@@ -1,3 +1,13 @@
+@container ws-rolls (max-width: 480px) {
+  .ws-rolls-dialog .ws-ability-matrix .ws-ability-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ws-rolls-dialog .ws-ability-matrix .ws-row-label {
+    grid-column: 1 / -1;
+  }
+}
+
 @container ws-rolls (max-width: 390px) {
   .ws-rolls-dialog .ws-view {
     gap: 9px;
@@ -8,12 +18,8 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .ws-rolls-dialog .ws-ability-row.ws-label-free {
+  .ws-rolls-dialog .ws-ability-matrix .ws-ability-row {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .ws-rolls-dialog .ws-combat-view .ws-ability-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .ws-rolls-dialog .ws-row-label {
@@ -48,6 +54,10 @@
 
   .ws-rolls-dialog .ws-combat-stats {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .ws-rolls-dialog .ws-combat-health {
+    grid-column: 1 / -1;
   }
 
   .ws-rolls-dialog .ws-resources-toggle {
