@@ -15,18 +15,7 @@ export function createCombatResourceController({
 
     const actorResources = adapter.actorResources(actor);
     const featureResources = adapter.featureResources(actor);
-    const actorLabels = new Set(
-      actorResources.map(resource =>
-        String(resource.label).trim().toLocaleLowerCase()
-      )
-    );
-    const resources = [
-      ...actorResources,
-      ...featureResources.filter(
-        resource =>
-          !actorLabels.has(String(resource.label).trim().toLocaleLowerCase())
-      )
-    ];
+    const resources = [...actorResources, ...featureResources];
 
     if (!resources.length) return "";
 

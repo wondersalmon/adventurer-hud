@@ -2,8 +2,6 @@ import { MODULE_ID } from "./module-id.js";
 import { getSystemAdapter } from "./systems/index.js";
 
 export const SETTINGS = Object.freeze({
-  adaptiveLayout: "adaptiveLayout",
-  automaticCombatMode: "automaticCombatMode",
   autoUpdateActor: "autoUpdateActor",
   closeAfterRoll: "closeAfterRoll",
   pinWindow: "pinWindow",
@@ -12,7 +10,6 @@ export const SETTINGS = Object.freeze({
   showDeathSaves: "showDeathSaves",
   showItemDetails: "showItemDetails",
   showModeNavigation: "showModeNavigation",
-  showModeHeadings: "showModeHeadings",
   windowGeometry: "windowGeometry"
 });
 
@@ -45,10 +42,6 @@ const defineSetting = (
   });
 
 export const SETTING_DEFINITIONS = Object.freeze({
-  [SETTINGS.adaptiveLayout]: defineSetting("appearance", {
-    placement: "basic",
-    refresh: "reopen"
-  }),
   [SETTINGS.fontSize]: defineSetting("appearance", {
     choices: FONT_SIZE_CHOICES,
     defaultValue: "medium",
@@ -76,9 +69,6 @@ export const SETTING_DEFINITIONS = Object.freeze({
     placement: "basic",
     refresh: "none"
   }),
-  [SETTINGS.automaticCombatMode]: defineSetting("behavior", {
-    placement: "basic"
-  }),
   [SETTINGS.showItemDetails]: defineSetting("combat", {
     placement: "basic"
   }),
@@ -86,10 +76,10 @@ export const SETTING_DEFINITIONS = Object.freeze({
     capability: "deathSaves",
     placement: "basic"
   }),
-  [SETTINGS.showModeNavigation]: defineSetting("advanced", {
-    defaultValue: false
-  }),
-  [SETTINGS.showModeHeadings]: defineSetting("advanced")
+  [SETTINGS.showModeNavigation]: defineSetting("behavior", {
+    defaultValue: false,
+    placement: "basic"
+  })
 });
 
 const definitionsBy = predicate =>
@@ -119,7 +109,6 @@ export const SETTING_GROUPS = groupDefinitions();
 export const BASIC_SETTINGS = Object.freeze(
   definitionsBy(definition => definition.placement === "basic")
 );
-const ADVANCED_SETTING_GROUPS = groupDefinitions("advanced");
 export const SETTING_DEFAULTS = Object.freeze(
   Object.fromEntries(
     Object.entries(SETTING_DEFINITIONS).map(([key, definition]) => [
@@ -129,7 +118,6 @@ export const SETTING_DEFAULTS = Object.freeze(
   )
 );
 
-let SettingsApplication = null;
 let ResetSettingsApplication = null;
 
 const notifyChange = key => value =>
@@ -167,95 +155,12 @@ export function registerSettings() {
     default: {}
   });
 
-  registerSettingsMenu();
+  registerResetSettingsMenu();
 }
 
-function registerSettingsMenu() {
+function registerResetSettingsMenu() {
   const { ApplicationV2, HandlebarsApplicationMixin } =
     foundry.applications.api;
-
-  SettingsApplication = class AdventurerHudSettings extends (
-    HandlebarsApplicationMixin(ApplicationV2)
-  ) {
-    static DEFAULT_OPTIONS = {
-      id: "adventurer-hud-settings",
-      tag: "form",
-      classes: ["adventurer-hud-settings"],
-      window: {
-        icon: "fa-solid fa-dice-d20",
-        title: "ADVENTURER_HUD.Settings.Open"
-      },
-      position: { width: 620, height: "auto" },
-      form: {
-        closeOnSubmit: true,
-        handler: this.#onSubmit
-      }
-    };
-
-    static PARTS = {
-      form: {
-        template: "modules/adventurer-hud/templates/settings.hbs"
-      }
-    };
-
-    async _prepareContext() {
-      const groups = Object.entries(ADVANCED_SETTING_GROUPS)
-        .map(([id, keys]) => ({
-          id,
-          label: game.i18n.localize(`ADVENTURER_HUD.Settings.Groups.${id}`),
-          settings: keys
-            .filter(key => isSettingSupported(key))
-            .map(key => {
-              const definition = game.settings.settings.get(
-                `${MODULE_ID}.${key}`
-              );
-              const value = getSetting(key);
-              const choices = definition?.choices
-                ? Object.entries(definition.choices).map(
-                    ([choiceValue, label]) => ({
-                      label: game.i18n.localize(label),
-                      selected: choiceValue === value,
-                      value: choiceValue
-                    })
-                  )
-                : [];
-
-              return {
-                choices,
-                hint: game.i18n.localize(definition.hint),
-                key,
-                name: game.i18n.localize(definition.name),
-                type: definition.type === Boolean ? "boolean" : "choice",
-                value
-              };
-            })
-        }))
-        .filter(group => group.settings.length);
-
-      return { groups };
-    }
-
-    static async #onSubmit(_event, _form, formData) {
-      const values = formData.object;
-      for (const keys of Object.values(ADVANCED_SETTING_GROUPS)) {
-        for (const key of keys.filter(key => isSettingSupported(key))) {
-          const definition = game.settings.settings.get(`${MODULE_ID}.${key}`);
-          const value =
-            definition.type === Boolean ? Boolean(values[key]) : values[key];
-          await setSetting(key, value);
-        }
-      }
-    }
-  };
-
-  game.settings.registerMenu(MODULE_ID, "configure", {
-    name: "ADVENTURER_HUD.Settings.Advanced.Name",
-    hint: "ADVENTURER_HUD.Settings.Advanced.Hint",
-    label: "ADVENTURER_HUD.Settings.Advanced.Label",
-    icon: "fa-solid fa-dice-d20",
-    type: SettingsApplication,
-    restricted: false
-  });
 
   ResetSettingsApplication = class AdventurerHudResetSettings extends (
     HandlebarsApplicationMixin(ApplicationV2)
@@ -313,28 +218,18 @@ export async function openSettings() {
   return sheet;
 }
 
-export function moveSettingsMenusToBottom(root) {
+export function moveResetSettingsMenuToBottom(root) {
   const element = root?.querySelector ? root : root?.[0];
   if (!element) {
     return;
   }
 
-  const rows = ["configure", "reset"]
-    .map(key => {
-      const settingId = `${MODULE_ID}.${key}`;
-      const control = element.querySelector(
-        `[data-key="${settingId}"], [data-setting-id="${settingId}"], [name="${settingId}"]`
-      );
-      return control?.closest?.(".form-group") ?? null;
-    })
-    .filter(Boolean);
-
-  if (rows.length !== 2 || rows[0].parentElement !== rows[1].parentElement) {
-    return;
-  }
-
-  const container = rows[0].parentElement;
-  rows.forEach(row => container.append(row));
+  const settingId = `${MODULE_ID}.reset`;
+  const control = element.querySelector(
+    `[data-key="${settingId}"], [data-setting-id="${settingId}"], [name="${settingId}"]`
+  );
+  const row = control?.closest?.(".form-group");
+  row?.parentElement?.append(row);
 }
 
 export async function resetSettings() {

@@ -7,8 +7,7 @@ export function createDeathRenderer(context) {
     inspirationControl,
     modeNavigation,
     shortcutHint,
-    t,
-    visibility
+    t
   } = context;
 
   const deathPips = (value, type) =>
@@ -65,7 +64,7 @@ export function createDeathRenderer(context) {
 
           ${modeNavigation("death")}
 
-          <div class="ws-death-heading ${visibility.modeHeadings ? "" : "ws-hidden"}">
+          <div class="ws-death-heading">
 
             <div class="ws-death-heading-icon">
               <i

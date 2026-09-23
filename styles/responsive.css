@@ -1,0 +1,92 @@
+@container ws-rolls (max-width: 390px) {
+  .ws-rolls-dialog .ws-view {
+    gap: 9px;
+    padding-inline: 6px;
+  }
+
+  .ws-rolls-dialog .ws-ability-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ws-rolls-dialog .ws-ability-row.ws-label-free {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ws-rolls-dialog .ws-combat-view .ws-ability-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ws-rolls-dialog .ws-row-label {
+    grid-column: 1 / -1;
+    min-height: 18px;
+  }
+
+  .ws-rolls-dialog .ws-ability {
+    height: 46px;
+  }
+
+  .ws-rolls-dialog .ws-nav-grid,
+  .ws-rolls-dialog .ws-entry-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ws-rolls-dialog .ws-combat-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ws-rolls-dialog .ws-combat-item-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ws-rolls-dialog .ws-shortcuts {
+    gap: 5px 8px;
+  }
+
+  .ws-rolls-dialog .ws-death-tracker {
+    grid-template-columns: 1fr;
+  }
+
+  .ws-rolls-dialog .ws-combat-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ws-rolls-dialog .ws-resources-toggle {
+    display: flex;
+  }
+
+  .ws-rolls-dialog .ws-combat-resources:not(.ws-expanded) .ws-resource-grid {
+    display: none;
+  }
+
+  .ws-rolls-dialog .ws-resource-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@container ws-rolls (max-width: 285px) {
+  .ws-rolls-dialog .ws-combat-filter {
+    height: 34px;
+  }
+}
+
+@container ws-rolls (min-width: 500px) {
+  .ws-rolls-dialog .ws-view {
+    --ws-type-scale: calc(var(--ws-user-type-scale) + 0.08);
+  }
+}
+
+@container ws-rolls (min-width: 680px) {
+  .ws-rolls-dialog .ws-view {
+    --ws-type-scale: calc(var(--ws-user-type-scale) + 0.16);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-rolls-dialog .ws-button {
+    transition: none;
+  }
+
+  .ws-rolls-dialog .ws-button:hover {
+    transform: none;
+  }
+}

@@ -4,7 +4,7 @@ import { actorContextChanged } from "./runtime-helpers.js";
 import { applyHudSettingChange } from "./hud/settings-refresh.js";
 import {
   getSetting,
-  moveSettingsMenusToBottom,
+  moveResetSettingsMenuToBottom,
   registerSettings,
   settingRefreshStrategy,
   SETTINGS
@@ -127,7 +127,7 @@ Hooks.on("controlToken", scheduleActorRefresh);
 Hooks.on("canvasReady", scheduleActorRefresh);
 
 Hooks.on("renderSettingsConfig", (app, html) => {
-  moveSettingsMenusToBottom(html ?? app.element);
+  moveResetSettingsMenuToBottom(html ?? app.element);
 });
 
 Hooks.on("adventurerHudSettingChanged", (key, value) => {

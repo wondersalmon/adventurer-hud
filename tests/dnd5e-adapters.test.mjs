@@ -217,6 +217,16 @@ test("D&D adapter normalizes resources and spell-slot pools", () => {
   ]);
 });
 
+test("item resource costs use a fallback label when no target is specified", () => {
+  const actor = { items: new Map() };
+  const item = { system: { consume: { amount: 2 } } };
+
+  assert.equal(
+    dnd5eAdapter.itemResourceCost(actor, item, { fallbackLabel: "Resource" }),
+    "2 Resource"
+  );
+});
+
 test("D&D adapter delegates roll actions to the owning documents", async () => {
   const calls = [];
   const actor = {

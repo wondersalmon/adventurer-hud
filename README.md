@@ -65,8 +65,8 @@ game.modules.get("adventurer-hud").api.open();
 ## Configuration
 
 Open **Adventurer HUD settings** from Foundry's Module Settings or the HUD title
-menu. Common options and reset controls appear directly in Foundry's Module
-Settings; granular options are under **Additional settings**. The title menu
+menu. Options and reset controls appear directly in Foundry's Module
+Settings. The title menu
 also opens settings and provides pin, close-after-roll, and window-reset controls. The
 Token Controls button can be hidden without disabling the configurable
 keybinding.
@@ -91,6 +91,8 @@ npm run build
 
 System adapters live in `scripts/systems`, version-specific D&D 5e helpers in
 `scripts/dnd5e`, and mode renderers and shared UI components in `scripts/hud`.
-Render dispatch lives in `scripts/render`. See the
+HUD actions and window lifecycle also live in `scripts/hud`; the combat renderer
+composes focused item, status, and resource modules. CSS files in `styles` load
+in the order declared by `module.json`. Render dispatch lives in `scripts/render`. See the
 [system adapter guide](docs/system-adapters.md) to add
 support for another game system.

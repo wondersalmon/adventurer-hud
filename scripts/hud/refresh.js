@@ -1,7 +1,6 @@
 const REFRESH_PRIORITY = Object.freeze({
-  conditions: 1,
-  actions: 2,
-  full: 3
+  actions: 1,
+  full: 2
 });
 
 export function createRefreshScheduler(

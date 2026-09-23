@@ -1,0 +1,370 @@
+.ws-rolls-dialog .ws-ability-table {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ws-rolls-dialog .ws-saving-throws,
+.ws-rolls-dialog .ws-ability-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ws-rolls-dialog .ws-section-toggle {
+  width: 100%;
+  min-height: 34px;
+  padding: 5px 9px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted) !important;
+  font-size: calc(9.5px * var(--ws-type-scale));
+  font-weight: 850;
+  letter-spacing: 0.08em;
+}
+
+.ws-rolls-dialog .ws-section-toggle > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ws-rolls-dialog .ws-ability-row {
+  display: grid;
+  grid-template-columns: 58px repeat(
+      var(--ws-ability-count, 6),
+      minmax(54px, 110px)
+    );
+  justify-content: start;
+  gap: 5px;
+}
+
+.ws-rolls-dialog .ws-ability-row.ws-label-free {
+  grid-template-columns: repeat(
+    var(--ws-ability-count, 6),
+    minmax(54px, 110px)
+  );
+}
+
+.ws-rolls-dialog .ws-combat-view .ws-ability-row {
+  grid-template-columns: repeat(
+    var(--ws-ability-count, 6),
+    minmax(54px, 110px)
+  );
+}
+
+.ws-rolls-dialog .ws-combat-view .ws-row-label {
+  grid-column: 1 / -1;
+  min-height: 20px;
+  justify-content: flex-start;
+  padding-inline: 3px;
+}
+
+.ws-rolls-dialog .ws-row-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: calc(9.5px * var(--ws-type-scale));
+  font-weight: 850;
+  letter-spacing: 0.08em;
+}
+
+.ws-rolls-dialog .ws-row-label i {
+  width: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.ws-rolls-dialog .ws-ability {
+  position: relative;
+  height: 50px;
+  padding: 4px 0 3px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: calc(10.5px * var(--ws-type-scale));
+  font-weight: 800;
+}
+
+.ws-rolls-dialog .ws-ability-label {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.ws-rolls-dialog .ws-ability-label i {
+  color: var(--muted);
+  font-size: calc(11px * var(--ws-type-scale));
+  opacity: 0.9;
+}
+
+.ws-rolls-dialog .ws-ability-label span {
+  color: var(--text);
+}
+
+.ws-rolls-dialog .ws-ability-value {
+  color: var(--muted) !important;
+  padding-right: 4px;
+  font-size: calc(11px * var(--ws-type-scale));
+  font-weight: 800;
+  line-height: 1;
+}
+
+.ws-rolls-dialog .ws-save-prof {
+  border-color: rgb(193 154 88 / 0.6) !important;
+  background: var(--accent-bg) !important;
+  box-shadow: inset 0 -2px 0 rgb(193 154 88 / 0.78) !important;
+}
+
+.ws-rolls-dialog .ws-prof-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* Navigation */
+.ws-rolls-dialog .ws-nav-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 320px));
+  justify-content: start;
+  gap: 6px;
+}
+
+.ws-rolls-dialog .ws-mode-navigation {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 260px));
+  justify-content: start;
+  gap: 6px;
+}
+
+.ws-rolls-dialog .ws-mode-link {
+  min-height: 36px;
+  padding: 5px 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ws-rolls-dialog .ws-mode-link > span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: calc(9px * var(--ws-type-scale));
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.ws-rolls-dialog .ws-nav {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-color: transparent !important;
+  background: transparent !important;
+}
+
+.ws-rolls-dialog .ws-nav-main,
+.ws-rolls-dialog .ws-nav-context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ws-rolls-dialog .ws-nav-main {
+  color: var(--text);
+  font-size: calc(10px * var(--ws-type-scale));
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.ws-rolls-dialog .ws-nav-context {
+  color: var(--muted);
+  font-size: calc(9px * var(--ws-type-scale));
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.ws-rolls-dialog .ws-nav-context i {
+  color: var(--muted);
+}
+
+/* Skills / Tools */
+.ws-rolls-dialog .ws-scroll {
+  overflow: visible;
+  padding-right: 3px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+.ws-rolls-dialog .ws-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 420px));
+  justify-content: start;
+  gap: 5px;
+}
+
+.ws-rolls-dialog .ws-entry {
+  min-width: 0;
+  height: 40px;
+  padding: 0 8px;
+  display: grid;
+  grid-template-columns: 17px minmax(0, 1fr) 15px 34px;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  text-align: left;
+}
+
+.ws-rolls-dialog .ws-entry-icon {
+  width: 16px;
+  color: var(--muted);
+  font-size: calc(11px * var(--ws-type-scale));
+  text-align: center;
+}
+
+.ws-rolls-dialog .ws-entry-name {
+  overflow: hidden;
+  color: var(--text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: calc(10.5px * var(--ws-type-scale));
+  font-weight: 600;
+}
+
+.ws-rolls-dialog .ws-entry-marker {
+  min-width: 15px;
+  display: flex;
+  justify-content: center;
+  color: transparent;
+  line-height: 1;
+}
+
+.ws-rolls-dialog .ws-proficient {
+  color: var(--accent) !important;
+  font-size: calc(9px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-expertise {
+  color: var(--accent) !important;
+  font-size: calc(13px * var(--ws-type-scale));
+  font-weight: 900;
+}
+
+.ws-rolls-dialog .ws-half {
+  color: color-mix(in srgb, var(--accent) 70%, transparent) !important;
+  font-size: calc(10px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-entry-value {
+  min-width: 30px;
+  padding: 2px 4px;
+  border-radius: 5px;
+  background: var(--subtle);
+  color: var(--text);
+  font-size: calc(10.5px * var(--ws-type-scale));
+  font-weight: 800;
+  text-align: center;
+}
+
+.ws-rolls-dialog .ws-tool-ability {
+  color: var(--muted);
+  font-size: calc(9px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-tools-content,
+.ws-rolls-dialog .ws-tool-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.ws-rolls-dialog .ws-tools-content {
+  gap: 13px;
+}
+
+.ws-rolls-dialog .ws-tool-section {
+  gap: 6px;
+}
+
+.ws-rolls-dialog .ws-section-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: calc(9px * var(--ws-type-scale));
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.ws-rolls-dialog .ws-section-title i {
+  color: var(--muted);
+}
+
+.ws-rolls-dialog .ws-empty {
+  min-height: 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: var(--muted);
+  font-size: calc(11px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-legend {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 17px;
+  color: var(--muted);
+  font-size: calc(9px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-legend span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ws-rolls-dialog .ws-shortcuts {
+  min-height: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 10px;
+  color: var(--muted);
+  font-size: calc(8.5px * var(--ws-type-scale));
+  line-height: 1.2;
+}
+
+.ws-rolls-dialog .ws-shortcuts span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.ws-rolls-dialog .ws-shortcuts kbd {
+  padding: 1px 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 750;
+  box-shadow: none;
+}

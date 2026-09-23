@@ -165,14 +165,13 @@ test("refresh scheduler coalesces updates and keeps the broadest region", () => 
     }
   );
 
-  scheduler.schedule("conditions");
   scheduler.schedule("actions");
-  scheduler.schedule("conditions");
+  scheduler.schedule("actions");
   assert.equal(callbacks.length, 1);
   callbacks.shift()();
   assert.deepEqual(refreshes, ["actions"]);
 
-  scheduler.schedule("conditions");
+  scheduler.schedule("actions");
   scheduler.schedule();
   callbacks.shift()();
   assert.deepEqual(refreshes, ["actions", "full"]);
@@ -242,7 +241,7 @@ test("document subscriptions filter actor documents and clean up hooks", () => {
   callbacks.get("updateItem")({ parent: { uuid: "Actor.other" } });
   callbacks.get("updateCombat")();
 
-  assert.deepEqual(refreshes, ["full", "conditions", "full"]);
+  assert.deepEqual(refreshes, ["full", "full", "full"]);
   unsubscribe();
   assert.equal(removed.length, callbacks.size);
 });
@@ -252,7 +251,6 @@ test("window geometry is clamped, serialized, and centered", () => {
     normalizeWindowGeometry(
       { left: 900, top: -20, width: 200, height: 1200 },
       {
-        adaptiveLayout: true,
         defaultWidth: 450,
         viewportHeight: 800,
         viewportWidth: 1000

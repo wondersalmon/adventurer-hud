@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.0
+
+- Moved manual mode navigation into Foundry's main module settings and removed the Additional Settings screen and its template.
+- Removed the mode-heading, automatic-combat, and adaptive-layout settings. Mode headings remain visible, combat detection remains automatic, and the HUD always uses the responsive layout.
+- Fixed active-effect changes leaving actor statistics stale, resources with matching labels hiding each other, and resource costs missing their fallback label.
+- Extracted HUD actions and window lifecycle from the application controller, split combat items and conditions into focused renderers, and removed the unused condition-only refresh path.
+- Split HUD styles into ordered dialog, base, combat, shared, death-save, and responsive files.
+- Ignored the local maintenance context document in Git.
+
 ## 0.10.1
 
 - Disabled the optional Token Controls button by default; it can still be enabled in the module settings.

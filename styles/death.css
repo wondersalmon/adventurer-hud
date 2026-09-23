@@ -1,0 +1,128 @@
+/* Death Saves */
+.ws-rolls-dialog .ws-death-view {
+  gap: 14px;
+  padding: 14px 12px 12px;
+}
+
+.ws-rolls-dialog .ws-death-heading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.ws-rolls-dialog .ws-death-heading-icon {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: calc(17px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-death-heading > div:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ws-rolls-dialog .ws-death-heading strong {
+  color: inherit;
+}
+
+.ws-rolls-dialog .ws-death-heading span {
+  color: var(--muted);
+  font-size: calc(10px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-death-tracker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.ws-rolls-dialog .ws-death-track {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.ws-rolls-dialog .ws-death-label {
+  color: var(--muted);
+  font-size: calc(9px * var(--ws-type-scale));
+  font-weight: 800;
+  letter-spacing: 0.07em;
+}
+
+.ws-rolls-dialog .ws-death-pips {
+  display: flex;
+  gap: 7px;
+}
+
+.ws-rolls-dialog .ws-death-pip {
+  width: 13px;
+  height: 13px;
+  box-sizing: border-box;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+}
+
+.ws-rolls-dialog .ws-death-success.ws-death-filled {
+  border-color: var(--success);
+  background: var(--success);
+  box-shadow: 0 0 0 2px var(--success-bg);
+}
+
+.ws-rolls-dialog .ws-death-failure.ws-death-filled {
+  border-color: var(--danger);
+  background: var(--danger);
+  box-shadow: 0 0 0 2px var(--danger-bg);
+}
+
+.ws-rolls-dialog .ws-death-roll {
+  width: 100%;
+  height: 48px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-color: rgb(197 101 94 / 0.35) !important;
+  background: var(--danger-bg) !important;
+}
+
+.ws-rolls-dialog .ws-death-roll span {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--danger);
+  font-size: calc(11px * var(--ws-type-scale));
+  font-weight: 850;
+  letter-spacing: 0.06em;
+}
+
+.ws-rolls-dialog .ws-death-fallback {
+  width: 100%;
+  height: 38px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent !important;
+}
+
+.ws-rolls-dialog .ws-death-fallback span {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--muted);
+  font-size: calc(10px * var(--ws-type-scale));
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}

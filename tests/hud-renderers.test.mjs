@@ -200,7 +200,29 @@ test("combat resources escape adapter identifiers and update through the adapter
   assert.equal(updates[0].value, 2);
 });
 
-test("death renderer receives mode-heading visibility from its context", () => {
+test("combat resources with the same label remain separately available", () => {
+  const controller = createCombatResourceController({
+    actor: {},
+    adapter: {
+      actorResources: () => [
+        { id: "primary", itemId: null, label: "Focus", max: 3, value: 2 }
+      ],
+      featureResources: () => [
+        { id: "item-1", itemId: "item-1", label: "Focus", max: 2, value: 1 }
+      ]
+    },
+    escapeHTML,
+    hudState: { resourcesExpanded: true },
+    t: key => key,
+    visibility: { combatResources: true }
+  });
+
+  const html = controller.combatResources();
+  assert.match(html, /data-resource-id="primary"/);
+  assert.match(html, /data-item-id="item-1"/);
+});
+
+test("death renderer displays its mode heading", () => {
   const renderer = createDeathRenderer({
     actorHeader: () => "",
     canRollActor: false,
@@ -209,9 +231,8 @@ test("death renderer receives mode-heading visibility from its context", () => {
     inspirationControl: () => "",
     modeNavigation: () => "",
     shortcutHint: () => "",
-    t: key => key,
-    visibility: { modeHeadings: false }
+    t: key => key
   });
 
-  assert.match(renderer.deathHTML(), /ws-death-heading ws-hidden/);
+  assert.match(renderer.deathHTML(), /class="ws-death-heading"/);
 });

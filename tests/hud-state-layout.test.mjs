@@ -21,7 +21,6 @@ test("one forced mode replaces the former three-flag state", () => {
 
   assert.equal(
     resolveHudMode({
-      automaticCombatMode: false,
       combatAvailable: true,
       deathActive: false,
       deathAvailable: true,
@@ -34,7 +33,6 @@ test("one forced mode replaces the former three-flag state", () => {
 
 test("automatic mode priority remains death, combat, regular", () => {
   const base = {
-    automaticCombatMode: true,
     combatAvailable: true,
     deathAvailable: true,
     forcedMode: null,
@@ -45,7 +43,7 @@ test("automatic mode priority remains death, combat, regular", () => {
   assert.equal(
     resolveHudMode({
       ...base,
-      automaticCombatMode: false,
+      combatAvailable: false,
       deathActive: false
     }),
     "regular"
@@ -55,7 +53,6 @@ test("automatic mode priority remains death, combat, regular", () => {
 test("manual death mode remains available before death saves are active", () => {
   assert.equal(
     resolveHudMode({
-      automaticCombatMode: false,
       combatAvailable: true,
       deathActive: false,
       deathAvailable: true,
@@ -126,7 +123,7 @@ test("regular HUD exposes inventory filters and item charges", async () => {
     "utf8"
   );
   const combatSource = await readFile(
-    new URL("../scripts/hud/combat.js", import.meta.url),
+    new URL("../scripts/hud/combat-items.js", import.meta.url),
     "utf8"
   );
 
@@ -146,9 +143,10 @@ test("HUD mode renderers are split from the application controller", async () =>
   assert.match(controller, /from "\.\/hud\/actor-picker\.js"/);
   assert.match(controller, /from "\.\/hud\/regular\.js"/);
   assert.match(controller, /from "\.\/hud\/combat\.js"/);
+  assert.match(controller, /from "\.\/hud\/actions\.js"/);
   assert.match(controller, /from "\.\/hud\/death-saves\.js"/);
   assert.match(controller, /from "\.\/hud\/refresh\.js"/);
-  assert.match(controller, /from "\.\/hud\/subscriptions\.js"/);
+  assert.match(controller, /from "\.\/hud\/window-session\.js"/);
   assert.match(controller, /from "\.\/hud\/window-controls\.js"/);
   assert.match(controller, /from "\.\/hud\/geometry\.js"/);
   assert.doesNotMatch(controller, /function normalHTML\(/);
@@ -168,7 +166,11 @@ test("settings refresh preserves the actor attached to an open HUD", async () =>
 
   assert.match(entrypoint, /openRollsHud\(state\.actor \?\? null\)/);
   assert.match(controller, /state\.actor = actor/);
-  assert.match(controller, /state\.actor = null/);
+  const session = await readFile(
+    new URL("../scripts/hud/window-session.js", import.meta.url),
+    "utf8"
+  );
+  assert.match(session, /state\.actor = null/);
 });
 
 test("Token Controls button visibility follows its client setting", async () => {

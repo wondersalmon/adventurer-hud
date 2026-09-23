@@ -36,3 +36,15 @@ test("manifest targets Foundry 14 and dnd5e 5.3+", async () => {
   assert.equal(manifest.compatibility.minimum, "14");
   assert.equal(dnd5e.compatibility.minimum, "5.3.0");
 });
+
+test("manifest loads split HUD styles in cascade order", async () => {
+  const manifest = await readJson("module.json");
+  assert.deepEqual(manifest.styles, [
+    "styles/dialogs.css",
+    "styles/adventurer-hud.css",
+    "styles/combat.css",
+    "styles/shared.css",
+    "styles/death.css",
+    "styles/responsive.css"
+  ]);
+});

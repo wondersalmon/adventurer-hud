@@ -35,7 +35,6 @@ export function setRegularView(state, view) {
 }
 
 export function resolveHudMode({
-  automaticCombatMode,
   combatAvailable,
   deathActive,
   deathAvailable,
@@ -46,6 +45,6 @@ export function resolveHudMode({
   if (forcedMode === "combat" && combatAvailable) return "combat";
   if (forcedMode === "death" && deathAvailable) return "death";
   if (deathActive) return "death";
-  if (automaticCombatMode && isActiveCombatant) return "combat";
+  if (combatAvailable && isActiveCombatant) return "combat";
   return "regular";
 }

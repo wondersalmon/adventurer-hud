@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   BASIC_SETTINGS,
   isSettingSupported,
-  moveSettingsMenusToBottom,
+  moveResetSettingsMenuToBottom,
   registerSettings,
   resetSettings,
   SETTING_DEFINITIONS,
@@ -46,6 +46,7 @@ test("manual mode navigation and optional controls default to hidden", () => {
   registerSettings();
 
   assert.equal(registrations.get(SETTINGS.showModeNavigation)?.default, false);
+  assert.equal(registrations.get(SETTINGS.showModeNavigation)?.config, true);
   assert.equal(registrations.get(SETTINGS.fontSize)?.config, true);
   assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.config, true);
   assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.default, false);
@@ -60,12 +61,13 @@ test("manual mode navigation and optional controls default to hidden", () => {
     ["small", "medium", "large", "extraLarge"]
   );
   assert.equal(registrations.get(SETTINGS.fontSize)?.default, "medium");
-  assert.equal(menus.get("configure")?.restricted, false);
+  assert.equal(menus.has("configure"), false);
   assert.equal(menus.get("reset")?.restricted, false);
   assert.ok(BASIC_SETTINGS.includes(SETTINGS.fontSize));
   assert.ok(BASIC_SETTINGS.includes(SETTINGS.autoUpdateActor));
   assert.ok(BASIC_SETTINGS.includes(SETTINGS.showTokenControl));
-  assert.ok(SETTING_GROUPS.advanced.includes(SETTINGS.showModeNavigation));
+  assert.ok(SETTING_GROUPS.behavior.includes(SETTINGS.showModeNavigation));
+  assert.ok(BASIC_SETTINGS.includes(SETTINGS.showModeNavigation));
   assert.deepEqual(SETTING_GROUPS.combat, [SETTINGS.showItemDetails]);
   assert.deepEqual(SETTING_GROUPS.regular, [SETTINGS.showDeathSaves]);
 
@@ -111,11 +113,10 @@ test("setting metadata drives defaults, placement, and refresh behavior", () => 
   assert.equal(settingRefreshStrategy("unknown"), "none");
 });
 
-test("additional and reset settings menus are moved below regular options", () => {
+test("reset settings menu is moved below regular options", () => {
   const appended = [];
   const parent = { append: row => appended.push(row.id) };
   const rows = {
-    "adventurer-hud.configure": { id: "configure", parentElement: parent },
     "adventurer-hud.reset": { id: "reset", parentElement: parent }
   };
   const root = {
@@ -125,7 +126,7 @@ test("additional and reset settings menus are moved below regular options", () =
     }
   };
 
-  moveSettingsMenusToBottom(root);
+  moveResetSettingsMenuToBottom(root);
 
-  assert.deepEqual(appended, ["configure", "reset"]);
+  assert.deepEqual(appended, ["reset"]);
 });

@@ -1,6 +1,6 @@
 export function normalizeWindowGeometry(
   saved,
-  { adaptiveLayout, defaultWidth, viewportHeight, viewportWidth }
+  { defaultWidth, viewportHeight, viewportWidth }
 ) {
   const left = Number(saved?.left);
   const top = Number(saved?.top);
@@ -9,7 +9,7 @@ export function normalizeWindowGeometry(
 
   if (!Number.isFinite(left) || !Number.isFinite(top)) return {};
 
-  const minimumWidth = adaptiveLayout ? 270 : 420;
+  const minimumWidth = 270;
   const width = Number.isFinite(savedWidth)
     ? Math.min(
         Math.max(minimumWidth, savedWidth),

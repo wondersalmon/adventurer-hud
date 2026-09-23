@@ -1,0 +1,398 @@
+/* Combat mode */
+.ws-rolls-dialog .ws-combat-view {
+  gap: 10px;
+}
+
+.ws-rolls-dialog .ws-combat-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ws-rolls-dialog .ws-combat-heading span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--accent);
+  font-size: calc(10px * var(--ws-type-scale));
+  font-weight: 850;
+  letter-spacing: 0.08em;
+}
+
+.ws-rolls-dialog .ws-combat-heading b {
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: calc(8.5px * var(--ws-type-scale));
+  letter-spacing: 0.05em;
+}
+
+.ws-rolls-dialog .ws-combat-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(105px, 180px));
+  justify-content: start;
+  gap: 6px;
+}
+
+.ws-rolls-dialog .ws-combat-resources {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ws-rolls-dialog .ws-resource-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(105px, 180px));
+  justify-content: start;
+  gap: 6px;
+}
+
+.ws-rolls-dialog .ws-resource-shortcuts.ws-shortcuts {
+  justify-content: flex-start;
+  padding-top: 2px;
+}
+
+.ws-rolls-dialog .ws-resources-toggle {
+  min-height: 34px;
+  padding: 5px 9px;
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: calc(9px * var(--ws-type-scale));
+  font-weight: 800;
+}
+
+.ws-rolls-dialog .ws-resources-toggle > span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.ws-rolls-dialog .ws-combat-stat {
+  min-width: 0;
+  min-height: 48px;
+  padding: 7px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  text-align: center;
+}
+
+.ws-rolls-dialog .ws-combat-stat > span {
+  color: var(--muted);
+  font-size: calc(8px * var(--ws-type-scale));
+  font-weight: 800;
+  letter-spacing: 0.07em;
+}
+
+.ws-rolls-dialog .ws-combat-stat strong {
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--text);
+  font-size: calc(11px * var(--ws-type-scale));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-rolls-dialog .ws-combat-stat small {
+  color: var(--success);
+  font-size: calc(8px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-editable-stat {
+  position: relative;
+  width: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+
+.ws-rolls-dialog .ws-editable-stat > i {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  color: var(--muted);
+  font-size: calc(8px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-resource-link {
+  width: 100%;
+  min-height: calc(52px + 1.15em);
+  height: auto;
+  margin: 0;
+}
+
+.ws-rolls-dialog .ws-resource-link > span {
+  width: 100%;
+  overflow-wrap: anywhere;
+  line-height: 1.15;
+}
+
+.ws-rolls-dialog .ws-resource-link > strong {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.ws-rolls-dialog .ws-combat-statuses,
+.ws-rolls-dialog .ws-combat-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ws-rolls-dialog .ws-active-conditions,
+.ws-rolls-dialog .ws-combat-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.ws-rolls-dialog .ws-status {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  padding: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  font-size: calc(9px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-status img,
+.ws-rolls-dialog .ws-combat-item img {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.ws-rolls-dialog .ws-combat-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(105px, 180px));
+  justify-content: start;
+}
+
+.ws-rolls-dialog .ws-combat-filter {
+  min-width: 0;
+  height: 31px;
+  padding: 0 7px;
+  display: grid;
+  grid-template-columns: 13px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: calc(8px * var(--ws-type-scale));
+  font-weight: 800;
+}
+
+.ws-rolls-dialog .ws-combat-filter span,
+.ws-rolls-dialog .ws-combat-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-rolls-dialog .ws-combat-filter small {
+  color: var(--muted);
+  font-size: calc(8px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-combat-filter.ws-active {
+  border-color: rgb(193 154 88 / 0.45) !important;
+  background: var(--accent-bg) !important;
+  color: var(--accent);
+}
+
+.ws-rolls-dialog .ws-combat-item-list {
+  min-height: 72px;
+}
+
+.ws-rolls-dialog .ws-combat-item-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 420px));
+  justify-content: start;
+  gap: 5px;
+}
+
+.ws-rolls-dialog .ws-spell-filter {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+.ws-rolls-dialog .ws-spell-filter button {
+  min-height: 30px;
+  padding: 4px 8px;
+  color: var(--muted) !important;
+  font-size: calc(8.5px * var(--ws-type-scale));
+  font-weight: 800;
+}
+
+.ws-rolls-dialog .ws-spell-filter button.ws-active {
+  border-color: rgb(193 154 88 / 0.45) !important;
+  background: var(--accent-bg) !important;
+  color: var(--accent) !important;
+}
+
+.ws-rolls-dialog .ws-spell-level {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ws-rolls-dialog .ws-spell-level + .ws-spell-level {
+  margin-top: 9px;
+}
+
+.ws-rolls-dialog .ws-spell-level-heading {
+  min-height: 22px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px 10px;
+  color: var(--muted);
+  font-size: calc(8px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-spell-level-heading > strong {
+  color: var(--text);
+  letter-spacing: 0.06em;
+}
+
+.ws-rolls-dialog .ws-spell-slots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.ws-rolls-dialog .ws-slot {
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+}
+
+.ws-rolls-dialog .ws-slot-filled {
+  background: var(--accent);
+}
+
+.ws-rolls-dialog .ws-spell-slots b {
+  margin-left: 3px;
+  color: var(--muted);
+  font-size: inherit;
+}
+
+.ws-rolls-dialog .ws-combat-item-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  gap: 4px;
+}
+
+.ws-rolls-dialog .ws-combat-item {
+  min-width: 0;
+  width: 100%;
+  height: 36px;
+  padding: 4px 7px 4px 4px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 12px;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: calc(9.5px * var(--ws-type-scale));
+  text-align: left;
+}
+
+.ws-rolls-dialog .ws-detailed-card .ws-combat-item,
+.ws-rolls-dialog .ws-detailed-card .ws-item-description {
+  min-height: 52px;
+}
+
+.ws-rolls-dialog .ws-combat-item-content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ws-rolls-dialog .ws-combat-item-content > strong {
+  overflow: hidden;
+  font-size: inherit;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-rolls-dialog .ws-spell-meta {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 7px;
+  color: var(--muted);
+  font-size: calc(7.5px * var(--ws-type-scale));
+  font-weight: 650;
+  line-height: 1.15;
+}
+
+.ws-rolls-dialog .ws-spell-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.ws-rolls-dialog .ws-spell-meta b {
+  color: var(--accent);
+  font-size: inherit;
+  letter-spacing: 0.03em;
+}
+
+.ws-rolls-dialog .ws-item-description {
+  width: 32px;
+  height: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted) !important;
+  font-size: calc(9px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-item-description:hover {
+  color: var(--accent) !important;
+}
+
+.ws-rolls-dialog .ws-combat-item > i {
+  color: var(--accent);
+  font-size: calc(9px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-mode-fallback {
+  width: 100%;
+  height: 34px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent !important;
+}
+
+.ws-rolls-dialog .ws-mode-fallback span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: calc(9px * var(--ws-type-scale));
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+/* Ability matrix */

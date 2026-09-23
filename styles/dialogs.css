@@ -1,0 +1,80 @@
+.ws-rolls-dialog .form-footer {
+  display: none !important;
+}
+
+.ws-actor-picker .ws-actor-picker-list {
+  max-height: min(60vh, 480px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.ws-actor-picker .ws-actor-picker-entry {
+  min-height: 48px;
+  padding: 5px 9px;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--color-border-light-tertiary);
+  border-radius: 7px;
+  text-align: left;
+}
+
+.ws-actor-picker .ws-actor-picker-entry img {
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.ws-actor-picker .ws-actor-picker-entry span {
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-resource-dialog .ws-resource-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ws-resource-dialog .ws-resource-dialog-content p {
+  margin: 0;
+  font-weight: 800;
+}
+
+.ws-resource-dialog .ws-resource-dialog-content label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 80px;
+  align-items: center;
+  gap: 10px;
+}
+
+.ws-resource-dialog .ws-resource-dialog-content button {
+  min-height: 36px;
+}
+
+.ws-resource-dialog .ws-resource-dialog-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 6px;
+}
+
+.ws-hp-dialog .ws-hp-dialog-content {
+  display: grid;
+  gap: 10px;
+}
+
+.ws-hp-dialog .ws-hp-dialog-content label {
+  display: grid;
+  gap: 5px;
+}
+
+.ws-hp-dialog .ws-hp-dialog-content button {
+  width: 100%;
+}

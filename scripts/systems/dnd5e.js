@@ -283,11 +283,11 @@ export const dnd5eAdapter = {
     const targetId = activityTarget?.target ?? legacy?.target;
     const targetItem = targetId ? actor.items.get(targetId) : null;
     const label =
-      targetItem?.name ??
+      targetItem?.name ||
       String(targetId ?? "")
         .split(".")
         .filter(Boolean)
-        .at(-1) ??
+        .at(-1) ||
       fallbackLabel;
     return `${amount} ${label}`;
   },

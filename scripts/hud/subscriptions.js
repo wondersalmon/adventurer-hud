@@ -1,7 +1,7 @@
 export function subscribeHudDocuments({ actor, hooks, scheduleRefresh }) {
   const refreshActorEffect = effect => {
     if (effect?.parent?.uuid === actor.uuid) {
-      scheduleRefresh("conditions");
+      scheduleRefresh();
     }
   };
 
