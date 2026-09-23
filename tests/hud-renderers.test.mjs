@@ -85,8 +85,52 @@ test("checks and saves share one collapsible block in both modes", () => {
   assert.match(regular, /aria-expanded="true"/);
   assert.match(regular, /data-type="check"/);
   assert.match(regular, /data-type="save"/);
+  assert.ok(
+    regular.indexOf('data-type="save"') < regular.indexOf('data-type="check"')
+  );
+  assert.equal((regular.match(/ws-ability-card-title/g) ?? []).length, 1);
   assert.match(combat, /aria-expanded="false"/);
   assert.doesNotMatch(combat, /data-action="ability"/);
+});
+
+test("HP dialog uses its default button for Enter and edits both HP fields", async () => {
+  const originalDocument = globalThis.document;
+  const updates = [];
+  let dialogOptions;
+  globalThis.document = {
+    createElement: () => ({
+      innerHTML: "",
+      querySelector: selector => ({
+        value: selector.includes('"temp"') ? "4" : "12"
+      })
+    })
+  };
+  try {
+    const controller = createCombatResourceController({
+      actor: {},
+      adapter: {
+        combatStats: () => ({ hp: { value: 10, max: 20, temp: 2 } }),
+        updateHp: (_actor, field, value) => updates.push([field, value])
+      },
+      DialogV2: class {
+        constructor(options) {
+          dialogOptions = options;
+        }
+        render() {}
+      },
+      t: key => key,
+      visibility: {}
+    });
+    controller.openHpDialog();
+    assert.equal(dialogOptions.buttons[0].default, true);
+    await dialogOptions.buttons[0].callback();
+    assert.deepEqual(updates, [
+      ["value", 12],
+      ["temp", 4]
+    ]);
+  } finally {
+    globalThis.document = originalDocument;
+  }
 });
 
 test("actor class summary keeps its full value in a tooltip", () => {

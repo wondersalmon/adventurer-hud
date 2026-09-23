@@ -1,34 +1,7 @@
-@container ws-rolls (max-width: 480px) {
-  .ws-rolls-dialog .ws-ability-matrix .ws-ability-row {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .ws-rolls-dialog .ws-ability-matrix .ws-row-label {
-    grid-column: 1 / -1;
-  }
-}
-
 @container ws-rolls (max-width: 390px) {
   .ws-rolls-dialog .ws-view {
     gap: 9px;
     padding-inline: 6px;
-  }
-
-  .ws-rolls-dialog .ws-ability-row {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .ws-rolls-dialog .ws-ability-matrix .ws-ability-row {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .ws-rolls-dialog .ws-row-label {
-    grid-column: 1 / -1;
-    min-height: 18px;
-  }
-
-  .ws-rolls-dialog .ws-ability {
-    height: 46px;
   }
 
   .ws-rolls-dialog .ws-nav-grid,

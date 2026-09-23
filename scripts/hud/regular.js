@@ -30,14 +30,16 @@ export function createRegularRenderer(context) {
   } = context;
 
   function normalHTML() {
+    const hasSpells =
+      visibility.combatSpells && combatItems("spells").length > 0;
     const markup = `
         <div
           id="ws-main"
           class="ws-view"
         >
-          ${actorHeader(`${combatInitiative()}${inspirationControl()}`)}
+          ${actorHeader()}
 
-          ${restControls()}
+          ${restControls(`${combatInitiative()}${inspirationControl()}`)}
 
           ${modeNavigation("regular")}
 
@@ -48,7 +50,7 @@ export function createRegularRenderer(context) {
           ${
             visibility.skills ||
             visibility.tools ||
-            visibility.combatSpells ||
+            hasSpells ||
             visibility.inventory
               ? `
                 <div class="ws-divider"></div>
@@ -117,7 +119,7 @@ export function createRegularRenderer(context) {
             }
 
             ${
-              visibility.combatSpells
+              hasSpells
                 ? `
             <button
               type="button"

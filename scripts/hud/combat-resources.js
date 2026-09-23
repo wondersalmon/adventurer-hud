@@ -131,40 +131,53 @@ export function createCombatResourceController({
     return dialog.render({ force: true });
   };
 
-  const openHpDialog = field => {
+  const openHpDialog = () => {
     const hp = adapter.combatStats(actor).hp;
-    const isTemp = field === "temp";
-    const current = Number(hp[field] ?? 0);
     const content = document.createElement("div");
     content.innerHTML = `
       <div class="ws-hp-dialog-content">
         <label>
-          <span>${t(isTemp ? "Combat.TempHP" : "Combat.HP")}</span>
-          <input type="number" name="value" value="${current}" min="0" step="1">
+          <span>${t("Combat.HP")}</span>
+          <input type="number" name="value" value="${Number(hp.value ?? 0)}" min="0" step="1">
         </label>
-        <button type="button" data-action="savehp">
-          <i class="fa-solid fa-check"></i>${t("Combat.SaveHP")}
-        </button>
+        <label>
+          <span>${t("Combat.TempHP")}</span>
+          <input type="number" name="temp" value="${Number(hp.temp ?? 0)}" min="0" step="1">
+        </label>
       </div>
     `;
 
     const dialog = new DialogV2({
       classes: ["ws-hp-dialog"],
-      window: { title: t(isTemp ? "Combat.EditTempHP" : "Combat.EditHP") },
+      window: { title: t("Combat.EditHP") },
       position: { width: 280, height: "auto" },
       content,
-      actions: {
-        savehp: async function () {
-          const input = dialog.element.querySelector('[name="value"]');
-          let value = Math.max(0, Number(input?.value ?? current) || 0);
-          if (!isTemp) {
-            value = Math.min(value, Math.max(0, Number(hp.max ?? 0)));
+      buttons: [
+        {
+          action: "savehp",
+          label: t("Combat.SaveHP"),
+          icon: "fa-solid fa-check",
+          default: true,
+          callback: async () => {
+            const value = Math.min(
+              Math.max(
+                0,
+                Number(content.querySelector('[name="value"]')?.value) || 0
+              ),
+              Math.max(0, Number(hp.max ?? 0))
+            );
+            const temp = Math.max(
+              0,
+              Number(content.querySelector('[name="temp"]')?.value) || 0
+            );
+            if (value !== Number(hp.value ?? 0))
+              await adapter.updateHp(actor, "value", value);
+            if (temp !== Number(hp.temp ?? 0))
+              await adapter.updateHp(actor, "temp", temp);
           }
-          await adapter.updateHp(actor, field, value);
-          await dialog.close();
-        }
-      },
-      buttons: [{ action: "close", label: t("Actor.Cancel") }]
+        },
+        { action: "close", label: t("Actor.Cancel") }
+      ]
     });
 
     return dialog.render({ force: true });

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.15.1
+
+- Replaced duplicate check and save grids with six ability cards containing directly accessible save and check buttons.
+- Made favorites collapsible and moved exploration initiative and inspiration beside the rest controls.
+- Combined current and temporary HP in one compact health bar and one edit dialog; Enter now saves both values.
+- Added subtle damage and healing border flashes, and changed the HP bar to red at half health with darker red at lower values.
+- Added an option to group action types into one menu and hid combat categories that have no items.
+
 ## 0.13.1
 
 - Combined ability checks and saving throws into one collapsible matrix in exploration and combat modes, keeping both roll types one click away.

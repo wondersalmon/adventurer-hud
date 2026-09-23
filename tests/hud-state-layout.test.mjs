@@ -86,7 +86,7 @@ test("regular views are validated and rendered on demand", () => {
   );
 });
 
-test("regular HUD keeps initiative beside the actor controls", async () => {
+test("regular HUD places initiative and inspiration beside rests", async () => {
   const source = await readFile(
     new URL("../scripts/hud/regular.js", import.meta.url),
     "utf8"
@@ -94,7 +94,7 @@ test("regular HUD keeps initiative beside the actor controls", async () => {
 
   assert.match(
     source,
-    /actorHeader\(`\$\{combatInitiative\(\)\}\$\{inspirationControl\(\)\}`\)/
+    /restControls\(`\$\{combatInitiative\(\)\}\$\{inspirationControl\(\)\}`\)/
   );
 });
 

@@ -1,4 +1,11 @@
-export function subscribeHudDocuments({ actor, hooks, scheduleRefresh }) {
+export function subscribeHudDocuments({
+  actor,
+  hooks,
+  scheduleRefresh,
+  readHp,
+  onHpChange
+}) {
+  let previousHp = readHp?.() ?? null;
   const refreshActorEffect = effect => {
     if (effect?.parent?.uuid === actor.uuid) {
       scheduleRefresh();
@@ -15,7 +22,16 @@ export function subscribeHudDocuments({ actor, hooks, scheduleRefresh }) {
     [
       "updateActor",
       updatedActor => {
-        if (updatedActor.uuid === actor.uuid) scheduleRefresh();
+        if (updatedActor.uuid !== actor.uuid) return;
+        const nextHp = readHp?.() ?? null;
+        if (previousHp && nextHp) {
+          const before = previousHp.value + previousHp.temp;
+          const after = nextHp.value + nextHp.temp;
+          if (after !== before)
+            onHpChange?.(after > before ? "heal" : "damage");
+        }
+        previousHp = nextHp;
+        scheduleRefresh();
       }
     ],
     ["createActiveEffect", refreshActorEffect],

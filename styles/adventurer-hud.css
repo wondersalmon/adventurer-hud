@@ -2,6 +2,33 @@
   min-width: 270px;
 }
 
+.ws-rolls-dialog.ws-damage-flash {
+  animation: ws-hp-damage 650ms ease-out;
+}
+
+.ws-rolls-dialog.ws-heal-flash {
+  animation: ws-hp-heal 650ms ease-out;
+}
+
+@keyframes ws-hp-damage {
+  40% {
+    box-shadow: 0 0 0 2px rgb(197 101 94 / 0.38);
+  }
+}
+
+@keyframes ws-hp-heal {
+  40% {
+    box-shadow: 0 0 0 2px rgb(121 168 102 / 0.38);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-rolls-dialog.ws-damage-flash,
+  .ws-rolls-dialog.ws-heal-flash {
+    animation: none;
+  }
+}
+
 .ws-rolls-dialog .window-header [data-action="togglepin"].ws-active {
   color: var(--color-text-accent, #c19a58);
   text-shadow: 0 0 6px currentcolor;
@@ -113,8 +140,13 @@
 
 .ws-rolls-dialog .ws-rest-controls {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 5px;
+}
+
+.ws-rolls-dialog .ws-rest-controls > * {
+  min-width: 0;
+  flex: 1 1 0;
 }
 
 .ws-rolls-dialog .ws-header-control {

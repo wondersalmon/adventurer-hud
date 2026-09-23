@@ -119,6 +119,12 @@ export function createHudActions({
 
     combatfilter: function (_event, target) {
       hudState.combatCategory = target.dataset.category;
+      hudState.actionMenuOpen = false;
+      refreshHud("actions");
+    },
+
+    toggleactionmenu: function () {
+      hudState.actionMenuOpen = !hudState.actionMenuOpen;
       refreshHud("actions");
     },
 
@@ -141,17 +147,22 @@ export function createHudActions({
       refreshHud();
     },
 
+    togglefavorites: function () {
+      hudState.favoritesExpanded = !hudState.favoritesExpanded;
+      refreshHud();
+    },
+
     toggleresources: function () {
       hudState.resourcesExpanded = !hudState.resourcesExpanded;
       refreshHud();
     },
 
-    edithp: function (_event, target) {
+    edithp: function () {
       if (!canRollActor) {
         return ui.notifications.warn(t("Warnings.NoPermission"));
       }
 
-      return openHpDialog(target.dataset.hpField);
+      return openHpDialog();
     },
 
     inspiration: function () {

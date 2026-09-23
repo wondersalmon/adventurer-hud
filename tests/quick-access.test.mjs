@@ -51,6 +51,7 @@ test("multi-activity cards show a chooser and activity favorites", () => {
   const item = { id: "staff", name: "Staff", img: "staff.webp" };
   const hudState = {
     favoriteEntries: [{ itemId: "staff", activityId: "attack" }],
+    favoritesExpanded: true,
     openActivityItemId: "staff",
     searchQuery: "staff"
   };
@@ -77,7 +78,87 @@ test("multi-activity cards show a chooser and activity favorites", () => {
   assert.match(html, /data-activity-id="attack"/);
   assert.match(html, /ws-item-favorite ws-active/);
   assert.match(renderer.favoriteSection(), /Staff: Attack/);
+  hudState.favoritesExpanded = false;
+  assert.match(renderer.favoriteSection(), /aria-expanded="false"/);
+  assert.doesNotMatch(renderer.favoriteSection(), /Staff: Attack/);
   assert.match(renderer.searchControl(), /value="staff"/);
+});
+
+test("combat filters hide empty categories in grouped and separate layouts", () => {
+  const item = { id: "blade", name: "Blade" };
+  const actor = { items: new Map([[item.id, item]]) };
+  const hudState = {
+    combatCategory: "spells",
+    favoriteEntries: [],
+    searchQuery: "",
+    actionMenuOpen: false
+  };
+  const adapter = {
+    combatItems: (_actor, category) => (category === "weapons" ? [item] : []),
+    itemActivities: () => [],
+    itemRole: () => "other",
+    hasItemProperty: () => false,
+    itemActivation: () => "",
+    itemResourceCost: () => "",
+    itemUsesData: () => null
+  };
+  const visibility = {
+    combatWeapons: true,
+    combatSpells: true,
+    combatActions: true,
+    groupActionTypes: true
+  };
+  const renderer = createCombatItemRenderer({
+    actor,
+    adapter,
+    escapeHTML,
+    hudState,
+    t: key => key,
+    visibility
+  });
+  const grouped = renderer.combatActions();
+  assert.match(grouped, /data-category="weapons"/);
+  assert.doesNotMatch(
+    grouped,
+    /data-category="spells"|data-action="toggleactionmenu"/
+  );
+  assert.equal(hudState.combatCategory, "weapons");
+  visibility.groupActionTypes = false;
+  assert.doesNotMatch(renderer.combatActions(), /data-category="spells"/);
+});
+
+test("grouped action menu keeps nonempty action types selectable", () => {
+  const item = { id: "dash", name: "Dash" };
+  const renderer = createCombatItemRenderer({
+    actor: { items: new Map([[item.id, item]]) },
+    adapter: {
+      combatItems: (_actor, category) => (category === "action" ? [item] : []),
+      itemActivities: () => [],
+      itemRole: () => "other",
+      hasItemProperty: () => false,
+      itemActivation: () => "action",
+      itemResourceCost: () => "",
+      itemUsesData: () => null,
+      activationLabel: () => "Action"
+    },
+    escapeHTML,
+    hudState: {
+      combatCategory: "action",
+      actionMenuOpen: true,
+      searchQuery: "",
+      favoriteEntries: []
+    },
+    t: key => key,
+    visibility: {
+      combatActions: true,
+      combatBonusActions: true,
+      groupActionTypes: true
+    }
+  });
+  const html = renderer.combatActions();
+  assert.match(html, /data-action="toggleactionmenu"/);
+  assert.match(html, /data-category="action"/);
+  assert.doesNotMatch(html, /data-category="bonus"/);
 });
 
 test("selected activity uses its native workflow with the original event", async () => {

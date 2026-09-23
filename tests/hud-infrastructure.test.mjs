@@ -246,6 +246,32 @@ test("document subscriptions filter actor documents and clean up hooks", () => {
   assert.equal(removed.length, callbacks.size);
 });
 
+test("HP changes emit one subtle damage or healing signal", () => {
+  const callbacks = new Map();
+  let hp = { value: 10, temp: 3 };
+  const changes = [];
+  const unsubscribe = subscribeHudDocuments({
+    actor: { uuid: "Actor.hero" },
+    hooks: {
+      on: (name, callback) => {
+        callbacks.set(name, callback);
+        return name;
+      },
+      off() {}
+    },
+    readHp: () => hp,
+    onHpChange: kind => changes.push(kind),
+    scheduleRefresh() {}
+  });
+  hp = { value: 10, temp: 1 };
+  callbacks.get("updateActor")({ uuid: "Actor.hero" });
+  hp = { value: 12, temp: 1 };
+  callbacks.get("updateActor")({ uuid: "Actor.hero" });
+  callbacks.get("updateActor")({ uuid: "Actor.other" });
+  assert.deepEqual(changes, ["damage", "heal"]);
+  unsubscribe();
+});
+
 test("window geometry is clamped, serialized, and centered", () => {
   assert.deepEqual(
     normalizeWindowGeometry(

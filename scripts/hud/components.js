@@ -22,70 +22,35 @@ export function createHudComponents(context) {
   // Abilities
   // =========================================================
 
-  function abilityRow(type, label, labelIcon) {
-    return `
-        <div class="ws-ability-row" style="--ws-ability-count: ${abilities.length}">
-          <div class="ws-row-label"><i class="fa-solid ${labelIcon}"></i>${label}</div>
-
-          ${abilities
-            .map(([id, short, icon]) => {
-              const data = adapter.abilityData(actor, id);
-              const safeId = escapeHTML(id);
-              const safeShort = escapeHTML(short);
-              const safeIcon = escapeHTML(icon);
-
-              const proficient = type === "save" && saveProf(id) > 0;
-
-              const total = adapter.abilityTotal(data, type);
-
-              const rollLabel = tf(
-                type === "save"
-                  ? "RollLabels.SavingThrow"
-                  : "RollLabels.AbilityCheck",
-                { ability: short }
-              );
-              const safeRollLabel = escapeHTML(rollLabel);
-
-              return `
-                  <button
-                    type="button"
-                    class="
-                      ws-ability
-                      ws-button
-                      ${proficient ? "ws-save-prof" : ""}
-                    "
-                    data-action="ability"
-                    data-type="${escapeHTML(type)}"
-                    data-key="${safeId}"
-                    title="${safeRollLabel}"
-                    aria-label="${safeRollLabel}"
-                    ${canRollActor ? "" : "disabled"}
-                  >
-                    <span class="ws-ability-label">
-                      <i class="fa-solid ${safeIcon}"></i>
-                      <span>${safeShort}</span>
-                    </span>
-
-                    <span class="ws-ability-value">
-                      ${formatMod(total)}
-                    </span>
-
-                    ${
-                      proficient
-                        ? `
-                          <span
-                            class="ws-prof-dot"
-                          ></span>
-                        `
-                        : ""
-                    }
-                  </button>
-                `;
-            })
-            .join("")}
-
-        </div>
-      `;
+  function abilityCards() {
+    return `<div class="ws-ability-cards">${abilities
+      .map(([id, short, icon]) => {
+        const data = adapter.abilityData(actor, id);
+        const safeId = escapeHTML(id);
+        const rollButton = (type, label, labelIcon) => {
+          const rollLabel = escapeHTML(
+            tf(
+              type === "save"
+                ? "RollLabels.SavingThrow"
+                : "RollLabels.AbilityCheck",
+              { ability: short }
+            )
+          );
+          const proficient = type === "save" && saveProf(id) > 0;
+          return `<button type="button" class="ws-ability-roll ws-button ${proficient ? "ws-save-prof" : ""}"
+          data-action="ability" data-type="${type}" data-key="${safeId}"
+          title="${rollLabel}" aria-label="${rollLabel}" ${canRollActor ? "" : "disabled"}>
+          <i class="fa-solid ${labelIcon}"></i><span>${label}</span>
+          <strong>${formatMod(adapter.abilityTotal(data, type))}</strong>
+        </button>`;
+        };
+        return `<div class="ws-ability-card">
+        <div class="ws-ability-card-title"><i class="fa-solid ${escapeHTML(icon)}"></i>${escapeHTML(short)}</div>
+        ${visibility.savingThrows ? rollButton("save", t("Labels.Save"), "fa-shield-halved") : ""}
+        ${visibility.abilityChecks ? rollButton("check", t("Labels.Check"), "fa-dice") : ""}
+      </div>`;
+      })
+      .join("")}</div>`;
   }
 
   const abilitiesSection = (mode = "regular") => {
@@ -105,10 +70,7 @@ export function createHudComponents(context) {
         ${
           expanded
             ? `
-          <div class="ws-ability-matrix">
-            ${visibility.abilityChecks ? abilityRow("check", t("Labels.Check"), "fa-dice") : ""}
-            ${visibility.savingThrows ? abilityRow("save", t("Labels.Save"), "fa-shield-halved") : ""}
-          </div>`
+          ${abilityCards()}`
             : ""
         }
       </section>
@@ -280,10 +242,14 @@ export function createHudComponents(context) {
       `;
   };
 
-  const restControls = () =>
-    adapter.capabilities.rests
+  const restControls = (extra = "") =>
+    adapter.capabilities.rests || extra
       ? `
       <div class="ws-rest-controls">
+        ${extra}
+        ${
+          adapter.capabilities.rests
+            ? `
         <button type="button" class="ws-header-control ws-button" data-action="shortrest" title="${t("Actor.ShortRest")}" ${canRollActor ? "" : "disabled"}>
           <i class="fa-solid fa-campground"></i>
           <span>${t("Actor.ShortRestShort")}</span>
@@ -291,7 +257,9 @@ export function createHudComponents(context) {
         <button type="button" class="ws-header-control ws-button" data-action="longrest" title="${t("Actor.LongRest")}" ${canRollActor ? "" : "disabled"}>
           <i class="fa-solid fa-moon"></i>
           <span>${t("Actor.LongRestShort")}</span>
-        </button>
+        </button>`
+            : ""
+        }
       </div>
     `
       : "";
@@ -427,7 +395,6 @@ export function createHudComponents(context) {
 
   return {
     abilitiesSection,
-    abilityRow,
     actorHeader,
     back,
     inspirationControl,

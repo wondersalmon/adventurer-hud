@@ -117,6 +117,7 @@ export async function openRollsHud(actorOverride = null) {
       initiative: adapter.capabilities.combat,
       inventory: adapter.capabilities.inventory,
       itemDetails: getSetting(SETTINGS.showItemDetails),
+      groupActionTypes: getSetting(SETTINGS.groupActionTypes),
       modeNavigation: getSetting(SETTINGS.showModeNavigation),
       search: getSetting(SETTINGS.showSearch),
       activityPicker:
@@ -467,7 +468,7 @@ export async function openRollsHud(actorOverride = null) {
         const visibleViews = {
           inventory: visibility.inventory,
           skills: visibility.skills,
-          spells: visibility.combatSpells,
+          spells: visibility.combatSpells && combatItems("spells").length > 0,
           tools: visibility.tools
         };
         if (
@@ -646,6 +647,12 @@ export async function openRollsHud(actorOverride = null) {
       isCloseAfterRoll: () => closeAfterRoll,
       readVisibility,
       onSearchInput: query => updateSearch(query),
+      readHp: adapter.capabilities.combat
+        ? () => {
+            const hp = adapter.combatStats(actor).hp;
+            return { value: Number(hp.value ?? 0), temp: Number(hp.temp ?? 0) };
+          }
+        : null,
       refreshHud,
       refreshScheduler,
       setCloseAfterRoll: value => {

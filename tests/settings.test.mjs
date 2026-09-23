@@ -74,6 +74,7 @@ test("main and additional settings use task-based groups", async () => {
   assert.ok(BASIC_SETTINGS.includes(SETTINGS.showModeNavigation));
   assert.deepEqual(SETTING_GROUPS.itemUse, [
     SETTINGS.showItemDetails,
+    SETTINGS.groupActionTypes,
     SETTINGS.showActivityPicker
   ]);
   assert.deepEqual(SETTING_GROUPS.death, [SETTINGS.showDeathSaves]);

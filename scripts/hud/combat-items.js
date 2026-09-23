@@ -257,8 +257,12 @@ export function createCombatItemRenderer({
       );
     if (!entries.length) return "";
     return `<section class="ws-favorites">
-      <h3><i class="fa-solid fa-star"></i> ${t("Quick.Favorites")}</h3>
-      <div class="ws-combat-item-grid">${entries.map(({ item, activityId }) => combatItemButton(item, { activityId })).join("")}</div>
+      <button type="button" class="ws-section-toggle ws-button" data-action="togglefavorites"
+        aria-expanded="${hudState.favoritesExpanded}">
+        <span><i class="fa-solid fa-star"></i> ${t("Quick.Favorites")} · ${entries.length}</span>
+        <i class="fa-solid fa-chevron-${hudState.favoritesExpanded ? "up" : "down"}"></i>
+      </button>
+      ${hudState.favoritesExpanded ? `<div class="ws-combat-item-grid">${entries.map(({ item, activityId }) => combatItemButton(item, { activityId })).join("")}</div>` : ""}
     </section>`;
   };
 
@@ -275,7 +279,15 @@ export function createCombatItemRenderer({
       ["bonus", "fa-bolt", "Combat.BonusAction", visibility.combatBonusActions],
       ["reaction", "fa-shield", "Combat.Reaction", visibility.combatReactions],
       ["special", "fa-star", "Combat.Special", visibility.combatSpecial]
-    ].filter(([, , , visible]) => visible);
+    ].filter(
+      ([category, , , visible]) => visible && combatItems(category).length > 0
+    );
+
+  const categoryButton = ([category, icon, label]) => `
+    <button type="button" class="ws-combat-filter ws-button ${hudState.combatCategory === category ? "ws-active" : ""}"
+      data-action="combatfilter" data-category="${category}" title="${t(label)}">
+      <i class="fa-solid ${icon}"></i><span>${t(label)}</span><small>${combatItems(category).length}</small>
+    </button>`;
 
   const spellSlots = level => {
     if (level <= 0) {
@@ -357,30 +369,33 @@ export function createCombatItemRenderer({
     }
 
     const items = searchItems(combatItems(hudState.combatCategory));
+    const primary = categories.filter(
+      ([category]) => category === "weapons" || category === "spells"
+    );
+    const actionTypes = categories.filter(
+      ([category]) => category !== "weapons" && category !== "spells"
+    );
+    const selectedAction = actionTypes.find(
+      ([category]) => category === hudState.combatCategory
+    );
 
     return `
         <div class="ws-combat-actions">
           <div class="ws-combat-filters">
-            ${categories
-              .map(
-                ([category, icon, label]) => `
-                  <button
-                    type="button"
-                    class="ws-combat-filter ws-button ${
-                      hudState.combatCategory === category ? "ws-active" : ""
-                    }"
-                    data-action="combatfilter"
-                    data-category="${category}"
-                    title="${t(label)}"
-                  >
-                    <i class="fa-solid ${icon}"></i>
-                    <span>${t(label)}</span>
-                    <small>${combatItems(category).length}</small>
-                  </button>
-                `
-              )
-              .join("")}
+            ${visibility.groupActionTypes ? primary.map(categoryButton).join("") : categories.map(categoryButton).join("")}
+            ${
+              visibility.groupActionTypes && actionTypes.length
+                ? `
+              <button type="button" class="ws-combat-filter ws-button ${selectedAction ? "ws-active" : ""}"
+                data-action="toggleactionmenu" aria-expanded="${hudState.actionMenuOpen}">
+                <i class="fa-solid ${selectedAction?.[1] ?? "fa-circle-play"}"></i>
+                <span>${selectedAction ? t(selectedAction[2]) : t("Combat.ActionTypes")}</span>
+                <small><i class="fa-solid fa-chevron-down"></i></small>
+              </button>`
+                : ""
+            }
           </div>
+          ${visibility.groupActionTypes && hudState.actionMenuOpen ? `<div class="ws-action-menu">${actionTypes.map(categoryButton).join("")}</div>` : ""}
 
           ${searchControl()}
 

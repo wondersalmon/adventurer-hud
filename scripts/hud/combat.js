@@ -94,8 +94,13 @@ export function createCombatRenderer(context) {
     const tempHp = Number(hp.temp ?? 0);
     const hpPercent =
       hpMax > 0 ? Math.min(100, Math.max(0, (hpValue / hpMax) * 100)) : 0;
-    const tempPercent =
-      hpMax > 0 ? Math.min(100, Math.max(0, (tempHp / hpMax) * 100)) : 100;
+    const barScale = Math.max(1, hpMax, hpValue + tempHp);
+    const normalWidth = Math.max(0, (hpValue / barScale) * 100);
+    const tempWidth = Math.max(0, (tempHp / barScale) * 100);
+    const hpColor =
+      hpPercent > 50
+        ? "var(--success)"
+        : `hsl(3 65% ${Math.round(35 + hpPercent * 0.3)}%)`;
 
     return `
         <div
@@ -117,23 +122,17 @@ export function createCombatRenderer(context) {
           }
 
           <div class="ws-combat-stats ${visibility.combatStats ? "" : "ws-hidden"}">
-            <div class="ws-combat-health ${hpMax > 0 && hpPercent <= 25 ? "ws-health-critical" : ""}">
-              <button type="button" class="ws-health-main ws-button" data-action="edithp"
-                data-hp-field="value" title="${t("Combat.EditHP")}" ${canRollActor ? "" : "disabled"}>
-                <span>${t("Combat.HP")}</span>
-                <strong>${hpValue} / ${hpMax}</strong>
-                ${Number(hp.tempmax ?? 0) !== 0 ? `<small>${t("Combat.TempMax")} ${formatMod(hp.tempmax)}</small>` : ""}
-              </button>
-              <div class="ws-health-track" role="meter" aria-label="${t("Combat.HP")}" aria-valuemin="0"
-                aria-valuenow="${Math.min(Math.max(0, hpValue), Math.max(1, hpMax))}" aria-valuemax="${Math.max(1, hpMax)}">
-                <span style="width: ${hpPercent}%"></span>
-              </div>
-              <button type="button" class="ws-health-temp ws-button" data-action="edithp"
-                data-hp-field="temp" title="${t("Combat.EditTempHP")}" ${canRollActor ? "" : "disabled"}>
-                <span>${t("Combat.TempHP")}</span><strong>+${tempHp}</strong>
-              </button>
-              ${tempHp > 0 ? `<div class="ws-temp-track"><span style="width: ${tempPercent}%"></span></div>` : ""}
-            </div>
+            <button type="button" class="ws-combat-health ws-button" data-action="edithp"
+              title="${t("Combat.EditHP")}" ${canRollActor ? "" : "disabled"}>
+              <span class="ws-health-label"><span>${t("Combat.HP")}</span><strong>${hpValue}/${hpMax}</strong>
+                ${tempHp > 0 ? `<small>+${tempHp} ${t("Combat.TempHP")}</small>` : ""}
+              </span>
+              <span class="ws-health-track" aria-hidden="true">
+                <span class="ws-health-fill" style="width: ${normalWidth}%; background: ${hpColor}"></span>
+                <span class="ws-health-temp-fill" style="width: ${tempWidth}%"></span>
+              </span>
+              ${Number(hp.tempmax ?? 0) !== 0 ? `<small>${t("Combat.TempMax")} ${formatMod(hp.tempmax)}</small>` : ""}
+            </button>
 
             <div class="ws-combat-stat">
               <span>${t("Combat.AC")}</span>

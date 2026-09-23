@@ -9,6 +9,7 @@ export const SETTINGS = Object.freeze({
   fontSize: "fontSize",
   showDeathSaves: "showDeathSaves",
   showItemDetails: "showItemDetails",
+  groupActionTypes: "groupActionTypes",
   showModeNavigation: "showModeNavigation",
   showSearch: "showSearch",
   showActivityPicker: "showActivityPicker",
@@ -72,6 +73,7 @@ export const SETTING_DEFINITIONS = Object.freeze({
     refresh: "none"
   }),
   [SETTINGS.showItemDetails]: defineSetting("itemUse"),
+  [SETTINGS.groupActionTypes]: defineSetting("itemUse"),
   [SETTINGS.showDeathSaves]: defineSetting("death", {
     capability: "deathSaves"
   }),

@@ -8,6 +8,7 @@ export async function activateHudWindow({
   changeResource,
   isCloseAfterRoll,
   onSearchInput,
+  readHp,
   readVisibility,
   refreshHud,
   refreshScheduler,
@@ -74,6 +75,14 @@ export async function activateHudWindow({
   const unsubscribeDocuments = subscribeHudDocuments({
     actor,
     hooks: Hooks,
+    readHp,
+    onHpChange: kind => {
+      app.element.classList.remove("ws-heal-flash", "ws-damage-flash");
+      void app.element.offsetWidth;
+      app.element.classList.add(
+        kind === "heal" ? "ws-heal-flash" : "ws-damage-flash"
+      );
+    },
     scheduleRefresh: refreshScheduler.schedule
   });
 
