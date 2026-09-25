@@ -12,6 +12,7 @@ export function createHudState(initial = {}) {
     abilitiesExpanded: true,
     combatAbilitiesExpanded: false,
     combatCategory: null,
+    conditionsExpanded: false,
     actionMenuOpen: false,
     currentView: "main",
     favoritesExpanded: true,

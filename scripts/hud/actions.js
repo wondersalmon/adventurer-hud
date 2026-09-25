@@ -205,6 +205,12 @@ export function createHudActions({
       refreshHud();
     },
 
+    toggleconditions: function () {
+      hudState.conditionsExpanded = !hudState.conditionsExpanded;
+      savePanelState?.();
+      refreshHud();
+    },
+
     edithp: function (event) {
       if (!canRollActor) {
         return ui.notifications.warn(t("Warnings.NoPermission"));

@@ -3,6 +3,7 @@ import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 import { dnd5eAdapter } from "../scripts/systems/dnd5e.js";
+import { createCombatStatusRenderer } from "../scripts/hud/combat-statuses.js";
 import {
   defineSystemAdapter,
   getSystemAdapter,
@@ -18,7 +19,67 @@ test("adapter definitions provide safe defaults for disabled capabilities", () =
   assert.deepEqual(adapter.abilityDefinitions(), []);
   assert.deepEqual(adapter.combatItems(), []);
   assert.equal(adapter.inventoryCategory({}), null);
+  assert.deepEqual(adapter.statusDefinitions(), []);
+  assert.equal(adapter.statusKind({ id: "bloodied" }), null);
+  assert.equal(defineSystemAdapter(adapter), adapter);
   assert.throws(() => adapter.rollAbility(), /does not support ability rolls/);
+
+  const typed = defineSystemAdapter({ id: "typed-test", actorTypes: ["hero"] });
+  assert.equal(typed.isActorSupported({ type: "hero" }), true);
+  assert.equal(typed.isActorSupported({ type: "npc" }), false);
+});
+
+test("another system can provide statuses without D&D configuration", () => {
+  const statuses = [{ id: "marked", name: "Marked" }];
+  const adapter = defineSystemAdapter({
+    id: "example-system",
+    actorTypes: ["hero"],
+    capabilities: { conditions: true },
+    statusDefinitions: () => statuses,
+    statusKind: () => null
+  });
+
+  assert.deepEqual(adapter.statusDefinitions(), statuses);
+  assert.equal(defineSystemAdapter(adapter), adapter);
+  assert.equal(registerSystemAdapter(adapter), adapter);
+  assert.equal(adapter.capabilities.conditions, true);
+  assert.equal(adapter.capabilities.spells, false);
+  const previousGame = globalThis.game;
+  globalThis.game = { i18n: { localize: value => value } };
+  try {
+    const { combatStatuses } = createCombatStatusRenderer({
+      actor: { statuses: new Set(["marked"]), effects: [] },
+      adapter,
+      escapeHTML: String,
+      hudState: {},
+      t: key => key,
+      visibility: { conditions: true }
+    });
+    assert.match(combatStatuses(), /title="Marked"/);
+  } finally {
+    globalThis.game = previousGame;
+  }
+  assert.throws(
+    () =>
+      defineSystemAdapter({
+        id: "incomplete-system",
+        capabilities: { conditions: true },
+        statusDefinitions: () => statuses
+      }),
+    /does not define: statusKind/
+  );
+  assert.throws(
+    () => defineSystemAdapter({ id: "bad-types", actorTypes: "hero" }),
+    /actorTypes must be an array/
+  );
+  assert.throws(
+    () =>
+      defineSystemAdapter({
+        id: "bad-capability",
+        capabilities: { combat: 1 }
+      }),
+    /capabilities must be booleans/
+  );
 });
 
 test("system adapters can be registered, discovered, and protected from duplicates", () => {
@@ -65,6 +126,7 @@ test("the shared HUD has no direct D&D data-model access", async () => {
   ).join("\n");
 
   assert.doesNotMatch(source, /CONFIG\.DND5E/);
+  assert.doesNotMatch(source, /CONFIG\.statusEffects/);
   assert.doesNotMatch(source, /actor\.system/);
   assert.doesNotMatch(source, /actor\.roll(?:Ability|Saving|Skill|Tool|Death)/);
   assert.doesNotMatch(source, /item\.use\(/);

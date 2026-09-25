@@ -53,6 +53,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .ws-rolls-dialog .ws-status-new {
+    animation: none;
+  }
+
   .ws-rolls-dialog .ws-button {
     transition: none;
   }

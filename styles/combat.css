@@ -346,30 +346,93 @@
   overflow: visible;
 }
 
-.ws-rolls-dialog .ws-combat-statuses,
 .ws-rolls-dialog .ws-combat-actions {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.ws-rolls-dialog .ws-active-conditions,
-.ws-rolls-dialog .ws-combat-filters {
+.ws-rolls-dialog .ws-combat-statuses {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 5px;
+  min-width: 0;
+}
+
+.ws-rolls-dialog .ws-active-conditions,
+.ws-rolls-dialog .ws-status-extra {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.ws-rolls-dialog .ws-active-conditions {
+  flex-wrap: wrap;
+}
+
+.ws-rolls-dialog .ws-status-extra {
+  flex-wrap: wrap;
 }
 
 .ws-rolls-dialog .ws-status {
+  --ws-status-glow: rgb(225 225 225 / 0.65);
+
+  box-sizing: border-box;
   width: 30px;
-  min-width: 30px;
+  flex: 0 0 30px;
   height: 30px;
   padding: 3px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
   color: var(--text);
   font-size: calc(9px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-status-concentrating {
+  --ws-status-glow: rgb(255 204 91 / 0.78);
+
+  border-color: #e6b755;
+  box-shadow: inset 0 0 0 1px rgb(255 212 116 / 0.36);
+}
+
+.ws-rolls-dialog .ws-status-bloodied {
+  --ws-status-glow: rgb(240 97 87 / 0.78);
+
+  border-color: #e46b60;
+  box-shadow: inset 0 0 0 1px rgb(236 105 94 / 0.4);
+}
+
+.ws-rolls-dialog .ws-status-new {
+  animation: ws-status-arrival 1400ms ease-out;
+}
+
+@keyframes ws-status-arrival {
+  35% {
+    filter: brightness(1.65) drop-shadow(0 0 7px var(--ws-status-glow));
+    transform: scale(1.08);
+  }
+}
+
+.ws-rolls-dialog.ws-effects-disabled .ws-status-new {
+  animation: none;
+}
+
+.ws-rolls-dialog .ws-status-more.ws-button {
+  --ws-status-glow: rgb(255 204 91 / 0.78);
+
+  box-sizing: border-box;
+  height: 30px;
+  min-width: 34px;
+  padding: 0 5px;
+  flex: 0 0 auto;
+  color: var(--accent) !important;
+  font-size: calc(10px * var(--ws-type-scale));
+  font-weight: 800;
 }
 
 .ws-rolls-dialog .ws-status img,
@@ -385,6 +448,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(105px, 180px));
   justify-content: start;
+  gap: 5px;
 }
 
 .ws-rolls-dialog .ws-combat-filter {

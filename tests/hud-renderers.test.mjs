@@ -39,7 +39,7 @@ test("statuses display safely without an action to remove them", () => {
         ],
         statuses: new Set(["custom"])
       },
-      adapter: {},
+      adapter: { statusDefinitions: () => [] },
       escapeHTML,
       hudState: {},
       t: key => key,
@@ -54,6 +54,127 @@ test("statuses display safely without an action to remove them", () => {
   } finally {
     globalThis.CONFIG = originalConfig;
     globalThis.game = originalGame;
+  }
+});
+
+test("conditions collapse after six icons", () => {
+  const previousConfig = globalThis.CONFIG;
+  const previousGame = globalThis.game;
+  globalThis.CONFIG = {
+    statusEffects: [
+      ...Array.from({ length: 7 }, (_, index) => ({
+        id: `condition-${index}`,
+        name: `Condition ${index}`
+      })),
+      { id: "concentrating", name: "Concentrating" },
+      { id: "bloodied", name: "Bloodied" }
+    ]
+  };
+  globalThis.game = { i18n: { localize: value => value } };
+
+  try {
+    const hudState = { conditionsExpanded: false };
+    const statuses = new Set(
+      globalThis.CONFIG.statusEffects.map(({ id }) => id)
+    );
+    const renderer = createCombatRenderer({
+      actor: {
+        effects: [],
+        statuses
+      },
+      adapter: {
+        statusDefinitions: () => globalThis.CONFIG.statusEffects,
+        statusKind: status =>
+          status.id === "concentrating" || status.id === "bloodied"
+            ? status.id
+            : null
+      },
+      escapeHTML,
+      hudState,
+      t: key => key,
+      visibility: { conditions: true }
+    });
+
+    const collapsed = renderer.combatStatuses();
+    assert.equal((collapsed.match(/class="ws-status(?: |")/g) ?? []).length, 6);
+    assert.match(collapsed, /data-action="toggleconditions"/);
+    assert.match(collapsed, />\+3<\/button>/);
+    assert.match(collapsed, /ws-status-concentrating/);
+    assert.match(collapsed, /ws-status-bloodied/);
+    assert.ok(
+      collapsed.indexOf("Concentrating") < collapsed.indexOf("Condition 0")
+    );
+    assert.ok(collapsed.indexOf("Bloodied") < collapsed.indexOf("Condition 0"));
+    assert.doesNotMatch(collapsed, /Condition 4/);
+    assert.doesNotMatch(collapsed, /Condition 6/);
+    assert.doesNotMatch(collapsed, /ws-status-new/);
+
+    hudState.conditionsExpanded = true;
+    const expanded = renderer.combatStatuses();
+    assert.equal((expanded.match(/class="ws-status(?: |")/g) ?? []).length, 9);
+    assert.match(expanded, /class="ws-status-extra"/);
+
+    statuses.delete("concentrating");
+    statuses.delete("condition-0");
+    statuses.delete("condition-1");
+    const reduced = renderer.combatStatuses();
+    assert.equal((reduced.match(/class="ws-status(?: |")/g) ?? []).length, 6);
+    assert.match(reduced, /Condition 6/);
+    assert.doesNotMatch(reduced, /data-action="toggleconditions"/);
+    assert.doesNotMatch(reduced, /ws-status-extra/);
+
+    statuses.delete("bloodied");
+    statuses.delete("condition-2");
+    const reducedAgain = renderer.combatStatuses();
+    assert.equal(
+      (reducedAgain.match(/class="ws-status(?: |")/g) ?? []).length,
+      4
+    );
+    assert.doesNotMatch(reducedAgain, /ws-status-bloodied/);
+  } finally {
+    globalThis.CONFIG = previousConfig;
+    globalThis.game = previousGame;
+  }
+});
+
+test("new conditions flash only after the first render", () => {
+  const previousConfig = globalThis.CONFIG;
+  const previousGame = globalThis.game;
+  globalThis.CONFIG = { statusEffects: [] };
+  globalThis.game = { i18n: { localize: value => value } };
+
+  try {
+    const statuses = new Set(["existing"]);
+    const renderer = createCombatRenderer({
+      actor: { effects: [], statuses },
+      adapter: { statusDefinitions: () => [] },
+      escapeHTML,
+      hudState: {},
+      t: key => key,
+      visibility: { conditions: true }
+    });
+
+    assert.doesNotMatch(renderer.combatStatuses(), /ws-status-new/);
+    statuses.add("fresh");
+    assert.match(renderer.combatStatuses(), /ws-status ws-status-new/);
+    assert.doesNotMatch(renderer.combatStatuses(), /ws-status-new/);
+    statuses.delete("fresh");
+    renderer.combatStatuses();
+    statuses.add("fresh");
+    assert.match(renderer.combatStatuses(), /ws-status ws-status-new/);
+
+    for (let index = 0; index < 4; index++) {
+      statuses.add(`extra-${index}`);
+    }
+    renderer.combatStatuses();
+    statuses.add("hidden-new");
+    assert.match(
+      renderer.combatStatuses(),
+      /ws-status-more ws-button ws-status-new/
+    );
+  } finally {
+    globalThis.CONFIG = previousConfig;
+    globalThis.game = previousGame;
   }
 });
 
@@ -313,7 +434,7 @@ test("regular view availability follows live spell and visibility changes", () =
   assert.equal(renderer.availableViews().spells, false);
 });
 
-test("combat places statuses above HP, then abilities and collapsed resources above actions", () => {
+test("combat places statuses between the header and HP, then abilities and resources above actions", () => {
   const previousGame = globalThis.game;
   const previousConfig = globalThis.CONFIG;
   globalThis.game = {
@@ -333,6 +454,7 @@ test("combat places statuses above HP, then abilities and collapsed resources ab
       actorHeader: () => "<div>Header</div>",
       adapter: {
         capabilities: { deathSaves: true },
+        statusDefinitions: () => globalThis.CONFIG.statusEffects,
         actorResources: () => [
           { id: "ki", label: "Ki", value: 2, max: 7, itemId: null }
         ],
@@ -369,8 +491,9 @@ test("combat places statuses above HP, then abilities and collapsed resources ab
 
     const html = renderer.combatHTML();
     assert.doesNotMatch(html, /data-action="endturn"/);
+    assert.ok(html.indexOf("Header") < html.indexOf("ws-combat-statuses"));
     assert.ok(
-      html.indexOf("ws-combat-statuses") < html.indexOf("ws-health-stack")
+      html.indexOf("ws-combat-statuses") < html.indexOf("ws-combat-stats")
     );
     assert.ok(html.indexOf("ws-combat-stats") < html.indexOf("Abilities"));
     assert.match(

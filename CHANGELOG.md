@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1
+
+- Combat conditions show up to six icons with a button to reveal the rest.
+- Shortened setting descriptions and removed tooltips that repeated visible button labels.
+
 ## 1.1.0
 
 - Reorganized the combat HUD

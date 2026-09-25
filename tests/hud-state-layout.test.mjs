@@ -17,6 +17,7 @@ import {
 test("panel layout is restored per actor and ignores transient state", () => {
   const state = createHudState({
     combatAbilitiesExpanded: true,
+    conditionsExpanded: true,
     combatCategory: "spells",
     resourcesExpanded: true,
     currentView: "inventory",
@@ -27,6 +28,7 @@ test("panel layout is restored per actor and ignores transient state", () => {
   assert.deepEqual(panelStateForActor(stored, "Actor.hero"), {
     abilitiesExpanded: true,
     combatAbilitiesExpanded: true,
+    conditionsExpanded: true,
     actionMenuOpen: false,
     favoritesExpanded: true,
     preparedSpellsOnly: true,
@@ -52,6 +54,7 @@ test("manual mode is limited to exploration and combat", () => {
   assert.equal(state.abilitiesExpanded, true);
   assert.equal(state.proficientSkillsOnly, true);
   assert.equal(state.combatAbilitiesExpanded, false);
+  assert.equal(state.conditionsExpanded, false);
   assert.equal(state.combatCategory, null);
   assert.equal(state.resourcesExpanded, false);
   setForcedMode(state, "combat");
@@ -145,15 +148,15 @@ test("regular HUD exposes inventory filters and item charges", async () => {
     new URL("../scripts/hud/regular.js", import.meta.url),
     "utf8"
   );
-  const combatSource = await readFile(
-    new URL("../scripts/hud/combat-items.js", import.meta.url),
+  const cardSource = await readFile(
+    new URL("../scripts/hud/combat-item-card.js", import.meta.url),
     "utf8"
   );
 
   assert.match(regularSource, /id="ws-inventory"/);
   assert.match(regularSource, /data-action="inventoryfilter"/);
   assert.match(regularSource, /inventoryItems\(hudState\.inventoryCategory\)/);
-  assert.match(combatSource, /t\("Inventory\.Charges"\)/);
+  assert.match(cardSource, /t\("Inventory\.Charges"\)/);
 });
 
 test("HUD mode renderers are split from the application controller", async () => {
@@ -163,7 +166,7 @@ test("HUD mode renderers are split from the application controller", async () =>
   );
 
   assert.match(controller, /from "\.\/hud\/components\.js"/);
-  assert.match(controller, /from "\.\/hud\/actor-picker\.js"/);
+  assert.match(controller, /from "\.\/hud\/actor-selection\.js"/);
   assert.match(controller, /from "\.\/hud\/regular\.js"/);
   assert.match(controller, /from "\.\/hud\/combat\.js"/);
   assert.match(controller, /from "\.\/hud\/actions\.js"/);

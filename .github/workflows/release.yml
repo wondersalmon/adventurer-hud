@@ -4,12 +4,19 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing GitHub release tag (for example v1.2.0)"
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 jobs:
   release:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -48,3 +55,101 @@ jobs:
           dist/adventurer-hud.zip
           --notes-file dist/release-notes.md
           --title "Adventurer HUD ${GITHUB_REF_NAME}"
+
+  publish-foundry:
+    needs: release
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs.release.result == 'success') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Verify release assets and publish to Foundry
+        env:
+          FOUNDRY_RELEASE_TOKEN: ${{ secrets.FOUNDRY_RELEASE_TOKEN }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+
+          const tag = process.env.RELEASE_TAG;
+          const token = process.env.FOUNDRY_RELEASE_TOKEN;
+          if (!/^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(tag)) {
+            throw new Error("Release tag must look like v1.2.0.");
+          }
+          if (!token?.startsWith("fvttp_")) {
+            throw new Error("FOUNDRY_RELEASE_TOKEN GitHub Secret is missing or invalid.");
+          }
+
+          const version = tag.slice(1);
+          const manifest = JSON.parse(await readFile("module.json", "utf8"));
+          const packageJson = JSON.parse(await readFile("package.json", "utf8"));
+          if (manifest.version !== version || packageJson.version !== version) {
+            throw new Error("Release tag, module.json and package.json versions differ.");
+          }
+
+          const repository = manifest.url.replace(/\/$/, "");
+          if (repository !== "https://github.com/wondersalmon/adventurer-hud") {
+            throw new Error("Unexpected repository URL in module.json.");
+          }
+          const release = repository + "/releases/download/" + tag;
+          const manifestUrl = release + "/module.json";
+          const downloadUrl = release + "/adventurer-hud.zip";
+          const notesUrl = repository + "/releases/tag/" + tag;
+
+          const fetchAsset = async (url, method = "GET") => {
+            for (let attempt = 0; attempt < 5; attempt++) {
+              const response = await fetch(url, { method });
+              if (response.ok) return response;
+              if (attempt === 4 || ![404, 429, 500, 502, 503, 504].includes(response.status)) {
+                throw new Error("Release asset unavailable: " + url + " (" + response.status + ").");
+              }
+              await new Promise(resolve => setTimeout(resolve, 3000));
+            }
+          };
+
+          const remoteManifest = await (await fetchAsset(manifestUrl)).json();
+          if (remoteManifest.id !== manifest.id || remoteManifest.version !== version ||
+              remoteManifest.download !== downloadUrl) {
+            throw new Error("Published GitHub manifest does not match this release.");
+          }
+          await fetchAsset(downloadUrl, "HEAD");
+
+          const compatibility = {
+            minimum: String(manifest.compatibility.minimum),
+            verified: String(manifest.compatibility.verified)
+          };
+          if (manifest.compatibility.maximum) {
+            compatibility.maximum = String(manifest.compatibility.maximum);
+          }
+          const payload = {
+            id: manifest.id,
+            release: { version, manifest: manifestUrl, notes: notesUrl, compatibility }
+          };
+          const response = await fetch("https://foundryvtt.com/_api/packages/release_version/", {
+            method: "POST",
+            headers: { Authorization: token, "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const result = await response.json();
+          const duplicate = response.status === 400 &&
+            result.errors?.__all__?.some(error => error.code === "unique_together");
+          if (duplicate) {
+            console.log("Foundry already has Adventurer HUD " + version + ".");
+          } else if (!response.ok || result.status !== "success") {
+            throw new Error("Foundry publication failed (" + response.status + "): " +
+              JSON.stringify(result.errors ?? result));
+          } else {
+            console.log("Published Adventurer HUD " + version + " to Foundry.");
+          }
+          NODE

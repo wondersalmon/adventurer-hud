@@ -17,6 +17,26 @@ import {
 } from "../scripts/dnd5e/items.js";
 import { dnd5eAdapter } from "../scripts/systems/dnd5e.js";
 
+test("D&D status configuration accepts collection and object forms", () => {
+  const previousConfig = globalThis.CONFIG;
+  const bloodied = { id: "bloodied", name: "Bloodied" };
+  try {
+    globalThis.CONFIG = { statusEffects: new Map([["bloodied", bloodied]]) };
+    assert.deepEqual(dnd5eAdapter.statusDefinitions(), [bloodied]);
+    globalThis.CONFIG = { statusEffects: { bloodied } };
+    assert.deepEqual(dnd5eAdapter.statusDefinitions(), [bloodied]);
+    assert.equal(dnd5eAdapter.statusKind(bloodied), "bloodied");
+    assert.equal(
+      dnd5eAdapter.statusKind({ id: "concentrating" }),
+      "concentrating"
+    );
+    assert.equal(dnd5eAdapter.spellSlotKind("pact"), "pact");
+    assert.equal(dnd5eAdapter.spellSlotKind("spell2"), "standard");
+  } finally {
+    globalThis.CONFIG = previousConfig;
+  }
+});
+
 const dnd53 = {
   system: {
     activation: { type: "bonus" },

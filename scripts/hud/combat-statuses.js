@@ -1,9 +1,22 @@
-export function createCombatStatusRenderer({ actor, escapeHTML, visibility }) {
+const VISIBLE_STATUS_LIMIT = 6;
+const statusPriority = kind => {
+  if (kind === "concentrating") return 0;
+  if (kind === "bloodied") return 1;
+  return 2;
+};
+
+export function createCombatStatusRenderer({
+  actor,
+  adapter,
+  escapeHTML,
+  hudState,
+  t,
+  visibility
+}) {
+  let previousStatusIds = null;
+
   const configuredStatuses = () => {
-    const statuses = Array.isArray(CONFIG.statusEffects)
-      ? CONFIG.statusEffects
-      : [...(CONFIG.statusEffects?.values?.() ?? [])];
-    return statuses.filter(status => status?.id);
+    return adapter.statusDefinitions?.() ?? [];
   };
 
   const activeStatuses = () => {
@@ -46,7 +59,30 @@ export function createCombatStatusRenderer({ actor, escapeHTML, visibility }) {
       return "";
     }
 
-    const statuses = activeStatuses();
+    const kinds = new Map();
+    const statusKind = status => {
+      if (!kinds.has(status.id)) {
+        const kind = adapter.statusKind?.(status);
+        kinds.set(
+          status.id,
+          kind === "concentrating" || kind === "bloodied" ? kind : null
+        );
+      }
+      return kinds.get(status.id);
+    };
+    const statuses = activeStatuses().sort(
+      (left, right) =>
+        statusPriority(statusKind(left)) - statusPriority(statusKind(right))
+    );
+    const currentStatusIds = new Set(statuses.map(status => status.id));
+    const newStatusIds = new Set(
+      previousStatusIds
+        ? statuses
+            .filter(status => !previousStatusIds.has(status.id))
+            .map(status => status.id)
+        : []
+    );
+    previousStatusIds = currentStatusIds;
     const statusLabel = status =>
       game.i18n.localize(status.name ?? status.label ?? status.id);
     const statusIcon = status =>
@@ -56,21 +92,32 @@ export function createCombatStatusRenderer({ actor, escapeHTML, visibility }) {
       return "";
     }
 
+    const statusMarkup = status => {
+      const label = statusLabel(status);
+      const kind = statusKind(status);
+      const classes = [
+        "ws-status",
+        kind && `ws-status-${kind}`,
+        newStatusIds.has(status.id) && "ws-status-new"
+      ]
+        .filter(Boolean)
+        .join(" ");
+      return `
+        <span class="${classes}" role="img" aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}">
+          <img src="${escapeHTML(statusIcon(status))}" alt="">
+        </span>
+      `;
+    };
+    const remaining = statuses.slice(VISIBLE_STATUS_LIMIT);
+    const expanded = Boolean(hudState.conditionsExpanded);
+
     return `
         <div class="ws-combat-statuses">
           <div class="ws-active-conditions">
-            ${statuses
-              .map(status => {
-                const label = statusLabel(status);
-
-                return `
-                  <span class="ws-status" role="img" aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}">
-                    <img src="${escapeHTML(statusIcon(status))}" alt="">
-                  </span>
-                `;
-              })
-              .join("")}
+            ${statuses.slice(0, VISIBLE_STATUS_LIMIT).map(statusMarkup).join("")}
+            ${remaining.length ? `<button type="button" class="ws-status-more ws-button ${remaining.some(status => newStatusIds.has(status.id)) ? "ws-status-new" : ""}" data-action="toggleconditions" aria-expanded="${expanded}" aria-label="${t(expanded ? "Combat.HideConditions" : "Combat.ShowMoreConditions")}" title="${t(expanded ? "Combat.HideConditions" : "Combat.ShowMoreConditions")}">${expanded ? "−" : `+${remaining.length}`}</button>` : ""}
           </div>
+          ${expanded && remaining.length ? `<div class="ws-status-extra">${remaining.map(statusMarkup).join("")}</div>` : ""}
         </div>
       `;
   };

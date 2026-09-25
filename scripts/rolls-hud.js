@@ -1,6 +1,6 @@
 import { createHudState, resolveHudMode, setRegularView } from "./hud/state.js";
 import { createHudActions } from "./hud/actions.js";
-import { openActorPicker } from "./hud/actor-picker.js";
+import { selectHudActor } from "./hud/actor-selection.js";
 import { createCombatRenderer } from "./hud/combat.js";
 import { createHudComponents } from "./hud/components.js";
 import { syncHealthAppearance as syncHealthAppearanceClass } from "./hud/health-feedback.js";
@@ -10,18 +10,17 @@ import {
   storedWindowGeometry
 } from "./hud/geometry.js";
 import { createRefreshScheduler, refreshHudView } from "./hud/refresh.js";
+import { createHudRollRunner } from "./hud/roll-runner.js";
+import { createHudToolState } from "./hud/tool-state.js";
 import { favoriteEntriesForActor, toggleFavorite } from "./hud/quick-access.js";
 import { panelStateForActor, panelStateSnapshot } from "./hud/panel-state.js";
 import { createModuleTranslator } from "./localization.js";
 import { createRegularRenderer } from "./hud/regular.js";
 import { activateHudWindow } from "./hud/window-session.js";
 import { createHudApplicationClass } from "./hud/window-controls.js";
+import { readHudVisibility } from "./hud/visibility.js";
 import { renderHudMode } from "./render/index.js";
-import {
-  findCombatant,
-  getCurrentCombat,
-  tokenForActor
-} from "./runtime-helpers.js";
+import { findCombatant, getCurrentCombat } from "./runtime-helpers.js";
 import {
   flushWindowGeometry,
   getSetting,
@@ -63,46 +62,17 @@ export async function openRollsHud(actorOverride = null) {
     // Actor
     // =========================================================
 
-    const selected = canvas.tokens.controlled;
-
-    if (selected.length > 1) {
-      return ui.notifications.warn(t("Warnings.OneToken"));
-    }
-
-    const selectedToken = selected[0] ?? null;
-    const actor = actorOverride ?? selectedToken?.actor ?? null;
-    const token = tokenForActor(selectedToken, actor);
-
-    if (!actor) {
-      const availableActors = game.actors.filter(
-        candidate => adapter.isActorSupported(candidate) && candidate.isOwner
-      );
-
-      if (!availableActors.length) {
-        return ui.notifications.warn(t("Warnings.NoActor"));
-      }
-
-      if (availableActors.length === 1) {
-        return openRollsHud(availableActors[0]);
-      }
-
-      return openActorPicker({
-        actors: availableActors,
-        DialogV2,
-        document,
-        escapeHTML: foundry.utils.escapeHTML,
-        lang: language,
-        onSelect: selectedActor => openRollsHud(selectedActor),
-        t,
-        viewportWidth: window.innerWidth
-      });
-    }
-
-    if (!adapter.isActorSupported(actor)) {
-      return ui.notifications.warn(
-        tf("Warnings.UnsupportedActor", { actor: actor.name })
-      );
-    }
+    const selection = await selectHudActor({
+      actorOverride,
+      adapter,
+      DialogV2,
+      language,
+      onSelect: selectedActor => openRollsHud(selectedActor),
+      t,
+      tf
+    });
+    if (!selection) return;
+    const { actor, token } = selection;
 
     if (state.app?.rendered) {
       await flushWindowGeometry();
@@ -116,32 +86,7 @@ export async function openRollsHud(actorOverride = null) {
     const canRollActor = actor.isOwner;
     const fontSize = getSetting(SETTINGS.fontSize) || "medium";
 
-    const readVisibility = () => ({
-      abilityChecks: adapter.capabilities.abilityChecks,
-      initiative: adapter.capabilities.combat,
-      inventory: adapter.capabilities.inventory,
-      itemDetails: getSetting(SETTINGS.showItemDetails),
-      showActionTypes: getSetting(SETTINGS.showActionTypes),
-      modeNavigation: getSetting(SETTINGS.showModeNavigation),
-      search: getSetting(SETTINGS.showSearch),
-      activityPicker:
-        adapter.capabilities.activityChoice &&
-        getSetting(SETTINGS.showActivityPicker),
-      favorites: getSetting(SETTINGS.showFavorites),
-      combatResources: adapter.capabilities.resources,
-      combatStats: adapter.capabilities.combat,
-      combatWeapons: adapter.capabilities.weapons,
-      conditions: adapter.capabilities.conditions,
-      combatSpells: adapter.capabilities.spells,
-      combatActions: adapter.capabilities.actions,
-      combatBonusActions: adapter.capabilities.bonusActions,
-      combatReactions: adapter.capabilities.reactions,
-      combatSpecial: adapter.capabilities.specialActions,
-      savingThrows: adapter.capabilities.savingThrows,
-      shortcuts: true,
-      skills: adapter.capabilities.skills,
-      tools: adapter.capabilities.tools
-    });
+    const readVisibility = () => readHudVisibility(adapter);
     const visibility = readVisibility();
 
     const abilities = adapter.abilityDefinitions();
@@ -260,37 +205,13 @@ export async function openRollsHud(actorOverride = null) {
     // Tools
     // =========================================================
 
-    const tools = adapter.capabilities.tools
-      ? await adapter.getTools(actor, {
-          cache: state.toolNames,
-          localize: value => game.i18n.localize(value),
-          resolveUuid: fromUuid
-        })
-      : [];
-    const toolState = {
-      tools,
-      normalTools: tools.filter(tool => !tool.isMusic),
-      instruments: tools.filter(tool => tool.isMusic)
-    };
-    let toolRefreshVersion = 0;
-    const refreshTools = async () => {
-      if (!adapter.capabilities.tools) return;
-      const version = ++toolRefreshVersion;
-      try {
-        const next = await adapter.getTools(actor, {
-          cache: state.toolNames,
-          localize: value => game.i18n.localize(value),
-          resolveUuid: fromUuid
-        });
-        if (version !== toolRefreshVersion || !app?.rendered) return;
-        toolState.tools = next;
-        toolState.normalTools = next.filter(tool => !tool.isMusic);
-        toolState.instruments = next.filter(tool => tool.isMusic);
-        refreshScheduler.schedule();
-      } catch (error) {
-        console.warn("Adventurer HUD | tool refresh failed", error);
-      }
-    };
+    const { toolState, refreshTools } = await createHudToolState({
+      actor,
+      adapter,
+      cache: state.toolNames,
+      isRendered: () => app?.rendered,
+      scheduleRefresh: () => refreshScheduler.schedule()
+    });
 
     const components = createHudComponents({
       abilities,
@@ -375,71 +296,6 @@ export async function openRollsHud(actorOverride = null) {
         ? tf("Window.CombatTitle", { actor: actor.name })
         : tf("Window.Title", { actor: actor.name });
 
-    let rollPending = false;
-
-    const setRollControlsDisabled = disabled => {
-      app?.element
-        ?.querySelectorAll(
-          [
-            '[data-action="initiative"]',
-            '[data-action="endturn"]',
-            '[data-action="ability"]',
-            '[data-action="skill"]',
-            '[data-action="tool"]',
-            '[data-action="death"]',
-            '[data-action="useitem"]',
-            '[data-action="useactivity"]',
-            '[data-action="edithp"]',
-            '[data-action="togglespellprepared"]',
-            '[data-action="openspellslots"]',
-            '[data-action="shortrest"]',
-            '[data-action="longrest"]'
-          ].join(",")
-        )
-        .forEach(button => {
-          button.disabled = disabled;
-        });
-    };
-
-    const performRoll = async callback => {
-      if (rollPending) {
-        return;
-      }
-
-      rollPending = true;
-      setRollControlsDisabled(true);
-
-      try {
-        const result = await callback();
-
-        return result;
-      } finally {
-        rollPending = false;
-
-        if (app?.rendered) {
-          refreshScheduler.cancel();
-          refreshHud();
-        }
-      }
-    };
-
-    const performAndRefresh = async callback => {
-      if (rollPending) {
-        return;
-      }
-
-      rollPending = true;
-      setRollControlsDisabled(true);
-
-      try {
-        return await callback();
-      } finally {
-        rollPending = false;
-        refreshScheduler.cancel();
-        if (app?.rendered) refreshHud();
-      }
-    };
-
     const setView = view => {
       const previousView = hudState.currentView;
       if (!setRegularView(hudState, view)) {
@@ -487,6 +343,11 @@ export async function openRollsHud(actorOverride = null) {
     };
 
     const refreshScheduler = createRefreshScheduler(refreshHud);
+    const { performRoll, performAndRefresh } = createHudRollRunner({
+      getApp: () => app,
+      refreshHud,
+      refreshScheduler
+    });
 
     const updateSearch = query => {
       hudState.searchQuery = query;

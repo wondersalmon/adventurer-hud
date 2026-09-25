@@ -67,7 +67,10 @@ export function createCombatRenderer(context) {
 
   const { combatStatuses } = createCombatStatusRenderer({
     actor,
+    adapter,
     escapeHTML,
+    hudState,
+    t,
     visibility
   });
 
@@ -137,7 +140,7 @@ export function createCombatRenderer(context) {
               ? `<div class="ws-combat-heading ws-current-turn">
               <div class="ws-turn-controls">
                 <b>${t("Combat.YourTurn")}</b>
-                ${canRollActor ? `<button type="button" class="ws-end-turn ws-button" data-action="endturn" title="${t("Combat.EndTurn")}" aria-label="${t("Combat.EndTurn")}"><i class="fa-solid fa-forward-step" aria-hidden="true"></i>${t("Combat.EndTurn")}</button>` : ""}
+                ${canRollActor ? `<button type="button" class="ws-end-turn ws-button" data-action="endturn" aria-label="${t("Combat.EndTurn")}"><i class="fa-solid fa-forward-step" aria-hidden="true"></i>${t("Combat.EndTurn")}</button>` : ""}
               </div>
             </div>`
               : ""

@@ -283,6 +283,7 @@ test("spell slot counters offer separate edits for regular and pact pools", () =
   const item = { id: "spell", name: "Spell", type: "spell" };
   const adapter = {
     spellLevel: () => 2,
+    spellSlotKind: pool => (pool === "pact" ? "pact" : "standard"),
     spellSlots: () => [
       [1, 3, "spell2"],
       [2, 2, "pact"]

@@ -199,7 +199,7 @@ export function createCombatResourceController({
 
     const [value, max] = slots;
     const label =
-      pool === "pact"
+      adapter.spellSlotKind?.(pool) === "pact"
         ? t("Combat.PactSlots")
         : `${t("Combat.SpellSlots")} · ${tf("Combat.SpellLevel", { level })}`;
     const content = document.createElement("div");

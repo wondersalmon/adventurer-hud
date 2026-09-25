@@ -3,6 +3,7 @@ import { REGULAR_VIEWS } from "./state.js";
 const BOOLEAN_KEYS = [
   "abilitiesExpanded",
   "combatAbilitiesExpanded",
+  "conditionsExpanded",
   "actionMenuOpen",
   "favoritesExpanded",
   "preparedSpellsOnly",
