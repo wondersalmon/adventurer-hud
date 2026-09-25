@@ -1,10 +1,4 @@
-export function createCombatStatusRenderer({
-  actor,
-  canRollActor,
-  escapeHTML,
-  tf,
-  visibility
-}) {
+export function createCombatStatusRenderer({ actor, escapeHTML, visibility }) {
   const configuredStatuses = () => {
     const statuses = Array.isArray(CONFIG.statusEffects)
       ? CONFIG.statusEffects
@@ -19,7 +13,7 @@ export function createCombatStatusRenderer({
 
     for (const id of actor.statuses ?? []) {
       const status = byId.get(id) ?? { id, name: id };
-      statuses.set(id, { ...status, statusId: id });
+      statuses.set(id, status);
     }
 
     for (const effect of actor.effects ?? []) {
@@ -34,8 +28,6 @@ export function createCombatStatusRenderer({
         statuses.set(id, {
           ...configuredStatus,
           id,
-          statusId: id,
-          effectId: effect.id,
           name: configuredStatus.name ?? configuredStatus.label ?? effect.name,
           img:
             configuredStatus.img ??
@@ -72,19 +64,9 @@ export function createCombatStatusRenderer({
                 const label = statusLabel(status);
 
                 return `
-                  <button
-                    type="button"
-                    class="ws-status ws-button"
-                    data-action="removestatus"
-                    data-status-id="${escapeHTML(status.id)}"
-                    ${status.effectId ? `data-effect-id="${escapeHTML(status.effectId)}"` : ""}
-                    title="${escapeHTML(
-                      tf("Combat.RemoveCondition", { condition: label })
-                    )}"
-                    ${canRollActor ? "" : "disabled"}
-                  >
+                  <span class="ws-status" role="img" aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}">
                     <img src="${escapeHTML(statusIcon(status))}" alt="">
-                  </button>
+                  </span>
                 `;
               })
               .join("")}

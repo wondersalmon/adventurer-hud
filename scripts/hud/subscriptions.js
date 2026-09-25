@@ -8,9 +8,19 @@ export function subscribeHudDocuments({
   onHpChange,
   onInitiativeRequest,
   onInitiativeRolled,
-  isCurrentCombatant
+  onTurnStart,
+  onToolsChange,
+  isCurrentCombatant,
+  isPlayersTurn
 }) {
   let previousHp = readHp?.() ?? null;
+  let wasPlayersTurn = Boolean(isPlayersTurn?.());
+  const refreshCombat = () => {
+    scheduleRefresh();
+    const playersTurn = Boolean(isPlayersTurn?.());
+    if (playersTurn && !wasPlayersTurn) onTurnStart?.();
+    wasPlayersTurn = playersTurn;
+  };
   const refreshActorEffect = effect => {
     if (effect?.parent?.uuid === actor.uuid) {
       scheduleRefresh();
@@ -20,19 +30,28 @@ export function subscribeHudDocuments({
   const refreshActorItem = item => {
     if (item?.parent?.uuid === actor.uuid) {
       scheduleRefresh();
+      if (item.type === "tool") void onToolsChange?.();
     }
   };
 
   const subscriptions = [
     [
       "updateActor",
-      updatedActor => {
+      (updatedActor, changes) => {
         if (updatedActor.uuid !== actor.uuid) return;
         const nextHp = readHp?.() ?? null;
         const change = hpChange(previousHp, nextHp);
         if (change) onHpChange?.(change);
         previousHp = nextHp;
         scheduleRefresh();
+        if (
+          changes?.system?.tools ||
+          Object.keys(changes ?? {}).some(
+            key => key === "system.tools" || key.startsWith("system.tools.")
+          )
+        ) {
+          void onToolsChange?.();
+        }
       }
     ],
     ["createActiveEffect", refreshActorEffect],
@@ -41,22 +60,22 @@ export function subscribeHudDocuments({
     ["createItem", refreshActorItem],
     ["updateItem", refreshActorItem],
     ["deleteItem", refreshActorItem],
-    ["createCombat", () => scheduleRefresh()],
-    ["updateCombat", () => scheduleRefresh()],
-    ["deleteCombat", () => scheduleRefresh()],
+    ["createCombat", refreshCombat],
+    ["updateCombat", refreshCombat],
+    ["deleteCombat", refreshCombat],
     [
       "createCombatant",
       combatant => {
         if (combatant?.initiative == null && isCurrentCombatant?.(combatant)) {
           onInitiativeRequest?.();
         }
-        scheduleRefresh();
+        refreshCombat();
       }
     ],
     [
       "updateCombatant",
       (combatant, changes) => {
-        scheduleRefresh();
+        refreshCombat();
         if (
           changes?.initiative != null &&
           combatant?.initiative != null &&
@@ -66,7 +85,7 @@ export function subscribeHudDocuments({
         }
       }
     ],
-    ["deleteCombatant", () => scheduleRefresh()]
+    ["deleteCombatant", refreshCombat]
   ];
 
   const hookIds = subscriptions.map(([hook, callback]) => [

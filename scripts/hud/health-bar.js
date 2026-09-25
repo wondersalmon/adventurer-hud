@@ -17,13 +17,15 @@ export function renderHealthBar({ hp, canEdit, formatMod, t }) {
   const color =
     percent <= 0
       ? "var(--muted)"
-      : percent > 50
+      : percent >= 70
         ? "var(--success)"
-        : `hsl(3 65% ${Math.round(35 + percent * 0.3)}%)`;
+        : percent > 50
+          ? "var(--warning)"
+          : `hsl(3 65% ${Math.round(35 + percent * 0.3)}%)`;
 
   return `
     <button type="button" class="ws-health-button ws-button" data-action="edithp"
-      title="${t("Combat.EditHP")}" ${canEdit ? "" : "disabled"}>
+      title="${t("Combat.EditHP")} · ${t("Combat.HealToMaxHint")}" ${canEdit ? "" : "disabled"}>
       <span class="ws-health-label"><span>${t("Combat.HP")}</span><strong>${value}/${max}</strong>
         ${temp > 0 ? `<small>+${temp} ${t("Combat.TempHP")}</small>` : ""}
         ${condition ? `<span class="ws-health-condition ${condition.className}"><i class="fa-solid fa-droplet" aria-hidden="true"></i>${t(condition.key)}</span>` : ""}

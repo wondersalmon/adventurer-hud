@@ -3,8 +3,8 @@ import { createModuleTranslator } from "./localization.js";
 import { getSystemAdapter } from "./systems/index.js";
 
 export const SETTINGS = Object.freeze({
+  autoOpenHud: "autoOpenHud",
   autoUpdateActor: "autoUpdateActor",
-  closeAfterRoll: "closeAfterRoll",
   pinWindow: "pinWindow",
   showTokenControl: "showTokenControl",
   fontSize: "fontSize",
@@ -17,6 +17,7 @@ export const SETTINGS = Object.freeze({
   showActivityPicker: "showActivityPicker",
   showFavorites: "showFavorites",
   favoriteEntries: "favoriteEntries",
+  panelStates: "panelStates",
   proficientSkillsOnly: "proficientSkillsOnly",
   windowGeometry: "windowGeometry"
 });
@@ -73,11 +74,6 @@ export const SETTING_DEFINITIONS = Object.freeze({
   [SETTINGS.showVisualEffects]: defineSetting("interface", {
     refresh: "runtime"
   }),
-  [SETTINGS.closeAfterRoll]: defineSetting("behavior", {
-    defaultValue: false,
-    placement: "basic",
-    refresh: "runtime"
-  }),
   [SETTINGS.pinWindow]: defineSetting("interface", {
     defaultValue: false,
     refresh: "runtime"
@@ -85,6 +81,11 @@ export const SETTING_DEFINITIONS = Object.freeze({
   [SETTINGS.showTokenControl]: defineSetting("interface", {
     defaultValue: false,
     refresh: "controls"
+  }),
+  [SETTINGS.autoOpenHud]: defineSetting("behavior", {
+    defaultValue: false,
+    placement: "basic",
+    refresh: "none"
   }),
   [SETTINGS.autoUpdateActor]: defineSetting("behavior", {
     defaultValue: false,
@@ -127,10 +128,6 @@ const groupDefinitions = placement =>
     )
   );
 
-export const SETTING_GROUPS = groupDefinitions();
-export const BASIC_SETTINGS = Object.freeze(
-  definitionsBy(definition => definition.placement === "basic")
-);
 const ADVANCED_SETTING_GROUPS = groupDefinitions("advanced");
 export const SETTING_DEFAULTS = Object.freeze(
   Object.fromEntries(
@@ -143,9 +140,30 @@ export const SETTING_DEFAULTS = Object.freeze(
 
 let SettingsApplication = null;
 let ResetSettingsApplication = null;
+let pendingSettingKeys = null;
 
-const notifyChange = key => value =>
+const notifyChange = key => value => {
+  if (pendingSettingKeys?.has(key)) return;
   Hooks.callAll("adventurerHudSettingChanged", key, value);
+};
+
+async function saveChangedSettings(entries) {
+  const changes = new Map();
+  pendingSettingKeys = new Set();
+  try {
+    for (const [key, value] of entries) {
+      if (Object.is(getSetting(key), value)) continue;
+      pendingSettingKeys.add(key);
+      await setSetting(key, value);
+      changes.set(key, value);
+    }
+  } finally {
+    pendingSettingKeys = null;
+    if (changes.size) {
+      Hooks.callAll("adventurerHudSettingsChanged", changes);
+    }
+  }
+}
 
 export function isSettingSupported(key, systemId = game.system?.id) {
   const capability = SETTING_DEFINITIONS[key]?.capability;
@@ -183,6 +201,15 @@ export function registerSettings() {
 
   game.settings.register(MODULE_ID, SETTINGS.favoriteEntries, {
     name: "Adventurer HUD favorites",
+    hint: "",
+    scope: "user",
+    config: false,
+    type: Object,
+    default: {}
+  });
+
+  game.settings.register(MODULE_ID, SETTINGS.panelStates, {
+    name: "Adventurer HUD panel states",
     hint: "",
     scope: "user",
     config: false,
@@ -258,11 +285,12 @@ function registerSettingsMenus() {
     }
 
     static async #onSubmit(_event, _form, formData) {
-      for (const keys of Object.values(ADVANCED_SETTING_GROUPS)) {
-        for (const key of keys.filter(key => isSettingSupported(key))) {
-          await setSetting(key, Boolean(formData.object[key]));
-        }
-      }
+      await saveChangedSettings(
+        Object.values(ADVANCED_SETTING_GROUPS)
+          .flat()
+          .filter(key => isSettingSupported(key))
+          .map(key => [key, Boolean(formData.object[key])])
+      );
     }
   };
 
@@ -429,10 +457,10 @@ export async function localizeSettingsRows(root) {
 }
 
 export async function resetSettings() {
-  for (const [key, value] of Object.entries(SETTING_DEFAULTS)) {
-    await setSetting(key, value);
-  }
-  await setSetting(SETTINGS.proficientSkillsOnly, true);
+  await saveChangedSettings([
+    ...Object.entries(SETTING_DEFAULTS),
+    [SETTINGS.proficientSkillsOnly, true]
+  ]);
 }
 
 export const getSetting = key => game.settings.get(MODULE_ID, key);

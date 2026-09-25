@@ -277,11 +277,13 @@ export function createHudComponents(context) {
       <div class="ws-actor-header">
         <img
           class="ws-actor-portrait"
+          data-open-actor-sheet
           src="${escapeHTML(actor.img ?? "icons/svg/mystery-man.svg")}"
           alt="${escapeHTML(actor.name)}"
+          title="${t("Actor.OpenSheet")}"
         >
 
-        <div class="ws-actor-identity">
+        <div class="ws-actor-identity" data-open-actor-sheet title="${t("Actor.OpenSheet")}">
           <strong>${escapeHTML(actor.name)}</strong>
           ${
             summary

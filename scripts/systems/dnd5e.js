@@ -12,7 +12,8 @@ import {
   itemActivation,
   itemActivities,
   itemRangeData,
-  itemUsesData
+  itemUsesData,
+  spellPreparation
 } from "../dnd5e/items.js";
 
 const toolIcon = (id, isMusic) => {
@@ -64,6 +65,22 @@ const resolveDamageFormula = (formula, actor, item, activity) => {
   } catch {
     return source.replaceAll(/\s+/g, " ").trim();
   }
+};
+
+const combatItemCategories = item => {
+  const categories = new Set();
+  if (item.type === "weapon") categories.add("weapons");
+  if (item.type === "spell") categories.add("spells");
+
+  const activities = itemActivities(item);
+  const activation =
+    item.system?.activation?.type ??
+    activities.find(activity => activity?.activation?.type)?.activation?.type;
+  if (activation) categories.add(activation);
+  for (const activity of activities) {
+    if (activity?.activation?.type) categories.add(activity.activation.type);
+  }
+  return categories;
 };
 
 export const dnd5eAdapter = {
@@ -201,7 +218,8 @@ export const dnd5eAdapter = {
         tempmax: Number(hp.tempmax ?? 0)
       },
       speed: movement.walk ?? movement.fly ?? "—",
-      speedUnits: movement.units ?? ""
+      speedUnits: movement.units ?? "",
+      proficiencyBonus: actor.system.attributes.prof ?? "—"
     };
   },
   updateHp(actor, { value, temp }) {
@@ -267,18 +285,44 @@ export const dnd5eAdapter = {
     return "other";
   },
   combatItems(actor, category) {
-    return actor.items.filter(item => {
-      if (category === "weapons") return item.type === "weapon";
-      if (category === "spells") return item.type === "spell";
-      return (
-        itemActivation(item) === category ||
-        itemActivities(item).some(
-          activity => activity?.activation?.type === category
-        )
-      );
-    });
+    if (category === "weapons") {
+      return actor.items.filter(item => item.type === "weapon");
+    }
+    if (category === "spells") {
+      return actor.items.filter(item => item.type === "spell");
+    }
+    return actor.items.filter(item => combatItemCategories(item).has(category));
+  },
+  combatItemsByCategory(actor, categoryNames) {
+    const categories = new Map(categoryNames.map(category => [category, []]));
+    const includesActions = categoryNames.some(
+      category => category !== "weapons" && category !== "spells"
+    );
+    for (const item of actor.items) {
+      if (!includesActions) {
+        if (item.type === "weapon") categories.get("weapons")?.push(item);
+        if (item.type === "spell") categories.get("spells")?.push(item);
+        continue;
+      }
+      for (const category of combatItemCategories(item)) {
+        categories.get(category)?.push(item);
+      }
+    }
+    return categories;
   },
   spellLevel: item => Number(item.system?.level ?? 0),
+  spellPreparation,
+  toggleSpellPreparation(item) {
+    const prepared = spellPreparation(item);
+    if (!prepared.canPrepare) return;
+    const modern =
+      item.system?.method !== undefined || item.system?.prepared !== undefined;
+    return item.update(
+      modern
+        ? { "system.prepared": prepared.prepared ? 0 : 1 }
+        : { "system.preparation.prepared": !prepared.prepared }
+    );
+  },
   itemResourceCost(actor, item, { fallbackLabel, activityId = null }) {
     const activityTarget = itemActivities(item)
       .filter(activity => !activityId || activity.id === activityId)
@@ -301,30 +345,64 @@ export const dnd5eAdapter = {
       fallbackLabel;
     return `${amount} ${label}`;
   },
-  itemAttackBonus(item) {
-    const activity = itemActivities(item).find(
-      candidate => candidate?.type === "attack" || candidate?.attack
-    );
+  itemAttackBonus(item, activityId = null) {
+    const activities = itemActivities(item);
+    const activity = activityId
+      ? activities.find(candidate => candidate.id === activityId)
+      : activities.find(
+          candidate => candidate?.type === "attack" || candidate?.attack
+        );
+    if (activityId && !(activity?.type === "attack" || activity?.attack)) {
+      return "";
+    }
     const value =
       activity?.labels?.toHit ??
       activity?.labels?.modifier ??
-      item.labels?.toHit ??
-      item.labels?.attack;
+      (activityId ? null : (item.labels?.toHit ?? item.labels?.attack));
     if ([undefined, null, ""].includes(value)) return "";
 
     const label = String(value).trim();
     return /^\d/.test(label) ? `+${label}` : label;
   },
-  itemDamageFormula(actor, item) {
+  itemSaveDc(item, activityId = null) {
     const activities = itemActivities(item);
-    const activityParts = activities.flatMap(activity =>
-      (activity?.damage?.parts ?? []).map(part => ({ activity, part }))
+    const activity = activityId
+      ? activities.find(candidate => candidate.id === activityId)
+      : activities.find(candidate => candidate?.save);
+    if (activityId && !activity?.save) return "";
+    const dc =
+      activity?.save?.dc?.value ??
+      (activityId
+        ? null
+        : (item.system?.save?.dc?.value ?? item.system?.save?.dc));
+    const value = Number(dc);
+    return Number.isFinite(value) && value > 0 ? String(value) : "";
+  },
+  itemDamageFormula(actor, item, activityId = null) {
+    const activities = itemActivities(item);
+    const selected = activityId
+      ? activities.find(activity => activity.id === activityId)
+      : null;
+    if (activityId && !selected) return "";
+
+    const activityParts = (activityId ? [selected] : activities).flatMap(
+      activity =>
+        (activity?.damage?.parts ?? []).map(part => ({ activity, part }))
     );
-    const legacyParts = item.system?.damage?.parts ?? [];
+    const legacyParts = activityId ? [] : (item.system?.damage?.parts ?? []);
     const base = item.system?.damage?.base;
+    const includeBase = activityId
+      ? selected.damage?.includeBase &&
+        !activityParts.some(({ part }) => part.base)
+      : true;
+    const baseRecords =
+      includeBase && base?.formula
+        ? [{ activity: selected ?? activities[0], part: base }]
+        : [];
     const records = [
+      ...(activityId ? baseRecords : []),
       ...activityParts,
-      ...(base?.formula ? [{ activity: activities[0], part: base }] : []),
+      ...(activityId ? [] : baseRecords),
       ...legacyParts.map(part => ({ activity: activities[0], part }))
     ];
     const sourceFormulas = records.map(({ part }) => damagePartFormula(part));
@@ -341,9 +419,16 @@ export const dnd5eAdapter = {
       )
     ];
 
-    if (item.type === "weapon" && unique.length && !includesAbilityModifier) {
-      const activity = activities.find(candidate => candidate?.attack);
+    if (
+      item.type === "weapon" &&
+      unique.length &&
+      !includesAbilityModifier &&
+      (!selected || selected.type === "attack" || selected.attack)
+    ) {
+      const activity =
+        selected ?? activities.find(candidate => candidate?.attack);
       const abilityId =
+        activity?.attack?.ability ??
         activity?.ability ??
         item.system?.ability ??
         (item.system?.actionType?.startsWith("r") ? "dex" : "str");
@@ -354,13 +439,6 @@ export const dnd5eAdapter = {
     }
 
     return unique.join(" + ");
-  },
-  activationLabel(type, { localizeConfig }) {
-    return localizeConfig(
-      CONFIG.DND5E.activityActivationTypes?.[type] ??
-        CONFIG.DND5E.abilityActivationTypes?.[type] ??
-        type
-    );
   },
   rangeUnitLabel(units, { localizeConfig }) {
     return (
@@ -376,12 +454,25 @@ export const dnd5eAdapter = {
     const pact = actor.system.spells?.pact ?? {};
     const pools = [];
     if (Number(standard.max ?? 0) > 0) {
-      pools.push([Number(standard.value ?? 0), Number(standard.max)]);
+      pools.push([
+        Number(standard.value ?? 0),
+        Number(standard.max),
+        `spell${level}`
+      ]);
     }
     if (Number(pact.level) === level && Number(pact.max ?? 0) > 0) {
-      pools.push([Number(pact.value ?? 0), Number(pact.max)]);
+      pools.push([Number(pact.value ?? 0), Number(pact.max), "pact"]);
     }
     return pools;
+  },
+  updateSpellSlots(actor, { pool, value }) {
+    if (!/^(?:spell[1-9]|pact)$/.test(pool)) return;
+    const slots = actor.system.spells?.[pool];
+    const max = Number(slots?.max ?? 0);
+    if (!Number.isFinite(max) || max <= 0) return;
+    const next = Math.min(max, Math.max(0, Math.trunc(Number(value))));
+    if (!Number.isFinite(next) || next === Number(slots.value ?? 0)) return;
+    return actor.update({ [`system.spells.${pool}.value`]: next });
   },
 
   rollAbility: (actor, { type, key, event }) =>

@@ -9,12 +9,51 @@ import {
   setRegularView
 } from "../scripts/hud/state.js";
 import { renderHudMode, renderRegularView } from "../scripts/render/index.js";
+import {
+  panelStateForActor,
+  panelStateSnapshot
+} from "../scripts/hud/panel-state.js";
+
+test("panel layout is restored per actor and ignores transient state", () => {
+  const state = createHudState({
+    combatAbilitiesExpanded: true,
+    combatCategory: "spells",
+    resourcesExpanded: true,
+    currentView: "inventory",
+    searchQuery: "sword",
+    openActivityItemId: "item-1"
+  });
+  const stored = { "Actor.hero": panelStateSnapshot(state) };
+  assert.deepEqual(panelStateForActor(stored, "Actor.hero"), {
+    abilitiesExpanded: true,
+    combatAbilitiesExpanded: true,
+    actionMenuOpen: false,
+    favoritesExpanded: true,
+    preparedSpellsOnly: true,
+    resourcesExpanded: true,
+    combatCategory: "spells",
+    currentView: "inventory",
+    inventoryCategory: "equipped"
+  });
+  assert.deepEqual(panelStateForActor(stored, "Actor.other"), {});
+  assert.equal(stored["Actor.hero"].searchQuery, undefined);
+  assert.equal(stored["Actor.hero"].openActivityItemId, undefined);
+  assert.deepEqual(
+    panelStateForActor(
+      { "Actor.hero": { combatCategory: "invalid" } },
+      "Actor.hero"
+    ),
+    {}
+  );
+});
 
 test("manual mode is limited to exploration and combat", () => {
   const state = createHudState({ currentView: "skills" });
   assert.equal(state.abilitiesExpanded, true);
   assert.equal(state.proficientSkillsOnly, true);
   assert.equal(state.combatAbilitiesExpanded, false);
+  assert.equal(state.combatCategory, null);
+  assert.equal(state.resourcesExpanded, false);
   setForcedMode(state, "combat");
   assert.equal(state.forcedMode, "combat");
   assert.equal(state.currentView, "main");

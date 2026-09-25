@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.0
+
+- Reorganized the combat HUD
+- Added an End Turn button and a brief gold glow when your turn begins.
+- Added a personal option to open the HUD automatically on login or page refresh.
+- Double-click the character portrait or name to open their sheet.
+- Shift-click the HP bar to restore HP to maximum, and prepare eligible spells directly from their cards, including spells in D&D 5e 5.3+. Spell cards show A, BA, or R for their action type.
+- Remaining spell slots can be corrected directly from the spell list; regular and pact slots have distinct labels and colors.
+- Restored the initiative roll button when the GM clears a character's initiative for a reroll.
+- Corrected weapon range and the attack bonus and damage shown for favorite activities; removed activation type from item cards.
+- Fixed reopening the HUD after changing its language.
+- Tool proficiencies now update when the character or their tools change.
+
 ## 1.0.0
 
 - Removed the separate death-save mode. At 0 HP, exploration and combat show a red death-save control under the HP bar, an Unconscious label, and a grayscale HUD; after three failures the control shows a death message.

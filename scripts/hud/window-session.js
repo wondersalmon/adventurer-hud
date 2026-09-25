@@ -6,16 +6,16 @@ export async function activateHudWindow({
   app,
   canRollActor,
   changeResource,
-  isCloseAfterRoll,
   visualEffectsEnabled = true,
   isCurrentCombatant,
+  isPlayersTurn,
   onSearchInput,
+  onToolsChange,
   readHp,
   readVisibility,
   syncPreferences,
   refreshHud,
   refreshScheduler,
-  setCloseAfterRoll,
   setPinned,
   state,
   storePosition,
@@ -23,16 +23,25 @@ export async function activateHudWindow({
 }) {
   let effectsEnabled = Boolean(visualEffectsEnabled);
   let hpFeedbackTimer = null;
+  let flashTimer = null;
   let initiativeFeedbackTimer = null;
+  let turnGlowTimer = null;
 
   const clearEffects = () => {
     clearTimeout(hpFeedbackTimer);
+    clearTimeout(flashTimer);
     clearTimeout(initiativeFeedbackTimer);
-    app.element.classList.remove(
+    clearTimeout(turnGlowTimer);
+    hpFeedbackTimer = null;
+    flashTimer = null;
+    initiativeFeedbackTimer = null;
+    turnGlowTimer = null;
+    app.element?.classList.remove(
       "ws-heal-flash",
       "ws-damage-flash",
       "ws-initiative-flash",
       "ws-initiative-rolled",
+      "ws-turn-arrival",
       "ws-hp-feedback"
     );
   };
@@ -47,17 +56,6 @@ export async function activateHudWindow({
   };
 
   app.applySetting = (key, value) => {
-    if (key === SETTINGS.closeAfterRoll) {
-      setCloseAfterRoll(Boolean(value));
-      const control = app.options?.window?.controls?.find(
-        entry => entry.action === "togglecloseafterroll"
-      );
-      if (control) {
-        control.icon = isCloseAfterRoll()
-          ? "fa-solid fa-toggle-on"
-          : "fa-solid fa-toggle-off";
-      }
-    }
     if (key === SETTINGS.pinWindow) {
       setPinned(Boolean(value));
       app.updatePinControl();
@@ -104,10 +102,16 @@ export async function activateHudWindow({
     }
   });
 
+  app.element.addEventListener("dblclick", event => {
+    if (!event.target?.closest?.("[data-open-actor-sheet]")) return;
+    void actor.sheet?.render({ force: true });
+  });
+
   app.addEventListener("position", () => storePosition(app.position));
 
   const flash = className => {
-    if (!effectsEnabled) return;
+    if (!effectsEnabled || turnGlowTimer) return;
+    clearTimeout(flashTimer);
     app.element.classList.remove(
       "ws-heal-flash",
       "ws-damage-flash",
@@ -115,6 +119,10 @@ export async function activateHudWindow({
     );
     void app.element.offsetWidth;
     app.element.classList.add(className);
+    flashTimer = setTimeout(() => {
+      app.element?.classList.remove(className);
+      flashTimer = null;
+    }, 1450);
   };
 
   const showHpFeedback = change => {
@@ -140,11 +148,35 @@ export async function activateHudWindow({
     }, 1200);
   };
 
+  const showTurnGlow = () => {
+    if (!effectsEnabled || !app.element) return;
+    clearTimeout(flashTimer);
+    flashTimer = null;
+    app.element.classList.remove(
+      "ws-heal-flash",
+      "ws-damage-flash",
+      "ws-initiative-flash",
+      "ws-hp-feedback"
+    );
+    clearTimeout(hpFeedbackTimer);
+    hpFeedbackTimer = null;
+    app.element.classList.remove("ws-turn-arrival");
+    void app.element.offsetWidth;
+    app.element.classList.add("ws-turn-arrival");
+    clearTimeout(turnGlowTimer);
+    turnGlowTimer = setTimeout(() => {
+      app.element?.classList.remove("ws-turn-arrival");
+      turnGlowTimer = null;
+    }, 1500);
+  };
+
   const unsubscribeDocuments = subscribeHudDocuments({
     actor,
     hooks: Hooks,
     readHp,
     isCurrentCombatant,
+    isPlayersTurn,
+    onTurnStart: showTurnGlow,
     onInitiativeRequest: () => flash("ws-initiative-flash"),
     onInitiativeRolled: () => {
       if (!effectsEnabled) return;
@@ -160,10 +192,11 @@ export async function activateHudWindow({
       });
     },
     onHpChange: change => {
-      if (!effectsEnabled) return;
+      if (!effectsEnabled || turnGlowTimer) return;
       flash(change.kind === "heal" ? "ws-heal-flash" : "ws-damage-flash");
       showHpFeedback(change);
     },
+    onToolsChange,
     scheduleRefresh: refreshScheduler.schedule
   });
 

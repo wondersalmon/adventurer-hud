@@ -3,6 +3,7 @@ import { createCombatResourceController } from "./combat-resources.js";
 import { createCombatStatusRenderer } from "./combat-statuses.js";
 import { renderHealthBar } from "./health-bar.js";
 import { renderDeathSaveControl } from "./death-save-control.js";
+import { getCurrentCombat } from "../runtime-helpers.js";
 
 export function createCombatRenderer(context) {
   const {
@@ -26,17 +27,22 @@ export function createCombatRenderer(context) {
     visibility
   } = context;
 
-  const { changeResource, combatResources, openHpDialog, openResourceDialog } =
-    createCombatResourceController({
-      actor,
-      adapter,
-      DialogV2,
-      escapeHTML,
-      hudState,
-      t,
-      tf,
-      visibility
-    });
+  const {
+    changeResource,
+    combatResources,
+    openHpDialog,
+    openResourceDialog,
+    openSpellSlotsDialog
+  } = createCombatResourceController({
+    actor,
+    adapter,
+    DialogV2,
+    escapeHTML,
+    hudState,
+    t,
+    tf,
+    visibility
+  });
 
   const {
     combatActions,
@@ -51,6 +57,7 @@ export function createCombatRenderer(context) {
   } = createCombatItemRenderer({
     actor,
     adapter,
+    canRollActor,
     escapeHTML,
     hudState,
     t,
@@ -60,9 +67,7 @@ export function createCombatRenderer(context) {
 
   const { combatStatuses } = createCombatStatusRenderer({
     actor,
-    canRollActor,
     escapeHTML,
-    tf,
     visibility
   });
 
@@ -106,8 +111,17 @@ export function createCombatRenderer(context) {
 
   function combatHTML() {
     const combatant = getCombatant();
-    const { ac, hp, speed, speedUnits: units } = adapter.combatStats(actor);
-    const isTurn = game.combat?.combatant?.id === combatant?.id;
+    const {
+      ac,
+      hp,
+      speed,
+      speedUnits: units,
+      proficiencyBonus
+    } = adapter.combatStats(actor);
+    const combat = getCurrentCombat(game);
+    const isTurn = Boolean(
+      combat?.started && combatant && combat.combatant?.id === combatant.id
+    );
 
     return `
         <div
@@ -119,14 +133,17 @@ export function createCombatRenderer(context) {
           ${modeNavigation("combat")}
 
           ${
-            isTurn || !visibility.modeNavigation
-              ? `
-            <div class="ws-combat-heading ${isTurn ? "ws-current-turn" : ""}">
-              ${visibility.modeNavigation ? "" : `<span><i class="fa-solid fa-shield-halved"></i>${t("Labels.Combat")}</span>`}
-              ${isTurn ? `<b>${t("Combat.YourTurn")}</b>` : ""}
+            isTurn
+              ? `<div class="ws-combat-heading ws-current-turn">
+              <div class="ws-turn-controls">
+                <b>${t("Combat.YourTurn")}</b>
+                ${canRollActor ? `<button type="button" class="ws-end-turn ws-button" data-action="endturn" title="${t("Combat.EndTurn")}" aria-label="${t("Combat.EndTurn")}"><i class="fa-solid fa-forward-step" aria-hidden="true"></i>${t("Combat.EndTurn")}</button>` : ""}
+              </div>
             </div>`
               : ""
           }
+
+          ${combatStatuses()}
 
           <div class="ws-combat-stats ${visibility.combatStats ? "" : "ws-hidden"}">
             ${healthPanel(hp)}
@@ -141,19 +158,26 @@ export function createCombatRenderer(context) {
               <strong>${speed}${units ? ` ${escapeHTML(units)}` : ""}</strong>
             </div>
 
+            ${
+              proficiencyBonus == null
+                ? ""
+                : `<div class="ws-combat-stat" title="${t("Combat.ProficiencyBonus")}">
+              <span>${t("Combat.ProficiencyBonusShort")}</span>
+              <strong>${escapeHTML(proficiencyBonus === "—" ? "—" : formatMod(proficiencyBonus))}</strong>
+            </div>`
+            }
+
           </div>
 
-          ${combatStatuses()}
+          ${abilitiesSection("combat")}
+
+          ${combatResources()}
 
           ${favoriteSection()}
 
           ${combatActions()}
 
-          ${abilitiesSection("combat")}
-
           ${shortcutHint()}
-
-          ${combatResources()}
         </div>
       `;
   }
@@ -175,6 +199,7 @@ export function createCombatRenderer(context) {
     searchControl,
     openHpDialog,
     openResourceDialog,
+    openSpellSlotsDialog,
     spellGroups
   };
 }

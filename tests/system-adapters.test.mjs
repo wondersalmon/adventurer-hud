@@ -42,7 +42,8 @@ test("system adapters can be registered, discovered, and protected from duplicat
       ac: 16,
       hp: { value: 12, max: 20, temp: 3, tempmax: 0 },
       speed: 30,
-      speedUnits: "ft"
+      speedUnits: "ft",
+      proficiencyBonus: "—"
     }
   );
   assert.throws(

@@ -1,6 +1,7 @@
 import { setForcedMode, setRegularView } from "./state.js";
 import { openSettings, setSetting, SETTINGS } from "../settings.js";
 import { usableActivities } from "./quick-access.js";
+import { getCurrentCombat } from "../runtime-helpers.js";
 
 export function createHudActions({
   actor,
@@ -12,15 +13,15 @@ export function createHudActions({
   currentMode,
   getCombatant,
   hudState,
-  isCloseAfterRoll,
   openHpDialog,
   openResourceDialog,
+  openSpellSlotsDialog,
   performAndRefresh,
   refreshHud,
+  savePanelState,
   resetWindow,
-  rollAndClose,
+  performRoll,
   setView,
-  storeCloseAfterRoll,
   t,
   toggleFavoriteEntry,
   updateSearch,
@@ -33,7 +34,7 @@ export function createHudActions({
         return ui.notifications.warn(t("Warnings.NoPermission"));
       }
 
-      if (!game.combat) {
+      if (!getCurrentCombat(game)) {
         return ui.notifications.warn(t("Initiative.NoCombat"));
       }
 
@@ -47,9 +48,23 @@ export function createHudActions({
         return ui.notifications.warn(t("Initiative.NotCombatant"));
       }
 
-      return rollAndClose(() =>
+      return performRoll(() =>
         adapter.rollInitiative(actor, { combatant, event })
       );
+    },
+
+    endturn: async function () {
+      const combat = getCurrentCombat(game);
+      const combatant = getCombatant();
+      if (
+        !canRollActor ||
+        !combat?.started ||
+        !combatant ||
+        combat.combatant?.id !== combatant.id
+      ) {
+        return;
+      }
+      return performAndRefresh(() => combat.nextTurn());
     },
 
     ability: async function (event, target) {
@@ -59,7 +74,7 @@ export function createHudActions({
 
       const { type, key } = target.dataset;
 
-      return rollAndClose(() =>
+      return performRoll(() =>
         adapter.rollAbility(actor, { type, key, event })
       );
     },
@@ -69,7 +84,7 @@ export function createHudActions({
         return ui.notifications.warn(t("Warnings.NoPermission"));
       }
 
-      return rollAndClose(() =>
+      return performRoll(() =>
         adapter.rollSkill(actor, { key: target.dataset.key, event })
       );
     },
@@ -79,7 +94,7 @@ export function createHudActions({
         return ui.notifications.warn(t("Warnings.NoPermission"));
       }
 
-      return rollAndClose(() =>
+      return performRoll(() =>
         adapter.rollTool(actor, { key: target.dataset.key, event })
       );
     },
@@ -93,17 +108,19 @@ export function createHudActions({
         return ui.notifications.warn(t("Death.NotRequired"));
       }
 
-      return rollAndClose(() => adapter.rollDeathSave(actor, { event }));
+      return performRoll(() => adapter.rollDeathSave(actor, { event }));
     },
 
     normal: function () {
       setForcedMode(hudState, "regular");
+      savePanelState?.();
       refreshHud();
     },
 
     regularview: function (_event, target) {
       setForcedMode(hudState, "regular");
       setRegularView(hudState, target.dataset.view);
+      savePanelState?.();
       refreshHud();
     },
 
@@ -113,28 +130,49 @@ export function createHudActions({
       }
 
       setForcedMode(hudState, "combat");
+      savePanelState?.();
       refreshHud();
     },
 
     combatfilter: function (_event, target) {
-      hudState.combatCategory = target.dataset.category;
+      hudState.combatCategory =
+        hudState.combatCategory === target.dataset.category
+          ? null
+          : target.dataset.category;
       hudState.actionMenuOpen = false;
+      savePanelState?.();
       refreshHud("actions");
     },
 
     toggleactionmenu: function () {
       hudState.actionMenuOpen = !hudState.actionMenuOpen;
+      savePanelState?.();
       refreshHud("actions");
     },
 
     inventoryfilter: function (_event, target) {
       hudState.inventoryCategory = target.dataset.category;
+      savePanelState?.();
       refreshHud();
     },
 
     spellfilter: function (_event, target) {
       hudState.preparedSpellsOnly = target.dataset.prepared === "true";
+      savePanelState?.();
       refreshHud(currentMode() === "combat" ? "actions" : null);
+    },
+
+    openspellslots: function (_event, target) {
+      if (!canRollActor) {
+        return ui.notifications.warn(t("Warnings.NoPermission"));
+      }
+      const level = Number(target.dataset.level);
+      const pool = target.dataset.pool;
+      if (!Number.isInteger(level) || level < 1 || !pool) return;
+      if (!adapter.spellSlots(actor, level).some(([, , key]) => key === pool)) {
+        return;
+      }
+      return openSpellSlotsDialog({ level, pool });
     },
 
     skillfilter: async function (_event, target) {
@@ -151,22 +189,34 @@ export function createHudActions({
           ? "combatAbilitiesExpanded"
           : "abilitiesExpanded";
       hudState[key] = !hudState[key];
+      savePanelState?.();
       refreshHud();
     },
 
     togglefavorites: function () {
       hudState.favoritesExpanded = !hudState.favoritesExpanded;
+      savePanelState?.();
       refreshHud();
     },
 
     toggleresources: function () {
       hudState.resourcesExpanded = !hudState.resourcesExpanded;
+      savePanelState?.();
       refreshHud();
     },
 
-    edithp: function () {
+    edithp: function (event) {
       if (!canRollActor) {
         return ui.notifications.warn(t("Warnings.NoPermission"));
+      }
+
+      if (event.shiftKey) {
+        const hp = adapter.combatStats(actor).hp;
+        const max = Number(hp.max ?? 0);
+        if (max <= 0 || Number(hp.value ?? 0) >= max) return;
+        return performAndRefresh(() =>
+          adapter.updateHp(actor, { value: max, temp: Number(hp.temp ?? 0) })
+        );
       }
 
       return openHpDialog();
@@ -218,7 +268,7 @@ export function createHudActions({
         return;
       }
 
-      return rollAndClose(() => adapter.useItem(item, { event }));
+      return performRoll(() => adapter.useItem(item, { event }));
     },
 
     useactivity: async function (event, target) {
@@ -227,7 +277,7 @@ export function createHudActions({
       }
       const item = actor.items.get(target.dataset.itemId);
       if (!item) return ui.notifications.warn(t("Combat.ItemMissing"));
-      return rollAndClose(() =>
+      return performRoll(() =>
         adapter.useActivity(item, target.dataset.activityId, { event })
       );
     },
@@ -238,6 +288,20 @@ export function createHudActions({
         target.dataset.itemId,
         target.dataset.activityId ?? null
       );
+    },
+
+    togglespellprepared: function (_event, target) {
+      if (!canRollActor) {
+        return ui.notifications.warn(t("Warnings.NoPermission"));
+      }
+      const item = actor.items.get(target.dataset.itemId);
+      if (
+        item?.type !== "spell" ||
+        !adapter.spellPreparation(item)?.canPrepare
+      ) {
+        return;
+      }
+      return performAndRefresh(() => adapter.toggleSpellPreparation(item));
     },
 
     clearsearch: function () {
@@ -280,36 +344,8 @@ export function createHudActions({
       return openResourceDialog({ item, resourceId });
     },
 
-    removestatus: async function (_event, target) {
-      if (!canRollActor) {
-        return ui.notifications.warn(t("Warnings.NoPermission"));
-      }
-
-      const statusId = target.dataset.statusId;
-      const effectId = target.dataset.effectId;
-
-      return performAndRefresh(async () => {
-        if (effectId) {
-          await actor.effects.get(effectId)?.delete();
-        } else if (actor.statuses?.has(statusId)) {
-          await actor.toggleStatusEffect(statusId, { active: false });
-        }
-      });
-    },
-
     settings: async function () {
       return openSettings();
-    },
-
-    togglecloseafterroll: async function () {
-      await storeCloseAfterRoll(!isCloseAfterRoll());
-      ui.notifications.info(
-        t(
-          isCloseAfterRoll()
-            ? "Window.CloseAfterRollEnabled"
-            : "Window.CloseAfterRollDisabled"
-        )
-      );
     },
 
     togglepin: function () {
@@ -322,6 +358,7 @@ export function createHudActions({
 
     view: function (_event, target) {
       setView(target.dataset.view);
+      savePanelState?.();
     }
   };
 

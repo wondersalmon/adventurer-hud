@@ -90,7 +90,17 @@
   gap: 10px;
 }
 
+.ws-spell-slots-dialog .ws-spell-slots-dialog-content {
+  display: grid;
+  gap: 10px;
+}
+
 .ws-hp-dialog .ws-hp-dialog-content label {
+  display: grid;
+  gap: 5px;
+}
+
+.ws-spell-slots-dialog .ws-spell-slots-dialog-content label {
   display: grid;
   gap: 5px;
 }

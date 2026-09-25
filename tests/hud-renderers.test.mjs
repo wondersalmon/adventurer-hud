@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createCombatRenderer } from "../scripts/hud/combat.js";
+import { createCombatItemRenderer } from "../scripts/hud/combat-items.js";
 import { createCombatResourceController } from "../scripts/hud/combat-resources.js";
 import { createHudComponents } from "../scripts/hud/components.js";
 import { renderDeathSaveControl } from "../scripts/hud/death-save-control.js";
@@ -17,7 +18,7 @@ const escapeHTML = value =>
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
 
-test("active-effect names are escaped before entering status attributes", () => {
+test("statuses display safely without an action to remove them", () => {
   const originalConfig = globalThis.CONFIG;
   const originalGame = globalThis.game;
   globalThis.CONFIG = { statusEffects: [] };
@@ -39,20 +40,17 @@ test("active-effect names are escaped before entering status attributes", () => 
         statuses: new Set(["custom"])
       },
       adapter: {},
-      canRollActor: true,
       escapeHTML,
       hudState: {},
       t: key => key,
-      tf: (_key, data) => `Remove ${data.condition}`,
       visibility: { conditions: true }
     });
 
     const html = renderer.combatStatuses();
-    assert.match(
-      html,
-      /title="Remove Marked &quot;dangerous&quot; &lt;effect&gt;"/
-    );
-    assert.doesNotMatch(html, /title="Remove Marked "dangerous"/);
+    assert.match(html, /title="Marked &quot;dangerous&quot; &lt;effect&gt;"/);
+    assert.match(html, /role="img"/);
+    assert.doesNotMatch(html, /data-action="removestatus"/);
+    assert.doesNotMatch(html, /<button/);
   } finally {
     globalThis.CONFIG = originalConfig;
     globalThis.game = originalGame;
@@ -95,6 +93,39 @@ test("checks and saves share one collapsible block in both modes", () => {
   assert.equal((regular.match(/ws-ability-card-title/g) ?? []).length, 1);
   assert.match(combat, /aria-expanded="false"/);
   assert.doesNotMatch(combat, /data-action="ability"/);
+});
+
+test("combat item categories start closed and show only the selected list", () => {
+  const item = { id: "sword", name: "Sword" };
+  const hudState = {
+    combatCategory: null,
+    actionMenuOpen: false,
+    favoriteEntries: [],
+    searchQuery: ""
+  };
+  const renderer = createCombatItemRenderer({
+    actor: {},
+    adapter: {
+      combatItems: (_actor, category) => (category === "weapons" ? [item] : []),
+      itemActivities: () => [],
+      itemRole: () => "other",
+      itemActivation: () => "",
+      itemResourceCost: () => "",
+      itemUsesData: () => null
+    },
+    escapeHTML,
+    hudState,
+    t: key => key,
+    visibility: { combatWeapons: true }
+  });
+
+  const collapsed = renderer.combatActions();
+  assert.match(collapsed, /data-category="weapons"[^>]+aria-expanded="false"/);
+  assert.doesNotMatch(collapsed, /class="ws-combat-item-list"/);
+  hudState.combatCategory = "weapons";
+  const expanded = renderer.combatActions();
+  assert.match(expanded, /data-category="weapons"[^>]+aria-expanded="true"/);
+  assert.match(expanded, /data-item-id="sword"/);
 });
 
 test("skill filter keeps proficiency and expertise, but excludes half proficiency", () => {
@@ -179,6 +210,41 @@ test("HP dialog uses its default button for Enter and edits both HP fields", asy
   }
 });
 
+test("spell slot dialog edits the current pool after checking its latest maximum", async () => {
+  const originalDocument = globalThis.document;
+  let slots = [1, 3, "spell2"];
+  let dialogOptions;
+  const updates = [];
+  globalThis.document = { createElement: () => ({ innerHTML: "" }) };
+  try {
+    const controller = createCombatResourceController({
+      actor: {},
+      adapter: {
+        spellSlots: () => [slots],
+        updateSpellSlots: (_actor, values) => updates.push(values)
+      },
+      DialogV2: class {
+        constructor(options) {
+          dialogOptions = options;
+        }
+        render() {}
+      },
+      t: key => key,
+      tf: key => key,
+      visibility: {}
+    });
+    controller.openSpellSlotsDialog({ level: 2, pool: "spell2" });
+    assert.equal(dialogOptions.buttons[0].default, true);
+    slots = [1, 2, "spell2"];
+    await dialogOptions.buttons[0].callback(null, {
+      form: { elements: { namedItem: () => ({ value: "3" }) } }
+    });
+    assert.deepEqual(updates, [{ pool: "spell2", value: 2 }]);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
 test("HP input distinguishes absolute values from signed changes", () => {
   assert.equal(resolveHpInput("12", 10, 20), 12);
   assert.equal(resolveHpInput("+5", 10, 20), 15);
@@ -247,14 +313,23 @@ test("regular view availability follows live spell and visibility changes", () =
   assert.equal(renderer.availableViews().spells, false);
 });
 
-test("combat HP includes a temporary segment and class resources come last", () => {
+test("combat places statuses above HP, then abilities and collapsed resources above actions", () => {
   const previousGame = globalThis.game;
-  globalThis.game = { combat: null };
+  const previousConfig = globalThis.CONFIG;
+  globalThis.game = {
+    combat: null,
+    i18n: { localize: value => value }
+  };
+  globalThis.CONFIG = { statusEffects: [{ id: "prone", name: "Prone" }] };
   try {
     let hp = { value: 5, max: 10, temp: 3, tempmax: 0 };
     let combatant = null;
     const renderer = createCombatRenderer({
-      actor: { items: new Map() },
+      actor: {
+        items: new Map(),
+        statuses: new Set(["prone"]),
+        effects: []
+      },
       actorHeader: () => "<div>Header</div>",
       adapter: {
         capabilities: { deathSaves: true },
@@ -266,7 +341,8 @@ test("combat HP includes a temporary segment and class resources come last", () 
           ac: 11,
           hp,
           speed: 45,
-          speedUnits: "ft"
+          speedUnits: "ft",
+          proficiencyBonus: 3
         }),
         featureResources: () => []
       },
@@ -282,21 +358,51 @@ test("combat HP includes a temporary segment and class resources come last", () 
       modeNavigation: () => "",
       shortcutHint: () => "<div>Shortcuts</div>",
       t: key => key,
-      visibility: { combatStats: true, combatResources: true }
+      tf: key => key,
+      visibility: {
+        combatStats: true,
+        combatResources: true,
+        conditions: true,
+        initiative: true
+      }
     });
 
     const html = renderer.combatHTML();
+    assert.doesNotMatch(html, /data-action="endturn"/);
+    assert.ok(
+      html.indexOf("ws-combat-statuses") < html.indexOf("ws-health-stack")
+    );
+    assert.ok(html.indexOf("ws-combat-stats") < html.indexOf("Abilities"));
+    assert.match(
+      html,
+      /Combat.ProficiencyBonusShort<\/span>\s*<strong>3<\/strong>/
+    );
     assert.match(html, /ws-health-fill[^>]+width: 50%;/);
     assert.match(html, /ws-health-temp-fill[^>]+width: 30%/);
     assert.match(html, /Combat.Bloodied/);
     assert.ok(html.indexOf("Abilities") < html.indexOf("ws-combat-resources"));
-    assert.ok(html.indexOf("Shortcuts") < html.indexOf("ws-combat-resources"));
+    assert.ok(html.indexOf("ws-combat-resources") < html.indexOf("Shortcuts"));
+    assert.match(html, /data-action="toggleresources" aria-expanded="false"/);
+    assert.doesNotMatch(html, /class="ws-resource-grid"/);
     hp = { ...hp, value: 1 };
     combatant = { id: "turn", initiative: 12 };
-    globalThis.game.combat = { combatant };
+    globalThis.game.combat = { started: true, combatant };
     const criticalHtml = renderer.combatHTML();
     assert.match(criticalHtml, /Combat.CriticalHP/);
     assert.match(criticalHtml, /ws-combat-heading ws-current-turn/);
+    assert.doesNotMatch(criticalHtml, /Labels.Combat/);
+    assert.match(criticalHtml, /data-action="endturn"/);
+    assert.ok(
+      criticalHtml.indexOf("Combat.YourTurn") <
+        criticalHtml.indexOf('data-action="endturn"')
+    );
+    globalThis.game.combat.combatant = { id: "other" };
+    assert.doesNotMatch(renderer.combatHTML(), /data-action="endturn"/);
+    globalThis.game.combat.combatant = combatant;
+    combatant.initiative = null;
+    const resetInitiative = renderer.combatInitiative();
+    assert.match(resetInitiative, /ws-header-initiative ws-button ws-unrolled/);
+    assert.doesNotMatch(resetInitiative, /disabled/);
     hp = { ...hp, value: 0 };
     const unconsciousHtml = renderer.combatHTML();
     assert.match(unconsciousHtml, /Combat.Unconscious/);
@@ -306,6 +412,7 @@ test("combat HP includes a temporary segment and class resources come last", () 
         unconsciousHtml.indexOf('data-action="death"')
     );
   } finally {
+    globalThis.CONFIG = previousConfig;
     globalThis.game = previousGame;
   }
 });
@@ -323,57 +430,91 @@ test("shared HP bar renders normal and temporary health", () => {
   assert.match(html, /data-action="edithp"/);
 });
 
-test("exploration places the shared HP bar below the actor header", () => {
-  const originalDocument = globalThis.document;
-  let markup = "";
-  globalThis.document = {
-    createElement: () => ({
-      set innerHTML(value) {
-        markup = value;
-      },
-      content: { querySelector: () => ({ outerHTML: "view" }) }
-    })
-  };
-  try {
-    const renderer = createRegularRenderer({
-      abilitiesSection: () => "",
-      actorHeader: () => "ACTOR_HEADER",
-      back: () => "",
-      combatInitiative: () => "",
-      combatItemButton: () => "",
-      combatItems: () => [],
-      favoriteSection: () => "",
-      healthPanel: () => "HEALTH_BAR",
-      hudState: {
-        currentView: "main",
-        inventoryCategory: "equipped",
-        preparedSpellsOnly: true,
-        searchQuery: ""
-      },
-      inspirationControl: () => "",
-      instruments: [],
-      inventoryCategories: () => [],
-      inventoryItems: () => [],
-      legend: () => "",
-      modeNavigation: () => "",
-      normalTools: [],
-      restControls: () => "",
-      searchControl: () => "",
-      searchItems: items => items,
-      shortcutHint: () => "",
-      skillsHTML: () => "",
-      spellGroups: () => "",
-      t: key => key,
-      toolSection: () => "",
-      tools: [],
-      visibility: { combatStats: true }
+test("HP bar turns yellow below 70 percent and red at half health", () => {
+  const render = value =>
+    renderHealthBar({
+      hp: { value, max: 100 },
+      canEdit: true,
+      formatMod: String,
+      t: key => key
     });
-    renderer.normalHTML();
-    assert.ok(markup.indexOf("ACTOR_HEADER") < markup.indexOf("HEALTH_BAR"));
-    assert.match(markup, /ws-regular-health/);
-  } finally {
-    globalThis.document = originalDocument;
-  }
+
+  assert.match(render(70), /background: var\(--success\)/);
+  assert.match(render(69), /background: var\(--warning\)/);
+  assert.match(render(51), /background: var\(--warning\)/);
+  assert.match(render(50), /background: hsl\(3 65%/);
+});
+
+test("exploration places the shared HP bar below the actor header", () => {
+  let initiative = "";
+  const renderer = createRegularRenderer({
+    abilitiesSection: () => "",
+    actorHeader: () => "ACTOR_HEADER",
+    back: () => "",
+    combatInitiative: () => initiative,
+    combatItemButton: () => "",
+    combatItems: () => [],
+    favoriteSection: () => "",
+    healthPanel: () => "HEALTH_BAR",
+    hudState: {
+      currentView: "main",
+      inventoryCategory: "equipped",
+      preparedSpellsOnly: true,
+      searchQuery: ""
+    },
+    inspirationControl: () => "",
+    inventoryCategories: () => [],
+    inventoryItems: () => [],
+    legend: () => "",
+    modeNavigation: () => "",
+    restControls: controls => controls,
+    searchControl: () => "",
+    searchItems: items => items,
+    shortcutHint: () => "",
+    skillsHTML: () => "",
+    spellGroups: () => "",
+    t: key => key,
+    toolSection: () => "",
+    toolState: { tools: [], normalTools: [], instruments: [] },
+    visibility: { combatStats: true }
+  });
+  const markup = renderer.normalHTML();
+  assert.ok(markup.indexOf("ACTOR_HEADER") < markup.indexOf("HEALTH_BAR"));
+  assert.match(markup, /ws-regular-health/);
+  assert.doesNotMatch(markup, /INITIATIVE_CONTROL/);
+  initiative = "INITIATIVE_CONTROL";
+  assert.match(renderer.normalHTML(), /INITIATIVE_CONTROL/);
+});
+
+test("regular renderer builds only the selected view and reads current tools", () => {
+  let inventoryReads = 0;
+  const hudState = { currentView: "skills", proficientSkillsOnly: true };
+  const toolState = { tools: [], normalTools: [], instruments: [] };
+  const renderer = createRegularRenderer({
+    actorHeader: () => assert.fail("main view rendered"),
+    back: () => "BACK",
+    hudState,
+    inventoryItems: () => {
+      inventoryReads++;
+      return [];
+    },
+    legend: () => "",
+    shortcutHint: () => "",
+    skillsHTML: () => "SKILLS",
+    t: key => key,
+    toolSection: (_label, _icon, items) =>
+      items.map(item => item.name).join(""),
+    toolState,
+    visibility: {}
+  });
+
+  assert.match(renderer.normalHTML(), /SKILLS/);
+  assert.equal(inventoryReads, 0);
+  hudState.currentView = "tools";
+  toolState.tools = [{ name: "Flute" }];
+  toolState.instruments = toolState.tools;
+  assert.match(renderer.normalHTML(), /Flute/);
+  assert.equal(inventoryReads, 0);
 });
 
 test("actor class summary keeps its full value in a tooltip", () => {
@@ -398,6 +539,7 @@ test("actor class summary keeps its full value in a tooltip", () => {
   });
 
   const html = components.actorHeader();
+  assert.equal((html.match(/data-open-actor-sheet/g) ?? []).length, 2);
   assert.match(html, /title="Monk 7 \/ Barbarian 1"/);
   assert.match(html, />Monk 7 \/ Barbarian 1<\/span>/);
 });

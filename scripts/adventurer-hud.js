@@ -1,7 +1,10 @@
 import { openRollsHud } from "./rolls-hud.js";
 import { MODULE_ID } from "./module-id.js";
 import { actorContextChanged } from "./runtime-helpers.js";
-import { applyHudSettingChange } from "./hud/settings-refresh.js";
+import {
+  applyHudSettingChange,
+  applyHudSettingChanges
+} from "./hud/settings-refresh.js";
 import {
   getSetting,
   localizeSettingsRows,
@@ -103,6 +106,9 @@ Hooks.once("ready", () => {
   const module = game.modules.get(MODULE_ID);
 
   Hooks.callAll("adventurerHudReady", module?.api);
+  if (getSetting(SETTINGS.autoOpenHud) && !getOpenApp()?.rendered) {
+    void openRollsHud(game.user.character ?? null);
+  }
 });
 
 Hooks.on("getSceneControlButtons", controls => {
@@ -135,25 +141,34 @@ Hooks.on("renderSettingsConfig", (app, html) => {
   });
 });
 
+const refreshControls = () => void ui.controls?.render({ force: true });
+
+const reopenHud = () => {
+  clearTimeout(settingsRefreshTimer);
+  settingsRefreshTimer = setTimeout(() => {
+    settingsRefreshTimer = null;
+    const state = globalThis.__adventurerHud;
+    if (state?.app?.rendered) void openRollsHud(state.actor ?? null);
+  }, 50);
+};
+
 Hooks.on("adventurerHudSettingChanged", (key, value) => {
-  const strategy = settingRefreshStrategy(key);
-  const app = getOpenApp();
   applyHudSettingChange({
-    app,
+    app: getOpenApp(),
     key,
     value,
-    strategy,
-    refreshControls: () => void ui.controls?.render({ force: true }),
-    reopen: () => {
-      clearTimeout(settingsRefreshTimer);
-      settingsRefreshTimer = setTimeout(() => {
-        settingsRefreshTimer = null;
-        const state = globalThis.__adventurerHud;
+    strategy: settingRefreshStrategy(key),
+    refreshControls,
+    reopen: reopenHud
+  });
+});
 
-        if (state?.app?.rendered) {
-          void openRollsHud(state.actor ?? null);
-        }
-      }, 50);
-    }
+Hooks.on("adventurerHudSettingsChanged", changes => {
+  applyHudSettingChanges({
+    app: getOpenApp(),
+    changes,
+    refreshControls,
+    reopen: reopenHud,
+    strategyFor: settingRefreshStrategy
   });
 });

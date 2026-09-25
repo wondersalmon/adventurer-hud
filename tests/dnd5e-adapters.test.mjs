@@ -45,6 +45,20 @@ const dnd6 = {
   }
 };
 
+test("combat stats include proficiency bonus", () => {
+  const actor = {
+    system: {
+      attributes: {
+        ac: { value: 16 },
+        hp: { value: 20, max: 20 },
+        movement: { walk: 30, units: "ft" },
+        prof: 3
+      }
+    }
+  };
+  assert.equal(dnd5eAdapter.combatStats(actor).proficiencyBonus, 3);
+});
+
 test("D&D 5e HP update saves current and temporary HP together", async () => {
   const updates = [];
   await dnd5eAdapter.updateHp(
@@ -57,6 +71,50 @@ test("D&D 5e HP update saves current and temporary HP together", async () => {
       "system.attributes.hp.temp": 4
     }
   ]);
+});
+
+test("only leveled prepared-mode spells can toggle preparation", async () => {
+  const updates = [];
+  const spell = {
+    type: "spell",
+    system: { level: 2, preparation: { mode: "prepared", prepared: false } },
+    update: values => updates.push(values)
+  };
+  assert.deepEqual(dnd5eAdapter.spellPreparation(spell), {
+    canPrepare: true,
+    prepared: false
+  });
+  await dnd5eAdapter.toggleSpellPreparation(spell);
+  assert.deepEqual(updates, [{ "system.preparation.prepared": true }]);
+  spell.system.level = 0;
+  assert.equal(dnd5eAdapter.spellPreparation(spell).canPrepare, false);
+  spell.system.level = 2;
+  spell.system.preparation.mode = "always";
+  assert.equal(dnd5eAdapter.spellPreparation(spell).canPrepare, false);
+});
+
+test("modern D&D spells use numeric preparation states", async () => {
+  const updates = [];
+  const spell = {
+    type: "spell",
+    system: { level: 1, method: "spell", prepared: 0, canPrepare: true },
+    update: values => updates.push(values)
+  };
+  assert.deepEqual(dnd5eAdapter.spellPreparation(spell), {
+    canPrepare: true,
+    prepared: false
+  });
+  assert.equal(isPreparedSpell(spell), false);
+  await dnd5eAdapter.toggleSpellPreparation(spell);
+  assert.deepEqual(updates, [{ "system.prepared": 1 }]);
+  spell.system.prepared = 1;
+  assert.equal(isPreparedSpell(spell), true);
+  await dnd5eAdapter.toggleSpellPreparation(spell);
+  assert.deepEqual(updates[1], { "system.prepared": 0 });
+  spell.system.prepared = 2;
+  assert.equal(dnd5eAdapter.spellPreparation(spell).canPrepare, false);
+  await dnd5eAdapter.toggleSpellPreparation(spell);
+  assert.equal(updates.length, 2);
 });
 
 test("death data recognizes terminal counters and stable status", () => {
@@ -95,6 +153,97 @@ test("D&D 5e 6.x activity shape remains supported", () => {
   });
   assert.equal(hasItemProperty(dnd6, "concentration"), true);
   assert.equal(isPreparedSpell(dnd6), false);
+});
+
+test("weapon range uses normal and long item distances unless an activity overrides them", () => {
+  const weapon = {
+    type: "weapon",
+    system: {
+      range: { value: 80, long: 320, units: "ft" },
+      activities: [
+        { id: "custom", range: { override: true, value: 60, units: "ft" } },
+        { id: "attack", range: { value: 320, long: 320, units: "ft" } }
+      ]
+    }
+  };
+
+  const normalRange = {
+    value: 80,
+    long: 320,
+    units: "ft",
+    special: ""
+  };
+  assert.deepEqual(itemRangeData(weapon), normalRange);
+  assert.deepEqual(itemRangeData(weapon, "attack"), normalRange);
+  assert.deepEqual(itemRangeData(weapon, "custom"), {
+    value: 60,
+    long: "",
+    units: "ft",
+    special: ""
+  });
+});
+
+test("general item range does not inherit an unrelated activity override", () => {
+  const item = {
+    type: "spell",
+    system: {
+      range: { value: 30, units: "ft" },
+      activities: [{ id: "far", range: { value: 120, units: "ft" } }]
+    }
+  };
+  assert.equal(itemRangeData(item).value, 30);
+  assert.equal(itemRangeData(item, "far").value, 120);
+  item.system.range = {};
+  assert.equal(itemRangeData(item).value, 120);
+});
+
+test("combat categories are indexed in one item pass", () => {
+  const weapon = {
+    type: "weapon",
+    system: {
+      activities: [
+        { activation: { type: "action" } },
+        { activation: { type: "bonus" } }
+      ]
+    }
+  };
+  const spell = { type: "spell", system: { activation: { type: "action" } } };
+  let passes = 0;
+  const actor = {
+    items: {
+      *[Symbol.iterator]() {
+        passes++;
+        yield weapon;
+        yield spell;
+      }
+    }
+  };
+  const categories = dnd5eAdapter.combatItemsByCategory(actor, [
+    "weapons",
+    "spells",
+    "action",
+    "bonus"
+  ]);
+  assert.equal(passes, 1);
+  assert.deepEqual(categories.get("weapons"), [weapon]);
+  assert.deepEqual(categories.get("spells"), [spell]);
+  assert.deepEqual(categories.get("action"), [weapon, spell]);
+  assert.deepEqual(categories.get("bonus"), [weapon]);
+});
+
+test("weapon-only category indexing skips activity inspection", () => {
+  const weapon = {
+    type: "weapon",
+    system: {
+      get activities() {
+        throw new Error("Activities were read");
+      }
+    }
+  };
+  const categories = dnd5eAdapter.combatItemsByCategory({ items: [weapon] }, [
+    "weapons"
+  ]);
+  assert.deepEqual(categories.get("weapons"), [weapon]);
 });
 
 test("action cards use the selected activity's activation, range and cost", () => {
@@ -232,6 +381,91 @@ test("D&D adapter displays attack and damage formulas without duplicating abilit
   }
 });
 
+test("D&D activity cards use only the selected activity's attack and damage", () => {
+  const originalRoll = globalThis.Roll;
+  globalThis.Roll = { replaceFormulaData: formula => formula };
+  try {
+    const actor = {
+      system: { abilities: { str: { mod: 3 }, dex: { mod: 2 } } },
+      getRollData: () => ({})
+    };
+    const item = {
+      type: "weapon",
+      labels: { toHit: "+7" },
+      system: {
+        damage: { base: { formula: "1d10" } },
+        activities: new Map([
+          [
+            "slash",
+            {
+              id: "slash",
+              type: "attack",
+              attack: { ability: "str" },
+              labels: { toHit: "+7" },
+              damage: { parts: [{ formula: "1d8" }], includeBase: false }
+            }
+          ],
+          [
+            "throw",
+            {
+              id: "throw",
+              type: "attack",
+              attack: { ability: "dex" },
+              labels: { toHit: "+4" },
+              damage: { parts: [{ formula: "1d6" }], includeBase: false }
+            }
+          ],
+          [
+            "burst",
+            {
+              id: "burst",
+              type: "damage",
+              damage: { parts: [{ formula: "2d4" }] }
+            }
+          ]
+        ])
+      }
+    };
+
+    assert.equal(dnd5eAdapter.itemAttackBonus(item, "throw"), "+4");
+    assert.equal(
+      dnd5eAdapter.itemDamageFormula(actor, item, "throw"),
+      "1d6 + 2"
+    );
+    assert.equal(dnd5eAdapter.itemAttackBonus(item, "burst"), "");
+    assert.equal(dnd5eAdapter.itemDamageFormula(actor, item, "burst"), "2d4");
+    assert.equal(dnd5eAdapter.itemAttackBonus(item, "missing"), "");
+    assert.equal(dnd5eAdapter.itemDamageFormula(actor, item, "missing"), "");
+    item.system.activities.get("slash").damage = {
+      includeBase: true,
+      parts: []
+    };
+    assert.equal(
+      dnd5eAdapter.itemDamageFormula(actor, item, "slash"),
+      "1d10 + 3"
+    );
+  } finally {
+    globalThis.Roll = originalRoll;
+  }
+});
+
+test("spell save DC follows the selected activity", () => {
+  const item = {
+    type: "spell",
+    system: {
+      activities: new Map([
+        ["save", { id: "save", type: "save", save: { dc: { value: 16 } } }],
+        ["attack", { id: "attack", type: "attack", labels: { toHit: "+7" } }]
+      ])
+    }
+  };
+  assert.equal(dnd5eAdapter.itemSaveDc(item), "16");
+  assert.equal(dnd5eAdapter.itemSaveDc(item, "save"), "16");
+  assert.equal(dnd5eAdapter.itemSaveDc(item, "attack"), "");
+  assert.equal(dnd5eAdapter.itemAttackBonus(item, "attack"), "+7");
+  assert.equal(dnd5eAdapter.itemAttackBonus(item, "save"), "");
+});
+
 test("D&D adapter normalizes resources and spell-slot pools", () => {
   const actor = {
     items: [
@@ -270,8 +504,26 @@ test("D&D adapter normalizes resources and spell-slot pools", () => {
     }
   ]);
   assert.deepEqual(dnd5eAdapter.spellSlots(actor, 2), [
-    [1, 3],
-    [2, 2]
+    [1, 3, "spell2"],
+    [2, 2, "pact"]
+  ]);
+});
+
+test("spell slot edits update only the selected pool within its limits", async () => {
+  const updates = [];
+  const actor = {
+    system: {
+      spells: { spell2: { value: 1, max: 3 }, pact: { value: 2, max: 2 } }
+    },
+    update: values => updates.push(values)
+  };
+  await dnd5eAdapter.updateSpellSlots(actor, { pool: "spell2", value: 9 });
+  await dnd5eAdapter.updateSpellSlots(actor, { pool: "pact", value: -2 });
+  await dnd5eAdapter.updateSpellSlots(actor, { pool: "spell2", value: 1 });
+  await dnd5eAdapter.updateSpellSlots(actor, { pool: "other", value: 1 });
+  assert.deepEqual(updates, [
+    { "system.spells.spell2.value": 3 },
+    { "system.spells.pact.value": 0 }
   ]);
 });
 

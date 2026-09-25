@@ -5,6 +5,7 @@ import {
   actorContextChanged,
   calculateResourceValue,
   findCombatant,
+  getCurrentCombat,
   tokenForActor
 } from "../scripts/runtime-helpers.js";
 
@@ -48,6 +49,17 @@ test("combatant lookup prefers the selected token and falls back to actor", () =
   );
   assert.equal(findCombatant(combatants, { actorId: "actor" })?.id, "one");
   assert.equal(findCombatant(combatants, { actorId: "missing" }), null);
+});
+
+test("combat lookup falls back to the viewed or active encounter", () => {
+  const viewed = { id: "viewed" };
+  const active = { id: "active" };
+  assert.equal(
+    getCurrentCombat({ combat: null, combats: { viewed, active } }),
+    viewed
+  );
+  assert.equal(getCurrentCombat({ combat: null, combats: { active } }), active);
+  assert.equal(getCurrentCombat({ combat: null }), null);
 });
 
 test("resource changes are clamped and maxless resources cannot be restored", () => {

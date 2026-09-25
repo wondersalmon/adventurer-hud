@@ -26,7 +26,9 @@ export function createCombatResourceController({
           <span><i class="fa-solid fa-battery-three-quarters"></i>${t("Combat.ClassResources")}</span>
           <span>${resources.length}<i class="fa-solid fa-chevron-${hudState.resourcesExpanded ? "up" : "down"}"></i></span>
         </button>
-        <div class="ws-resource-grid">
+        ${
+          hudState.resourcesExpanded
+            ? `<div class="ws-resource-grid">
           ${resources
             .map(
               resource => `
@@ -43,7 +45,9 @@ export function createCombatResourceController({
             `
             )
             .join("")}
-        </div>
+        </div>`
+            : ""
+        }
         ${
           hudState.resourcesExpanded
             ? `<div class="ws-resource-shortcuts ws-shortcuts">
@@ -187,5 +191,59 @@ export function createCombatResourceController({
     return dialog.render({ force: true });
   };
 
-  return { changeResource, combatResources, openHpDialog, openResourceDialog };
+  const openSpellSlotsDialog = ({ level, pool }) => {
+    const currentPool = () =>
+      adapter.spellSlots(actor, level).find(([, , key]) => key === pool);
+    const slots = currentPool();
+    if (!slots) return;
+
+    const [value, max] = slots;
+    const label =
+      pool === "pact"
+        ? t("Combat.PactSlots")
+        : `${t("Combat.SpellSlots")} · ${tf("Combat.SpellLevel", { level })}`;
+    const content = document.createElement("div");
+    content.innerHTML = `<div class="ws-spell-slots-dialog-content">
+      <label><span>${label} (0–${max})</span>
+        <input type="number" name="value" min="0" max="${max}" step="1" value="${value}" required>
+      </label>
+    </div>`;
+
+    const dialog = new DialogV2({
+      classes: ["ws-spell-slots-dialog"],
+      window: { title: t("Combat.EditSpellSlots") },
+      position: { width: 280, height: "auto" },
+      content,
+      buttons: [
+        {
+          action: "saveslots",
+          label: t("Combat.SaveSlots"),
+          icon: "fa-solid fa-check",
+          default: true,
+          callback: async (_event, button) => {
+            const input = button.form.elements.namedItem("value")?.value;
+            const next = Number(input);
+            if (input === "" || !Number.isInteger(next)) return;
+            const latest = currentPool();
+            if (!latest) return;
+            await adapter.updateSpellSlots(actor, {
+              pool,
+              value: Math.min(latest[1], Math.max(0, next))
+            });
+          }
+        },
+        { action: "close", label: t("Actor.Cancel") }
+      ]
+    });
+
+    return dialog.render({ force: true });
+  };
+
+  return {
+    changeResource,
+    combatResources,
+    openHpDialog,
+    openResourceDialog,
+    openSpellSlotsDialog
+  };
 }

@@ -9,6 +9,15 @@ export function tokenForActor(token, actor) {
   return token?.actor?.uuid === actor?.uuid ? token : null;
 }
 
+export function getCurrentCombat(gameState) {
+  return (
+    gameState.combat ??
+    gameState.combats?.viewed ??
+    gameState.combats?.active ??
+    null
+  );
+}
+
 export function findCombatant(
   combatants,
   { actorId = null, tokenId = null } = {}

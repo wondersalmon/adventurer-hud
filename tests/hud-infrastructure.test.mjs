@@ -307,6 +307,39 @@ test("document subscriptions filter actor documents and clean up hooks", () => {
   assert.equal(removed.length, callbacks.size);
 });
 
+test("tool changes reload tool data while unrelated updates only refresh", () => {
+  const callbacks = new Map();
+  let reloads = 0;
+  subscribeHudDocuments({
+    actor: { uuid: "Actor.hero" },
+    hooks: { on: (name, callback) => callbacks.set(name, callback), off() {} },
+    onToolsChange: () => reloads++,
+    scheduleRefresh() {}
+  });
+  callbacks.get("updateActor")(
+    { uuid: "Actor.hero" },
+    { system: { attributes: {} } }
+  );
+  callbacks.get("updateActor")(
+    { uuid: "Actor.hero" },
+    { system: { tools: {} } }
+  );
+  callbacks.get("updateActor")(
+    { uuid: "Actor.hero" },
+    { "system.tools.thief": 1 }
+  );
+  callbacks.get("createItem")({ type: "tool", parent: { uuid: "Actor.hero" } });
+  callbacks.get("updateItem")({
+    type: "weapon",
+    parent: { uuid: "Actor.hero" }
+  });
+  callbacks.get("deleteItem")({
+    type: "tool",
+    parent: { uuid: "Actor.other" }
+  });
+  assert.equal(reloads, 3);
+});
+
 test("HP changes emit one subtle damage or healing signal", () => {
   const callbacks = new Map();
   let hp = { value: 10, temp: 3 };
@@ -377,7 +410,43 @@ test("initiative result feedback follows combatant updates", () => {
     { id: "own", initiative: 12 },
     { initiative: 12 }
   );
-  assert.deepEqual(feedback, ["refresh", "refresh", "initiative"]);
+  callbacks.get("updateCombatant")(
+    { id: "own", initiative: null },
+    { initiative: null }
+  );
+  assert.deepEqual(feedback, ["refresh", "refresh", "initiative", "refresh"]);
+});
+
+test("turn glow fires once each time the player's turn begins", () => {
+  const callbacks = new Map();
+  const feedback = [];
+  let playersTurn = false;
+  subscribeHudDocuments({
+    actor: { uuid: "Actor.hero" },
+    hooks: { on: (name, callback) => callbacks.set(name, callback), off() {} },
+    scheduleRefresh: () => feedback.push("refresh"),
+    isPlayersTurn: () => playersTurn,
+    onTurnStart: () => feedback.push("turn")
+  });
+
+  callbacks.get("updateCombat")();
+  playersTurn = true;
+  callbacks.get("updateCombat")();
+  callbacks.get("updateCombatant")({ id: "own" }, {});
+  playersTurn = false;
+  callbacks.get("updateCombat")();
+  playersTurn = true;
+  callbacks.get("updateCombat")();
+
+  assert.deepEqual(feedback, [
+    "refresh",
+    "refresh",
+    "turn",
+    "refresh",
+    "refresh",
+    "refresh",
+    "turn"
+  ]);
 });
 
 test("regular subviews reset when switching to combat", () => {

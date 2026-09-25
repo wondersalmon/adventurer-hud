@@ -43,6 +43,37 @@ test("search matches item and activity names while favorites stay actor scoped",
   );
 });
 
+test("hidden item details skip attack and damage calculations", () => {
+  const previousGame = globalThis.game;
+  globalThis.game = { i18n: { localize: value => value } };
+  try {
+    const renderer = createCombatItemRenderer({
+      actor: {},
+      adapter: {
+        itemActivities: () => [],
+        itemRole: () => "weapon",
+        hasItemProperty: () => assert.fail("property read"),
+        itemAttackBonus: () => assert.fail("attack calculated"),
+        itemDamageFormula: () => assert.fail("damage calculated"),
+        itemResourceCost: () => "",
+        itemUsesData: () => null,
+        itemRangeData: () => ({ value: 30, long: 120, units: "ft" }),
+        rangeUnitLabel: units => units
+      },
+      escapeHTML,
+      hudState: { favoriteEntries: [] },
+      t: key => key,
+      visibility: { itemDetails: false, favorites: false }
+    });
+    assert.match(
+      renderer.combatItemButton({ id: "bow", name: "Bow" }),
+      /30\/120 ft/
+    );
+  } finally {
+    globalThis.game = previousGame;
+  }
+});
+
 test("multi-activity cards show a chooser and activity favorites", () => {
   const activities = [
     { id: "attack", name: "Attack", use() {} },
@@ -84,6 +115,51 @@ test("multi-activity cards show a chooser and activity favorites", () => {
   assert.match(renderer.searchControl(), /value="staff"/);
 });
 
+test("favorite activity cards request attack and damage for that activity", () => {
+  const previousGame = globalThis.game;
+  globalThis.game = { i18n: { localize: value => value } };
+  try {
+    const item = { id: "staff", name: "Staff" };
+    const requested = [];
+    const renderer = createCombatItemRenderer({
+      actor: { items: new Map([[item.id, item]]) },
+      adapter: {
+        itemActivities: () => [{ id: "burst", name: "Burst", use() {} }],
+        itemRole: () => "weapon",
+        itemAttackBonus: (_item, activityId) => {
+          requested.push(["attack", activityId]);
+          return activityId === "burst" ? "" : "+7";
+        },
+        itemDamageFormula: (_actor, _item, activityId) => {
+          requested.push(["damage", activityId]);
+          return activityId === "burst" ? "2d4" : "1d8";
+        },
+        itemRangeData: () => ({ value: 30, long: "", units: "ft" }),
+        rangeUnitLabel: units => units,
+        itemResourceCost: () => "",
+        itemUsesData: () => null
+      },
+      escapeHTML,
+      hudState: {
+        favoriteEntries: [{ itemId: "staff", activityId: "burst" }],
+        favoritesExpanded: true
+      },
+      t: key => key,
+      visibility: { favorites: true, itemDetails: true }
+    });
+
+    const html = renderer.favoriteSection();
+    assert.deepEqual(requested, [
+      ["attack", "burst"],
+      ["damage", "burst"]
+    ]);
+    assert.match(html, /2d4/);
+    assert.doesNotMatch(html, /\+7|1d8/);
+  } finally {
+    globalThis.game = previousGame;
+  }
+});
+
 test("an item with zero charges shows the reason on its card", () => {
   const item = { id: "wand", name: "Wand", img: "wand.webp" };
   const renderer = createCombatItemRenderer({
@@ -105,6 +181,144 @@ test("an item with zero charges shows the reason on its card", () => {
   assert.match(html, /class="ws-item-unavailable"/);
   assert.match(html, /Quick.NoCharges/);
   assert.doesNotMatch(html, /Combat.NoSlots/);
+});
+
+test("item cards show normal and long range without activation type", () => {
+  const item = { id: "bow", name: "Shortbow", type: "weapon" };
+  const renderer = createCombatItemRenderer({
+    actor: { items: new Map([[item.id, item]]) },
+    adapter: {
+      itemActivities: () => [],
+      itemRole: () => "weapon",
+      hasItemProperty: () => false,
+      itemActivation: () => "action",
+      itemRangeData: () => ({ value: 80, long: 320, units: "ft" }),
+      rangeUnitLabel: () => "feet",
+      itemResourceCost: () => "",
+      itemAttackBonus: () => "",
+      itemDamageFormula: () => "",
+      itemUsesData: () => null
+    },
+    escapeHTML,
+    hudState: { favoriteEntries: [] },
+    t: key => key,
+    visibility: {}
+  });
+
+  const html = renderer.combatItemButton(item);
+  assert.match(html, /80\/320 feet/);
+  assert.doesNotMatch(html, /Combat\.Activation|fa-hourglass-half/);
+});
+
+test("item details put attack and damage before range and show spell save DC", () => {
+  const previousGame = globalThis.game;
+  globalThis.game = { i18n: { localize: value => value } };
+  try {
+    const item = { id: "spell", name: "Flame", type: "spell" };
+    const renderer = createCombatItemRenderer({
+      actor: { items: new Map([[item.id, item]]) },
+      adapter: {
+        itemActivities: () => [],
+        itemRole: () => "spell",
+        itemActivation: () => "action",
+        itemRangeData: () => ({ value: 60, units: "ft" }),
+        rangeUnitLabel: units => units,
+        itemResourceCost: () => "",
+        itemAttackBonus: () => "+7",
+        itemSaveDc: () => "16",
+        itemDamageFormula: () => "3d6",
+        itemUsesData: () => null,
+        hasItemProperty: () => false
+      },
+      escapeHTML,
+      hudState: { favoriteEntries: [] },
+      t: key => key,
+      visibility: { itemDetails: true }
+    });
+    const html = renderer.combatItemButton(item);
+    assert.ok(html.indexOf("+7") < html.indexOf("3d6"));
+    assert.ok(html.indexOf("3d6") < html.indexOf("60 ft"));
+    assert.match(html, /Combat.SaveDCShort.*16/);
+  } finally {
+    globalThis.game = previousGame;
+  }
+});
+
+test("spell cards show activation and preparation beneath the favorite", () => {
+  const item = {
+    id: "spell",
+    name: "Shield",
+    type: "spell",
+    system: { level: 1, method: "spell", prepared: 0, canPrepare: true }
+  };
+  const renderer = createCombatItemRenderer({
+    actor: { isOwner: true, items: new Map([[item.id, item]]) },
+    adapter: {
+      itemActivities: () => [],
+      itemRole: () => "spell",
+      spellPreparation: dnd5eAdapter.spellPreparation,
+      itemActivation: () => "reaction",
+      itemRangeData: () => ({ value: "", units: "" }),
+      rangeUnitLabel: () => "",
+      itemResourceCost: () => "",
+      itemUsesData: () => null
+    },
+    escapeHTML,
+    hudState: { favoriteEntries: [] },
+    t: key => key,
+    visibility: { favorites: true }
+  });
+
+  const html = renderer.combatItemButton(item);
+  assert.match(html, /ws-activation-badge[^>]*>R<\/b>/);
+  assert.match(
+    html,
+    /data-action="togglefavorite"[\s\S]*data-action="togglespellprepared"/
+  );
+  item.system.prepared = 2;
+  assert.doesNotMatch(renderer.combatItemButton(item), /togglespellprepared/);
+});
+
+test("spell slot counters offer separate edits for regular and pact pools", () => {
+  const item = { id: "spell", name: "Spell", type: "spell" };
+  const adapter = {
+    spellLevel: () => 2,
+    spellSlots: () => [
+      [1, 3, "spell2"],
+      [2, 2, "pact"]
+    ],
+    itemActivities: () => [],
+    itemRole: () => "other",
+    itemResourceCost: () => "",
+    itemUsesData: () => null
+  };
+  const options = {
+    actor: { items: new Map([[item.id, item]]) },
+    adapter,
+    escapeHTML,
+    hudState: { favoriteEntries: [], preparedSpellsOnly: false },
+    t: key => key,
+    tf: key => key,
+    visibility: {}
+  };
+  const html = createCombatItemRenderer({
+    ...options,
+    canRollActor: true
+  }).spellGroups([item]);
+  assert.match(
+    html,
+    /data-action="openspellslots" data-level="2" data-pool="spell2"/
+  );
+  assert.match(
+    html,
+    /data-action="openspellslots" data-level="2" data-pool="pact"/
+  );
+  assert.match(html, /ws-slot-kind[^>]*>Combat.SpellSlotsShort<\/span>/);
+  assert.match(html, /ws-pact-slots[\s\S]*Combat.PactSlotsShort/);
+  assert.doesNotMatch(
+    createCombatItemRenderer(options).spellGroups([item]),
+    /data-action="openspellslots"/
+  );
 });
 
 test("combat filters hide empty categories and respect action-type visibility", () => {
@@ -145,24 +359,28 @@ test("combat filters hide empty categories and respect action-type visibility", 
     grouped,
     /data-category="spells"|data-action="toggleactionmenu"/
   );
-  assert.equal(hudState.combatCategory, "weapons");
+  assert.equal(hudState.combatCategory, null);
+  assert.doesNotMatch(grouped, /class="ws-combat-item-list"/);
   visibility.showActionTypes = false;
   assert.doesNotMatch(renderer.combatActions(), /data-category="spells"/);
 });
 
 test("grouped action menu keeps nonempty action types selectable", () => {
   const item = { id: "dash", name: "Dash" };
+  const categoryReads = [];
   const renderer = createCombatItemRenderer({
     actor: { items: new Map([[item.id, item]]) },
     adapter: {
-      combatItems: (_actor, category) => (category === "action" ? [item] : []),
+      combatItems: (_actor, category) => {
+        categoryReads.push(category);
+        return category === "action" ? [item] : [];
+      },
       itemActivities: () => [],
       itemRole: () => "other",
       hasItemProperty: () => false,
       itemActivation: () => "action",
       itemResourceCost: () => "",
-      itemUsesData: () => null,
-      activationLabel: () => "Action"
+      itemUsesData: () => null
     },
     escapeHTML,
     hudState: {
@@ -182,6 +400,33 @@ test("grouped action menu keeps nonempty action types selectable", () => {
   assert.match(html, /data-action="toggleactionmenu"/);
   assert.match(html, /data-category="action"/);
   assert.doesNotMatch(html, /data-category="bonus"/);
+  assert.deepEqual(categoryReads, ["action", "bonus"]);
+});
+
+test("combat renderer uses indexed categories when the adapter provides them", () => {
+  const weapon = { id: "blade", name: "Blade" };
+  const indexedRequests = [];
+  const renderer = createCombatItemRenderer({
+    actor: { items: new Map([[weapon.id, weapon]]) },
+    adapter: {
+      combatItems: () => {
+        throw new Error("Repeated category query");
+      },
+      combatItemsByCategory: (_actor, categories) => {
+        indexedRequests.push(categories);
+        return new Map([["weapons", [weapon]]]);
+      }
+    },
+    escapeHTML,
+    hudState: { combatCategory: null },
+    t: key => key,
+    visibility: { combatWeapons: true, combatSpells: true }
+  });
+
+  const html = renderer.combatActions();
+  assert.match(html, /data-category="weapons"/);
+  assert.doesNotMatch(html, /data-category="spells"/);
+  assert.deepEqual(indexedRequests, [["weapons", "spells"]]);
 });
 
 test("action-type setting hides its menu while keeping weapon actions", () => {
@@ -201,8 +446,7 @@ test("action-type setting hides its menu while keeping weapon actions", () => {
       hasItemProperty: () => false,
       itemActivation: () => "action",
       itemResourceCost: () => "",
-      itemUsesData: () => null,
-      activationLabel: () => "Action"
+      itemUsesData: () => null
     },
     escapeHTML,
     hudState: {
@@ -238,7 +482,7 @@ test("selected activity uses its native workflow with the original event", async
     actor: { items: new Map([[item.id, item]]) },
     adapter: dnd5eAdapter,
     canRollActor: true,
-    rollAndClose: callback => callback()
+    performRoll: callback => callback()
   });
 
   await actions.useactivity(event, {
@@ -291,7 +535,7 @@ test("Shift keeps native item use when the inline chooser is enabled", async () 
       useItem: (_item, options) => calls.push(options)
     },
     canRollActor: true,
-    rollAndClose: callback => callback(),
+    performRoll: callback => callback(),
     visibility: { activityPicker: true }
   });
   const event = { shiftKey: true };

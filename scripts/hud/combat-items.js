@@ -7,6 +7,7 @@ import {
 export function createCombatItemRenderer({
   actor,
   adapter,
+  canRollActor = false,
   escapeHTML,
   hudState,
   t,
@@ -15,22 +16,6 @@ export function createCombatItemRenderer({
 }) {
   const configLabel = config =>
     game.i18n.localize(config?.label ?? config ?? "");
-
-  const activationLabel = (item, activityId) => {
-    const type = adapter.itemActivation(item, activityId);
-    const common = {
-      action: "Combat.Action",
-      bonus: "Combat.BonusAction",
-      reaction: "Combat.Reaction",
-      special: "Combat.Special"
-    }[type];
-
-    if (common) {
-      return t(common);
-    }
-
-    return adapter.activationLabel(type, { localizeConfig: configLabel });
-  };
 
   const itemRange = (item, activityId) => {
     const range = adapter.itemRangeData(item, activityId);
@@ -87,35 +72,57 @@ export function createCombatItemRenderer({
     const role = adapter.itemRole(item);
     const isSpell = role === "spell";
     const isWeapon = role === "weapon";
+    const preparation = isSpell ? adapter.spellPreparation?.(item) : null;
+    const canPrepare = Boolean(preparation?.canPrepare);
+    const hasSideActions =
+      canPrepare || (visibility.favorites && !offersActivities);
+    const activation = isSpell
+      ? adapter.itemActivation?.(item, activityId)
+      : "";
+    const activationBadge = {
+      action: ["A", "Combat.Action"],
+      bonus: ["BA", "Combat.BonusAction"],
+      reaction: ["R", "Combat.Reaction"]
+    }[activation];
     const showsRange = isSpell || isWeapon;
     const concentration =
-      isSpell && adapter.hasItemProperty(item, "concentration");
-    const ritual = isSpell && adapter.hasItemProperty(item, "ritual");
-    const activation = adapter.itemActivation(item, activityId);
+      visibility.itemDetails &&
+      isSpell &&
+      adapter.hasItemProperty(item, "concentration");
+    const ritual =
+      visibility.itemDetails &&
+      isSpell &&
+      adapter.hasItemProperty(item, "ritual");
     const resourceCost = adapter.itemResourceCost(actor, item, {
       fallbackLabel: t("Combat.Resource"),
       activityId
     });
-    const attackBonus =
-      isSpell || isWeapon ? adapter.itemAttackBonus(item) : "";
-    const damageFormula =
-      isSpell || isWeapon ? adapter.itemDamageFormula(actor, item) : "";
+    const attackBonus = visibility.itemDetails
+      ? adapter.itemAttackBonus(item, activityId)
+      : "";
+    const damageFormula = visibility.itemDetails
+      ? adapter.itemDamageFormula(actor, item, activityId)
+      : "";
+    const saveDc =
+      visibility.itemDetails && isSpell
+        ? adapter.itemSaveDc?.(item, activityId)
+        : "";
     const uses = adapter.itemUsesData(item);
     const unavailableLabel = uses?.value === 0 ? t("Quick.NoCharges") : "";
     const showsDetails = Boolean(
       showsRange ||
-      activation ||
+      activationBadge ||
       resourceCost ||
       uses ||
       unavailableLabel ||
       (visibility.itemDetails &&
-        (concentration || ritual || attackBonus || damageFormula))
+        (concentration || ritual || attackBonus || damageFormula || saveDc))
     );
 
     return `
         <div class="ws-combat-item-card ${
           showsDetails ? "ws-detailed-card" : ""
-        } ${visibility.favorites && !offersActivities ? "ws-has-favorite" : ""}">
+        } ${hasSideActions ? "ws-has-side-actions" : ""}">
           <button
             type="button"
             class="ws-combat-item ws-button ${unavailableLabel ? "ws-item-depleted" : ""}"
@@ -132,26 +139,7 @@ export function createCombatItemRenderer({
                 showsDetails
                   ? `
                     <small class="ws-spell-meta">
-                      ${
-                        showsRange
-                          ? `
-                            <span title="${t("Combat.Range")}">
-                              <i class="fa-solid fa-crosshairs"></i>
-                              ${itemRange(item, activityId)}
-                            </span>
-                          `
-                          : ""
-                      }
-                      ${
-                        activation
-                          ? `
-                            <span title="${t("Combat.Activation")}">
-                              <i class="fa-solid fa-hourglass-half"></i>
-                              ${escapeHTML(activationLabel(item, activityId))}
-                            </span>
-                          `
-                          : ""
-                      }
+                      ${activationBadge ? `<b class="ws-activation-badge" title="${t(activationBadge[1])}">${activationBadge[0]}</b>` : ""}
                       ${
                         visibility.itemDetails && attackBonus
                           ? `
@@ -163,11 +151,26 @@ export function createCombatItemRenderer({
                           : ""
                       }
                       ${
+                        visibility.itemDetails && saveDc
+                          ? `<span title="${t("Combat.SaveDC")}"><i class="fa-solid fa-shield-heart"></i>${t("Combat.SaveDCShort")} ${escapeHTML(saveDc)}</span>`
+                          : ""
+                      }
+                      ${
                         visibility.itemDetails && damageFormula
                           ? `
                             <span title="${t("Combat.DamageFormula")}">
                               <i class="fa-solid fa-burst"></i>
                               ${escapeHTML(damageFormula)}
+                            </span>
+                          `
+                          : ""
+                      }
+                      ${
+                        showsRange
+                          ? `
+                            <span title="${t("Combat.Range")}">
+                              <i class="fa-solid fa-crosshairs"></i>
+                              ${itemRange(item, activityId)}
                             </span>
                           `
                           : ""
@@ -208,8 +211,15 @@ export function createCombatItemRenderer({
           </button>
 
           ${
-            visibility.favorites && !offersActivities
-              ? `<button type="button" class="ws-item-favorite ws-button ${favorite ? "ws-active" : ""}" data-action="togglefavorite" data-item-id="${escapeHTML(item.id)}" ${activityId ? `data-activity-id="${escapeHTML(activityId)}"` : ""} title="${t(favorite ? "Quick.RemoveFavorite" : "Quick.AddFavorite")}" aria-label="${t(favorite ? "Quick.RemoveFavorite" : "Quick.AddFavorite")}"><i class="fa-${favorite ? "solid" : "regular"} fa-star"></i></button>`
+            hasSideActions
+              ? `<div class="ws-item-side-actions">
+            ${
+              visibility.favorites && !offersActivities
+                ? `<button type="button" class="ws-item-favorite ws-button ${favorite ? "ws-active" : ""}" data-action="togglefavorite" data-item-id="${escapeHTML(item.id)}" ${activityId ? `data-activity-id="${escapeHTML(activityId)}"` : ""} title="${t(favorite ? "Quick.RemoveFavorite" : "Quick.AddFavorite")}" aria-label="${t(favorite ? "Quick.RemoveFavorite" : "Quick.AddFavorite")}"><i class="fa-${favorite ? "solid" : "regular"} fa-star"></i></button>`
+                : ""
+            }
+            ${canPrepare ? `<button type="button" class="ws-item-prepare ws-button ${preparation.prepared ? "ws-active" : ""}" data-action="togglespellprepared" data-item-id="${escapeHTML(item.id)}" title="${t(preparation.prepared ? "Combat.UnprepareSpell" : "Combat.PrepareSpell")}" aria-label="${t(preparation.prepared ? "Combat.UnprepareSpell" : "Combat.PrepareSpell")}" ${actor.isOwner ? "" : "disabled"}><i class="fa-${preparation.prepared ? "solid" : "regular"} fa-bookmark"></i></button>` : ""}
+          </div>`
               : ""
           }
 
@@ -269,8 +279,8 @@ export function createCombatItemRenderer({
     </section>`;
   };
 
-  const combatCategories = () =>
-    [
+  const combatCategories = () => {
+    const visible = [
       ["weapons", "fa-swords", "Combat.Weapons", visibility.combatWeapons],
       [
         "spells",
@@ -302,14 +312,26 @@ export function createCombatItemRenderer({
         "Combat.Special",
         visibility.showActionTypes && visibility.combatSpecial
       ]
-    ].filter(
-      ([category, , , visible]) => visible && combatItems(category).length > 0
+    ].filter(([, , , enabled]) => enabled);
+    if (!visible.length) return [];
+    const indexed = adapter.combatItemsByCategory?.(
+      actor,
+      visible.map(([category]) => category)
     );
+    return visible
+      .map(([category, icon, label]) => [
+        category,
+        icon,
+        label,
+        indexed ? (indexed.get(category) ?? []) : combatItems(category)
+      ])
+      .filter(([, , , items]) => items.length > 0);
+  };
 
-  const categoryButton = ([category, icon, label]) => `
+  const categoryButton = ([category, icon, label, items]) => `
     <button type="button" class="ws-combat-filter ws-button ${hudState.combatCategory === category ? "ws-active" : ""}"
-      data-action="combatfilter" data-category="${category}" title="${t(label)}">
-      <i class="fa-solid ${icon}"></i><span>${t(label)}</span><small>${combatItems(category).length}</small>
+      data-action="combatfilter" data-category="${category}" title="${t(label)}" aria-expanded="${hudState.combatCategory === category}">
+      <i class="fa-solid ${icon}"></i><span>${t(label)}</span><small>${items.length}</small>
     </button>`;
 
   const spellSlots = level => {
@@ -324,7 +346,7 @@ export function createCombatItemRenderer({
     }
 
     return pools
-      .map(([value, max]) => {
+      .map(([value, max, pool]) => {
         const dots =
           max <= 10
             ? Array.from(
@@ -334,11 +356,21 @@ export function createCombatItemRenderer({
               ).join("")
             : "";
 
-        return `
-            <span class="ws-spell-slots" title="${value}/${max}">
-              ${dots}<b>${value}/${max}</b>
-            </span>
-          `;
+        const label = t(
+          pool === "pact" ? "Combat.PactSlots" : "Combat.SpellSlots"
+        );
+        const kind = `<span class="ws-slot-kind" aria-hidden="true">${t(pool === "pact" ? "Combat.PactSlotsShort" : "Combat.SpellSlotsShort")}</span>`;
+        const poolClass = pool === "pact" ? "ws-pact-slots" : "";
+        if (!pool || !canRollActor) {
+          return `<span class="ws-spell-slots ${poolClass}" title="${label}: ${value}/${max}">${kind}${dots}<b>${value}/${max}</b></span>`;
+        }
+
+        return `<button type="button" class="ws-spell-slots ws-spell-slots-edit ws-button ${poolClass}"
+          data-action="openspellslots" data-level="${level}" data-pool="${escapeHTML(pool)}"
+          title="${t("Combat.EditSpellSlots")}: ${label} ${value}/${max}"
+          aria-label="${t("Combat.EditSpellSlots")}: ${label} ${value}/${max}">
+          ${kind}${dots}<b>${value}/${max}</b>
+        </button>`;
       })
       .join("");
   };
@@ -385,13 +417,13 @@ export function createCombatItemRenderer({
       return "";
     }
 
-    if (
-      !categories.some(([category]) => category === hudState.combatCategory)
-    ) {
-      hudState.combatCategory = categories[0][0];
+    const selectedCategory = categories.find(
+      ([category]) => category === hudState.combatCategory
+    );
+    if (hudState.combatCategory && !selectedCategory) {
+      hudState.combatCategory = null;
     }
-
-    const items = searchItems(combatItems(hudState.combatCategory));
+    const items = selectedCategory ? searchItems(selectedCategory[3]) : [];
     const primary = categories.filter(
       ([category]) => category === "weapons" || category === "spells"
     );
@@ -420,7 +452,7 @@ export function createCombatItemRenderer({
           </div>
           ${hudState.actionMenuOpen && actionTypes.length ? `<div class="ws-action-menu">${actionTypes.map(categoryButton).join("")}</div>` : ""}
 
-          ${searchControl()}
+          ${hudState.combatCategory ? searchControl() : ""}
 
           ${
             hudState.combatCategory === "spells"
@@ -437,7 +469,9 @@ export function createCombatItemRenderer({
               : ""
           }
 
-          <div class="ws-combat-item-list">
+          ${
+            hudState.combatCategory
+              ? `<div class="ws-combat-item-list">
             ${
               items.length
                 ? hudState.combatCategory === "spells"
@@ -446,7 +480,9 @@ export function createCombatItemRenderer({
                   : `<div class="ws-combat-item-grid">${items.map(combatItemButton).join("")}</div>`
                 : `<div class="ws-empty">${t(hudState.searchQuery ? "Quick.NoResults" : "Combat.Empty")}</div>`
             }
-          </div>
+          </div>`
+              : ""
+          }
         </div>
       `;
   };

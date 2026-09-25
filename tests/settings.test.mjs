@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  BASIC_SETTINGS,
   isSettingSupported,
   localizeSettingsRows,
   moveSettingsMenusToBottom,
@@ -10,7 +9,6 @@ import {
   resetSettings,
   SETTING_DEFINITIONS,
   SETTING_DEFAULTS,
-  SETTING_GROUPS,
   settingRefreshStrategy,
   SETTINGS
 } from "../scripts/settings.js";
@@ -55,10 +53,14 @@ test("main and additional settings use task-based groups", async () => {
   assert.equal(registrations.get(SETTINGS.fontSize)?.config, true);
   assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.config, true);
   assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.default, false);
+  assert.equal(registrations.get(SETTINGS.autoOpenHud)?.config, true);
+  assert.equal(registrations.get(SETTINGS.autoOpenHud)?.default, false);
+  assert.equal(registrations.get(SETTINGS.autoOpenHud)?.scope, "user");
+  assert.equal(registrations.get(SETTINGS.panelStates)?.config, false);
+  assert.equal(registrations.get(SETTINGS.panelStates)?.scope, "user");
   assert.equal(registrations.get(SETTINGS.pinWindow)?.config, false);
   assert.equal(registrations.get(SETTINGS.pinWindow)?.default, false);
-  assert.equal(registrations.get(SETTINGS.closeAfterRoll)?.config, true);
-  assert.equal(registrations.get(SETTINGS.closeAfterRoll)?.default, false);
+  assert.equal(registrations.has("closeAfterRoll"), false);
   assert.equal(registrations.get(SETTINGS.showTokenControl)?.config, false);
   assert.equal(registrations.get(SETTINGS.showTokenControl)?.default, false);
   assert.equal(registrations.get(SETTINGS.showVisualEffects)?.default, true);
@@ -75,24 +77,26 @@ test("main and additional settings use task-based groups", async () => {
     Object.keys(registrations.get(SETTINGS.language)?.choices ?? {}),
     ["auto", "en", "ru"]
   );
-  assert.ok(BASIC_SETTINGS.includes(SETTINGS.language));
+  assert.equal(SETTING_DEFINITIONS[SETTINGS.language].placement, "basic");
   assert.equal(menus.get("configure")?.restricted, false);
   assert.equal(menus.get("reset")?.restricted, false);
-  assert.ok(BASIC_SETTINGS.includes(SETTINGS.fontSize));
-  assert.ok(BASIC_SETTINGS.includes(SETTINGS.autoUpdateActor));
-  assert.ok(!BASIC_SETTINGS.includes(SETTINGS.showTokenControl));
-  assert.ok(SETTING_GROUPS.behavior.includes(SETTINGS.showModeNavigation));
-  assert.ok(BASIC_SETTINGS.includes(SETTINGS.showModeNavigation));
-  assert.deepEqual(SETTING_GROUPS.itemUse, [
-    SETTINGS.showItemDetails,
-    SETTINGS.showActionTypes,
-    SETTINGS.showActivityPicker
-  ]);
-  assert.deepEqual(SETTING_GROUPS.interface, [
-    SETTINGS.showVisualEffects,
-    SETTINGS.pinWindow,
-    SETTINGS.showTokenControl
-  ]);
+  assert.equal(SETTING_DEFINITIONS[SETTINGS.fontSize].placement, "basic");
+  assert.equal(
+    SETTING_DEFINITIONS[SETTINGS.autoUpdateActor].placement,
+    "basic"
+  );
+  assert.equal(
+    SETTING_DEFINITIONS[SETTINGS.showTokenControl].placement,
+    "advanced"
+  );
+  assert.equal(
+    SETTING_DEFINITIONS[SETTINGS.showModeNavigation].group,
+    "behavior"
+  );
+  assert.equal(
+    SETTING_DEFINITIONS[SETTINGS.showModeNavigation].placement,
+    "basic"
+  );
   const context = await new (menus.get("configure").type)()._prepareContext();
   assert.deepEqual(
     context.groups.map(group => group.label),
@@ -111,7 +115,7 @@ test("main and additional settings use task-based groups", async () => {
     assert.equal(registrations.get(key)?.default, true);
   }
 
-  const groupedKeys = Object.values(SETTING_GROUPS).flat();
+  const groupedKeys = Object.keys(SETTING_DEFINITIONS);
   const configurableKeys = [...registrations]
     .filter(([, definition]) =>
       definition.name.startsWith("ADVENTURER_HUD.Settings.")
@@ -123,20 +127,82 @@ test("main and additional settings use task-based groups", async () => {
 
 test("reset restores configurable defaults", async () => {
   const writes = [];
+  const batches = [];
+  const current = new Map(
+    Object.entries(SETTING_DEFAULTS).map(([key, value]) => [key, !value])
+  );
+  current.set(SETTINGS.proficientSkillsOnly, false);
+  globalThis.Hooks = {
+    callAll(name, changes) {
+      if (name === "adventurerHudSettingsChanged") batches.push(changes);
+    }
+  };
+  installFoundryApplicationStub();
+  const registrations = new Map();
   globalThis.game = {
+    system: { id: "dnd5e" },
     settings: {
+      get: (_moduleId, key) => current.get(key),
+      register: (_moduleId, key, config) => registrations.set(key, config),
+      registerMenu() {},
       async set(_moduleId, key, value) {
         writes.push([key, value]);
+        current.set(key, value);
+        registrations.get(key)?.onChange?.(value);
       }
     }
   };
 
+  registerSettings();
   await resetSettings();
 
   assert.deepEqual(writes, [
     ...Object.entries(SETTING_DEFAULTS),
     [SETTINGS.proficientSkillsOnly, true]
   ]);
+  assert.equal(batches.length, 1);
+  assert.equal(batches[0].size, writes.length);
+  await resetSettings();
+  assert.equal(writes.length, batches[0].size);
+  assert.equal(batches.length, 1);
+});
+
+test("additional settings save only changed controls", async () => {
+  const registrations = new Map();
+  const menus = new Map();
+  const current = new Map(Object.entries(SETTING_DEFAULTS));
+  const writes = [];
+  const batches = [];
+  globalThis.Hooks = {
+    callAll(name, changes) {
+      if (name === "adventurerHudSettingsChanged") batches.push(changes);
+    }
+  };
+  installFoundryApplicationStub();
+  globalThis.game = {
+    system: { id: "dnd5e" },
+    settings: {
+      get: (_moduleId, key) => current.get(key),
+      register: (_moduleId, key, config) => registrations.set(key, config),
+      registerMenu: (_moduleId, key, config) => menus.set(key, config),
+      async set(_moduleId, key, value) {
+        writes.push([key, value]);
+        current.set(key, value);
+        registrations.get(key)?.onChange?.(value);
+      }
+    }
+  };
+  registerSettings();
+  const handler = menus.get("configure").type.DEFAULT_OPTIONS.form.handler;
+  const values = Object.fromEntries(current);
+  values.showSearch = false;
+  await handler(null, null, { object: values });
+  assert.deepEqual(writes, [[SETTINGS.showSearch, false]]);
+  assert.equal(batches.length, 1);
+  assert.deepEqual([...batches[0]], [[SETTINGS.showSearch, false]]);
+  await handler(null, null, { object: values });
+  assert.equal(writes.length, 1);
+  assert.equal(batches.length, 1);
 });
 
 test("system capabilities control system-specific settings", () => {

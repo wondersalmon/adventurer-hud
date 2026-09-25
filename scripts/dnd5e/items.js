@@ -21,10 +21,26 @@ export function itemActivation(item, activityId = null) {
 }
 
 export function itemRangeData(item, activityId = null) {
-  const activityRange = itemActivities(item).find(
-    activity => activity?.range && (!activityId || activity.id === activityId)
-  )?.range;
-  const range = activityRange ?? item.system?.range ?? {};
+  const activities = itemActivities(item);
+  const activityRange = activityId
+    ? activities.find(activity => activity?.range && activity.id === activityId)
+        ?.range
+    : null;
+  const itemRange = item.system?.range;
+  const defaultRange = [
+    itemRange?.value,
+    itemRange?.long,
+    itemRange?.special
+  ].some(value => value !== undefined && value !== null && value !== "")
+    ? itemRange
+    : null;
+  const range = activityId
+    ? item.type === "weapon" && !activityRange?.override
+      ? (defaultRange ?? activityRange ?? {})
+      : (activityRange ?? defaultRange ?? {})
+    : (defaultRange ??
+      activities.find(activity => activity?.range)?.range ??
+      {});
 
   return {
     value: range.value?.value ?? range.value ?? "",
@@ -54,12 +70,47 @@ export function hasItemProperty(item, property) {
 }
 
 export function isPreparedSpell(item) {
+  if (
+    item.system?.method !== undefined ||
+    item.system?.prepared !== undefined
+  ) {
+    const prepared = Number(item.system.prepared ?? 0);
+    return Boolean(
+      Number(item.system.level ?? 0) === 0 ||
+      prepared > 0 ||
+      ["atwill", "innate", "pact", "ritual"].includes(item.system.method)
+    );
+  }
   const preparation = item.system?.preparation ?? {};
   return Boolean(
     Number(item.system?.level ?? 0) === 0 ||
     preparation.prepared ||
     ["always", "atwill", "innate", "pact"].includes(preparation.mode)
   );
+}
+
+export function spellPreparation(item) {
+  const system = item.system ?? {};
+  const modern = system.method !== undefined || system.prepared !== undefined;
+  if (modern) {
+    const prepared = Number(system.prepared ?? 0);
+    return {
+      canPrepare:
+        item.type === "spell" &&
+        Number(system.level ?? 0) > 0 &&
+        prepared !== 2 &&
+        (system.canPrepare ?? system.method === "spell"),
+      prepared: prepared > 0
+    };
+  }
+
+  return {
+    canPrepare:
+      item.type === "spell" &&
+      Number(system.level ?? 0) > 0 &&
+      system.preparation?.mode === "prepared",
+    prepared: Boolean(system.preparation?.prepared)
+  };
 }
 
 const INVENTORY_TYPES = new Set([

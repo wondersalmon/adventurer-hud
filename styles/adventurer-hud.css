@@ -12,30 +12,52 @@
 }
 
 .ws-rolls-dialog.ws-damage-flash {
-  animation: ws-hp-damage 950ms ease-out;
+  animation: ws-hp-damage 1300ms ease-out;
 }
 
 .ws-rolls-dialog.ws-heal-flash {
-  animation: ws-hp-heal 950ms ease-out;
+  animation: ws-hp-heal 1300ms ease-out;
 }
 
 .ws-rolls-dialog.ws-initiative-flash {
-  animation: ws-initiative-request 1100ms ease-out;
+  animation: ws-initiative-request 1400ms ease-out;
+}
+
+.ws-rolls-dialog.ws-turn-arrival {
+  animation: ws-turn-panel-glow 1450ms ease-out;
+}
+
+@keyframes ws-turn-panel-glow {
+  0%,
+  100% {
+    outline: 3px solid transparent;
+    outline-offset: 1px;
+  }
+
+  30%,
+  58% {
+    outline: 3px solid rgb(255 207 94 / 0.92);
+    outline-offset: 1px;
+    box-shadow:
+      0 0 0 5px rgb(255 193 63 / 0.42),
+      0 0 30px 10px rgb(255 193 63 / 0.6);
+  }
 }
 
 .ws-rolls-dialog.ws-initiative-rolled .ws-header-initiative {
-  animation: ws-initiative-result 1400ms ease-out;
+  animation: ws-initiative-result 1500ms ease-out;
 }
 
 .ws-rolls-dialog.ws-initiative-rolled .ws-header-initiative strong {
-  animation: ws-initiative-value 1400ms ease-out;
+  animation: ws-initiative-value 1500ms ease-out;
 }
 
 @keyframes ws-initiative-result {
   30% {
-    border-color: rgb(221 177 82 / 0.85);
-    background: rgb(221 177 82 / 0.2);
-    color: #f4d391;
+    border-color: #ffd15e;
+    background: rgb(255 193 63 / 0.38);
+    box-shadow: 0 0 22px 5px rgb(255 193 63 / 0.66);
+    color: #ffe5a7;
   }
 }
 
@@ -43,8 +65,8 @@
   30%,
   65% {
     color: #ffe3a0;
-    text-shadow: 0 0 10px rgb(239 184 73 / 0.8);
-    transform: scale(1.16);
+    text-shadow: 0 0 15px rgb(255 207 94 / 1);
+    transform: scale(1.24);
   }
 }
 
@@ -55,12 +77,13 @@
     outline-offset: 1px;
   }
 
-  35% {
-    outline: 3px solid rgb(221 177 82 / 0.8);
+  30%,
+  58% {
+    outline: 3px solid rgb(255 207 94 / 0.95);
     outline-offset: 1px;
     box-shadow:
-      0 0 0 3px rgb(221 177 82 / 0.75),
-      0 0 20px 4px rgb(221 177 82 / 0.5);
+      0 0 0 5px rgb(255 193 63 / 0.48),
+      0 0 30px 10px rgb(255 193 63 / 0.64);
   }
 }
 
@@ -71,12 +94,13 @@
     outline-offset: 1px;
   }
 
-  30% {
-    outline: 3px solid rgb(197 101 94 / 0.7);
+  30%,
+  58% {
+    outline: 3px solid rgb(255 117 105 / 0.95);
     outline-offset: 1px;
     box-shadow:
-      0 0 0 3px rgb(197 101 94 / 0.7),
-      0 0 18px 3px rgb(197 101 94 / 0.45);
+      0 0 0 5px rgb(255 107 96 / 0.5),
+      0 0 28px 9px rgb(255 107 96 / 0.62);
   }
 }
 
@@ -87,12 +111,13 @@
     outline-offset: 1px;
   }
 
-  30% {
-    outline: 3px solid rgb(121 168 102 / 0.7);
+  30%,
+  58% {
+    outline: 3px solid rgb(150 231 113 / 0.95);
     outline-offset: 1px;
     box-shadow:
-      0 0 0 3px rgb(121 168 102 / 0.7),
-      0 0 18px 3px rgb(121 168 102 / 0.45);
+      0 0 0 5px rgb(150 231 113 / 0.48),
+      0 0 28px 9px rgb(150 231 113 / 0.6);
   }
 }
 
@@ -103,6 +128,10 @@
   }
 
   .ws-rolls-dialog.ws-initiative-flash {
+    animation: none;
+  }
+
+  .ws-rolls-dialog.ws-turn-arrival {
     animation: none;
   }
 
@@ -152,6 +181,7 @@
   --accent-bg: rgb(193 154 88 / 0.12);
   --success: #79a866;
   --success-bg: rgb(121 168 102 / 0.13);
+  --warning: #d4b34f;
   --danger: #c5655e;
   --danger-bg: rgb(197 101 94 / 0.13);
 
@@ -220,6 +250,7 @@
   object-fit: cover;
   object-position: top center;
   background: var(--surface);
+  cursor: pointer;
 }
 
 .ws-rolls-dialog .ws-actor-identity {
@@ -228,6 +259,15 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  cursor: pointer;
+}
+
+.ws-rolls-dialog .ws-actor-portrait:hover {
+  border-color: var(--accent);
+}
+
+.ws-rolls-dialog .ws-actor-identity:hover strong {
+  color: var(--accent);
 }
 
 .ws-rolls-dialog .ws-rest-controls {

@@ -22,19 +22,11 @@
   }
 
   .ws-rolls-dialog .ws-combat-stats {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .ws-rolls-dialog .ws-health-stack {
     grid-column: 1 / -1;
-  }
-
-  .ws-rolls-dialog .ws-resources-toggle {
-    display: flex;
-  }
-
-  .ws-rolls-dialog .ws-combat-resources:not(.ws-expanded) .ws-resource-grid {
-    display: none;
   }
 
   .ws-rolls-dialog .ws-resource-grid {

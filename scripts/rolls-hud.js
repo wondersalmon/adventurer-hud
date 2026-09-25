@@ -11,12 +11,17 @@ import {
 } from "./hud/geometry.js";
 import { createRefreshScheduler, refreshHudView } from "./hud/refresh.js";
 import { favoriteEntriesForActor, toggleFavorite } from "./hud/quick-access.js";
+import { panelStateForActor, panelStateSnapshot } from "./hud/panel-state.js";
 import { createModuleTranslator } from "./localization.js";
 import { createRegularRenderer } from "./hud/regular.js";
 import { activateHudWindow } from "./hud/window-session.js";
 import { createHudApplicationClass } from "./hud/window-controls.js";
 import { renderHudMode } from "./render/index.js";
-import { findCombatant, tokenForActor } from "./runtime-helpers.js";
+import {
+  findCombatant,
+  getCurrentCombat,
+  tokenForActor
+} from "./runtime-helpers.js";
 import {
   flushWindowGeometry,
   getSetting,
@@ -160,21 +165,34 @@ export async function openRollsHud(actorOverride = null) {
       saveWindowGeometry(state.position);
     };
 
-    let closeAfterRoll = Boolean(getSetting(SETTINGS.closeAfterRoll));
     let pinned = Boolean(getSetting(SETTINGS.pinWindow));
 
-    const storeCloseAfterRoll = async value => {
-      closeAfterRoll = Boolean(value);
-      await setSetting(SETTINGS.closeAfterRoll, closeAfterRoll);
-    };
-
     const hudState = createHudState({
+      ...(getSetting(SETTINGS.autoOpenHud)
+        ? panelStateForActor(getSetting(SETTINGS.panelStates), actor.uuid)
+        : {}),
       proficientSkillsOnly: getSetting(SETTINGS.proficientSkillsOnly),
       favoriteEntries: favoriteEntriesForActor(
         getSetting(SETTINGS.favoriteEntries),
         actor.uuid
       )
     });
+
+    let panelStateWrite = Promise.resolve();
+    const savePanelState = () => {
+      const snapshot = panelStateSnapshot(hudState);
+      panelStateWrite = panelStateWrite
+        .catch(() => {})
+        .then(() =>
+          setSetting(SETTINGS.panelStates, {
+            ...(getSetting(SETTINGS.panelStates) ?? {}),
+            [actor.uuid]: snapshot
+          })
+        );
+      void panelStateWrite.catch(error => {
+        console.warn("Adventurer HUD | panel state save failed", error);
+      });
+    };
 
     const formatMod = value => {
       const n = Number(value ?? 0);
@@ -201,7 +219,7 @@ export async function openRollsHud(actorOverride = null) {
     const skillProf = id => adapter.skillProficiency(actor, id);
 
     const getCombatant = () => {
-      const combat = game.combat;
+      const combat = getCurrentCombat(game);
 
       if (!combat) {
         return null;
@@ -226,7 +244,7 @@ export async function openRollsHud(actorOverride = null) {
     };
 
     const isActiveCombatant = () =>
-      Boolean(game.combat?.started && getCombatant());
+      Boolean(getCurrentCombat(game)?.started && getCombatant());
 
     const combatModeAvailable = () =>
       adapter.capabilities.combat && adapter.isActorSupported(actor);
@@ -249,10 +267,30 @@ export async function openRollsHud(actorOverride = null) {
           resolveUuid: fromUuid
         })
       : [];
-
-    const normalTools = tools.filter(tool => !tool.isMusic);
-
-    const instruments = tools.filter(tool => tool.isMusic);
+    const toolState = {
+      tools,
+      normalTools: tools.filter(tool => !tool.isMusic),
+      instruments: tools.filter(tool => tool.isMusic)
+    };
+    let toolRefreshVersion = 0;
+    const refreshTools = async () => {
+      if (!adapter.capabilities.tools) return;
+      const version = ++toolRefreshVersion;
+      try {
+        const next = await adapter.getTools(actor, {
+          cache: state.toolNames,
+          localize: value => game.i18n.localize(value),
+          resolveUuid: fromUuid
+        });
+        if (version !== toolRefreshVersion || !app?.rendered) return;
+        toolState.tools = next;
+        toolState.normalTools = next.filter(tool => !tool.isMusic);
+        toolState.instruments = next.filter(tool => tool.isMusic);
+        refreshScheduler.schedule();
+      } catch (error) {
+        console.warn("Adventurer HUD | tool refresh failed", error);
+      }
+    };
 
     const components = createHudComponents({
       abilities,
@@ -291,12 +329,10 @@ export async function openRollsHud(actorOverride = null) {
 
     const regularRenderer = createRegularRenderer({
       hudState,
-      instruments,
-      normalTools,
+      toolState,
       ...components,
       ...combatRenderer,
       t,
-      tools,
       visibility
     });
 
@@ -305,7 +341,8 @@ export async function openRollsHud(actorOverride = null) {
       combatActions,
       combatHTML,
       openHpDialog,
-      openResourceDialog
+      openResourceDialog,
+      openSpellSlotsDialog
     } = combatRenderer;
     const { availableViews, normalHTML } = regularRenderer;
 
@@ -345,14 +382,16 @@ export async function openRollsHud(actorOverride = null) {
         ?.querySelectorAll(
           [
             '[data-action="initiative"]',
+            '[data-action="endturn"]',
             '[data-action="ability"]',
             '[data-action="skill"]',
             '[data-action="tool"]',
             '[data-action="death"]',
             '[data-action="useitem"]',
             '[data-action="useactivity"]',
-            '[data-action="removestatus"]',
             '[data-action="edithp"]',
+            '[data-action="togglespellprepared"]',
+            '[data-action="openspellslots"]',
             '[data-action="shortrest"]',
             '[data-action="longrest"]'
           ].join(",")
@@ -362,7 +401,7 @@ export async function openRollsHud(actorOverride = null) {
         });
     };
 
-    const rollAndClose = async callback => {
+    const performRoll = async callback => {
       if (rollPending) {
         return;
       }
@@ -372,10 +411,6 @@ export async function openRollsHud(actorOverride = null) {
 
       try {
         const result = await callback();
-
-        if (result && closeAfterRoll) {
-          await app.close();
-        }
 
         return result;
       } finally {
@@ -486,11 +521,12 @@ export async function openRollsHud(actorOverride = null) {
       currentMode,
       getCombatant,
       hudState,
-      isCloseAfterRoll: () => closeAfterRoll,
       openHpDialog,
       openResourceDialog,
+      openSpellSlotsDialog,
       performAndRefresh,
       refreshHud,
+      savePanelState,
       resetWindow: async () => {
         app.setPosition({ width: dialogWidth, height: "auto" });
         await new Promise(resolve => requestAnimationFrame(resolve));
@@ -503,9 +539,8 @@ export async function openRollsHud(actorOverride = null) {
         storePosition({ left, top, width: rect.width, height: "auto" });
         await flushWindowGeometry();
       },
-      rollAndClose,
+      performRoll,
       setView,
-      storeCloseAfterRoll,
       t,
       toggleFavoriteEntry,
       updateSearch,
@@ -544,13 +579,6 @@ export async function openRollsHud(actorOverride = null) {
         resizable: true,
         controls: [
           {
-            icon: closeAfterRoll
-              ? "fa-solid fa-toggle-on"
-              : "fa-solid fa-toggle-off",
-            label: t("Window.CloseAfterRollMenu"),
-            action: "togglecloseafterroll"
-          },
-          {
             icon: "fa-solid fa-arrow-rotate-left",
             label: t("Window.ResetHint"),
             action: "resetwindow"
@@ -586,7 +614,6 @@ export async function openRollsHud(actorOverride = null) {
       app,
       canRollActor,
       changeResource,
-      isCloseAfterRoll: () => closeAfterRoll,
       visualEffectsEnabled: getSetting(SETTINGS.showVisualEffects),
       isCurrentCombatant: combatant => {
         const tokenId = token?.document?.id ?? token?.id;
@@ -594,6 +621,13 @@ export async function openRollsHud(actorOverride = null) {
           Boolean(combatant?.tokenId) &&
           getCombatant()?.id === combatant?.id &&
           (!tokenId || combatant?.tokenId === tokenId)
+        );
+      },
+      isPlayersTurn: () => {
+        const combat = getCurrentCombat(game);
+        const combatant = getCombatant();
+        return Boolean(
+          combat?.started && combatant && combat.combatant?.id === combatant.id
         );
       },
       readVisibility,
@@ -615,9 +649,7 @@ export async function openRollsHud(actorOverride = null) {
         : null,
       refreshHud,
       refreshScheduler,
-      setCloseAfterRoll: value => {
-        closeAfterRoll = value;
-      },
+      onToolsChange: refreshTools,
       setPinned: value => {
         pinned = value;
       },

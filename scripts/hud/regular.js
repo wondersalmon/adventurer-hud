@@ -12,12 +12,10 @@ export function createRegularRenderer(context) {
     healthPanel,
     hudState,
     inspirationControl,
-    instruments,
     inventoryCategories,
     inventoryItems,
     legend,
     modeNavigation,
-    normalTools,
     restControls,
     searchControl,
     searchItems,
@@ -26,7 +24,7 @@ export function createRegularRenderer(context) {
     spellGroups,
     t,
     toolSection,
-    tools,
+    toolState,
     visibility
   } = context;
 
@@ -76,9 +74,9 @@ export function createRegularRenderer(context) {
   `;
   };
 
-  function normalHTML() {
+  const mainHTML = () => {
     const { spells: hasSpells } = availableViews();
-    const markup = `
+    return `
         <div
           id="ws-main"
           class="ws-view"
@@ -211,7 +209,10 @@ export function createRegularRenderer(context) {
 
           ${shortcutHint()}
         </div>
+      `;
+  };
 
+  const skillsViewHTML = () => `
         <div
           id="ws-skills"
           class="ws-view ws-hidden"
@@ -243,7 +244,9 @@ export function createRegularRenderer(context) {
 
           ${shortcutHint()}
         </div>
+      `;
 
+  const toolsViewHTML = () => `
         <div
           id="ws-tools"
           class="ws-view ws-hidden"
@@ -256,18 +259,18 @@ export function createRegularRenderer(context) {
             <div class="ws-tools-content">
 
               ${
-                tools.length
+                toolState.tools.length
                   ? `
                     ${toolSection(
                       t("Labels.Tools"),
                       "fa-screwdriver-wrench",
-                      normalTools
+                      toolState.normalTools
                     )}
 
                     ${toolSection(
                       t("Labels.Instruments"),
                       "fa-music",
-                      instruments
+                      toolState.instruments
                     )}
                   `
                   : `
@@ -292,7 +295,7 @@ export function createRegularRenderer(context) {
           </div>
 
           ${
-            tools.length
+            toolState.tools.length
               ? `
                 <div class="ws-divider"></div>
                 ${legend()}
@@ -302,7 +305,9 @@ export function createRegularRenderer(context) {
 
           ${shortcutHint()}
         </div>
+      `;
 
+  const spellsViewHTML = () => `
         <div id="ws-spells" class="ws-view ws-hidden">
           ${back(t("Combat.Spells"), "fa-wand-magic-sparkles")}
 
@@ -328,23 +333,16 @@ export function createRegularRenderer(context) {
 
           ${shortcutHint()}
         </div>
-
-        ${visibility.inventory ? inventoryHTML() : ""}
       `;
 
-    const template = document.createElement("template");
-    template.innerHTML = markup;
-    const view = id =>
-      template.content.querySelector(`#ws-${id}`)?.outerHTML ?? "";
-
-    return renderRegularView(hudState.currentView, {
-      main: () => view("main"),
-      inventory: () => view("inventory"),
-      skills: () => view("skills"),
-      spells: () => view("spells"),
-      tools: () => view("tools")
+  const normalHTML = () =>
+    renderRegularView(hudState.currentView, {
+      main: mainHTML,
+      inventory: () => (visibility.inventory ? inventoryHTML() : ""),
+      skills: skillsViewHTML,
+      spells: spellsViewHTML,
+      tools: toolsViewHTML
     });
-  }
 
   return { availableViews, inventoryHTML, normalHTML };
 }

@@ -5,7 +5,7 @@
 
 Adventurer HUD is a compact character HUD for [D&D 5e](https://github.com/foundryvtt/dnd5e). It lets you perform common character actions without opening the character sheet and automatically switches between exploration and combat modes.
 
-![Adventurer HUD demonstration](docs/media/demo.webp)
+![Adventurer HUD demonstration](docs/media/demo.gif)
 
 ## Installation
 
@@ -23,6 +23,7 @@ https://github.com/wondersalmon/adventurer-hud/releases/latest/download/module.j
 ## Usage
 
 Press `Shift+R` to open the HUD for the selected character (You can change the keyboard shortcut in the settings).
+Enable **Open HUD on login** in the module settings to open it when entering the world or refreshing the page.
 You can also enable a button for opening the HUD in the Token Controls from the module settings.
 
 ## AI disclosure

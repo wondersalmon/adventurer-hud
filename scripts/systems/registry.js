@@ -29,7 +29,6 @@ const ADAPTER_DEFAULTS = Object.freeze({
   abilityData: () => ({}),
   abilityDefinitions: () => [],
   abilityTotal: data => Number(data?.mod ?? 0) || 0,
-  activationLabel: type => type,
   actorResources: () => [],
   classSummary: () => "",
   combatItems: () => [],
@@ -65,6 +64,7 @@ const ADAPTER_DEFAULTS = Object.freeze({
   }),
   itemResourceCost: () => "",
   itemRole: () => "other",
+  itemSaveDc: () => "",
   itemUsesData: () => null,
   longRest: () => unsupported("long rests"),
   proficiencyMultiplier: value => Number(value ?? 0) || 0,
@@ -81,7 +81,10 @@ const ADAPTER_DEFAULTS = Object.freeze({
   skillDefinitions: () => [],
   skillProficiency: () => 0,
   spellLevel: () => 0,
+  spellPreparation: () => null,
   spellSlots: () => [],
+  toggleSpellPreparation: () => unsupported("spell preparation"),
+  updateSpellSlots: () => unsupported("spell slot updates"),
   toggleInspiration: () => unsupported("inspiration"),
   updateHp: () => unsupported("HP updates"),
   updateResource: () => unsupported("resource updates"),
@@ -125,7 +128,5 @@ export function registerSystemAdapter(adapter, { replace = false } = {}) {
 }
 
 export const getSystemAdapter = id => adapters.get(id) ?? null;
-
-export const hasSystemAdapter = id => adapters.has(id);
 
 export const listSystemAdapters = () => [...adapters.keys()];
