@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
 const readJson = async file => JSON.parse(await readFile(file, "utf8"));
@@ -47,4 +47,16 @@ test("manifest loads split HUD styles in cascade order", async () => {
     "styles/death.css",
     "styles/responsive.css"
   ]);
+});
+
+test("manifest media links point to files in the repository", async () => {
+  const manifest = await readJson("module.json");
+  const prefix =
+    "https://raw.githubusercontent.com/wondersalmon/adventurer-hud/main/";
+  for (const media of manifest.media) {
+    for (const url of [media.url, media.thumbnail].filter(Boolean)) {
+      assert.ok(url.startsWith(prefix));
+      await access(new URL(`../${url.slice(prefix.length)}`, import.meta.url));
+    }
+  }
 });

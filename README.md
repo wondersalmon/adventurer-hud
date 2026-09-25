@@ -9,7 +9,9 @@ Adventurer HUD is a compact character HUD for [D&D 5e](https://github.com/foundr
 
 ## Installation
 
-In Foundry VTT, select **Install Module**, paste the manifest URL, and click **Install**:
+In Foundry VTT, select **Install Module**, search for **Adventurer HUD** in the official module catalog, and click **Install**. You can also open the [Adventurer HUD package page](https://foundryvtt.com/packages/adventurer-hud).
+
+Alternatively, paste this manifest URL into **Install Module**:
 
 ```text
 https://github.com/wondersalmon/adventurer-hud/releases/latest/download/module.json

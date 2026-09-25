@@ -24,8 +24,8 @@
   "media": [
     {
       "type": "setup",
-      "url": "https://raw.githubusercontent.com/wondersalmon/adventurer-hud/main/docs/media/demo.webp",
-      "thumbnail": "https://raw.githubusercontent.com/wondersalmon/adventurer-hud/main/docs/media/image.png"
+      "url": "https://raw.githubusercontent.com/wondersalmon/adventurer-hud/main/docs/media/demo.gif",
+      "thumbnail": "https://raw.githubusercontent.com/wondersalmon/adventurer-hud/main/docs/media/demo.gif"
     }
   ],
   "esmodules": ["scripts/adventurer-hud.js"],

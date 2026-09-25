@@ -11,7 +11,9 @@ Adventurer HUD — компактная панель персонажа для [
 
 ## Как установить
 
-Зайдите в Foundry VTT, выберите "Установить модуль", вставьте ссылку на манифест и нажмите "Установить":
+В Foundry VTT откройте «Установить модуль», найдите **Adventurer HUD** в официальном каталоге и нажмите «Установить». Также можно открыть [страницу модуля в каталоге Foundry](https://foundryvtt.com/packages/adventurer-hud).
+
+Другой способ — вставить в окно «Установить модуль» ссылку на манифест:
 
 ```text
 https://github.com/wondersalmon/adventurer-hud/releases/latest/download/module.json
@@ -20,7 +22,7 @@ https://github.com/wondersalmon/adventurer-hud/releases/latest/download/module.j
 ## Требования
 
 - Foundry VTT версии 14
-- D№D 5e версии 5.3 или новее
+- D&D 5e версии 5.3 или новее
 
 ## Как пользоваться
 
