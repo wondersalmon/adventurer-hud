@@ -1,13 +1,20 @@
+import { createIntegrityApplication } from "./integrity-ui.js";
 import { MODULE_ID } from "./module-id.js";
+import { createTaskQueue } from "./task-queue.js";
 import { createModuleTranslator } from "./localization.js";
-import { getSystemAdapter } from "./systems/index.js";
 import {
-  ADVANCED_SETTING_GROUPS,
-  SETTINGS,
-  SETTING_DEFAULTS,
-  SETTING_DEFINITIONS
+  booleanSettingsEntries,
+  prepareSettingsGroups
+} from "./settings-form.js";
+import {
+  getAdvancedSettingGroups,
+  getSettingDefinitions,
+  getSettingDefaults,
+  SETTINGS
 } from "./settings-schema.js";
 export {
+  getSettingDefinitions,
+  getSettingDefaults,
   SETTINGS,
   SETTING_DEFAULTS,
   SETTING_DEFINITIONS
@@ -15,49 +22,47 @@ export {
 
 let SettingsApplication = null;
 let ResetSettingsApplication = null;
+let IntegrityApplication = null;
 let pendingSettingKeys = null;
+const queueSettingsSave = createTaskQueue();
 
 const notifyChange = key => value => {
   if (pendingSettingKeys?.has(key)) return;
   Hooks.callAll("adventurerHudSettingChanged", key, value);
 };
 
-async function saveChangedSettings(entries) {
-  const changes = new Map();
-  pendingSettingKeys = new Set();
-  try {
-    for (const [key, value] of entries) {
-      if (Object.is(getSetting(key), value)) continue;
-      pendingSettingKeys.add(key);
-      await setSetting(key, value);
-      changes.set(key, value);
+function saveChangedSettings(entries) {
+  return queueSettingsSave(async () => {
+    const changes = new Map();
+    pendingSettingKeys = new Set();
+    try {
+      for (const [key, value] of entries) {
+        if (Object.is(getSetting(key), value)) continue;
+        pendingSettingKeys.add(key);
+        await setSetting(key, value);
+        changes.set(key, value);
+      }
+    } finally {
+      pendingSettingKeys = null;
+      if (changes.size) {
+        Hooks.callAll("adventurerHudSettingsChanged", changes);
+      }
     }
-  } finally {
-    pendingSettingKeys = null;
-    if (changes.size) {
-      Hooks.callAll("adventurerHudSettingsChanged", changes);
-    }
-  }
-}
-
-export function isSettingSupported(key, systemId = game.system?.id) {
-  const capability = SETTING_DEFINITIONS[key]?.capability;
-  if (!capability) return true;
-  return Boolean(getSystemAdapter(systemId)?.capabilities?.[capability]);
+  });
 }
 
 export const settingRefreshStrategy = key =>
   key === SETTINGS.proficientSkillsOnly
     ? "content"
-    : (SETTING_DEFINITIONS[key]?.refresh ?? "none");
+    : (getSettingDefinitions()[key]?.refresh ?? "none");
 
 export function registerSettings() {
-  for (const [key, definition] of Object.entries(SETTING_DEFINITIONS)) {
+  for (const [key, definition] of Object.entries(getSettingDefinitions())) {
     game.settings.register(MODULE_ID, key, {
       name: `ADVENTURER_HUD.Settings.${key}.Name`,
       hint: `ADVENTURER_HUD.Settings.${key}.Hint`,
       scope: "user",
-      config: definition.placement === "basic" && isSettingSupported(key),
+      config: definition.placement === "basic",
       type: definition.type,
       ...(definition.choices ? { choices: definition.choices } : {}),
       default: definition.default,
@@ -69,15 +74,6 @@ export function registerSettings() {
     name: "Adventurer HUD window geometry",
     hint: "",
     scope: "client",
-    config: false,
-    type: Object,
-    default: {}
-  });
-
-  game.settings.register(MODULE_ID, SETTINGS.favoriteEntries, {
-    name: "Adventurer HUD favorites",
-    hint: "",
-    scope: "user",
     config: false,
     type: Object,
     default: {}
@@ -102,12 +98,30 @@ export function registerSettings() {
     onChange: notifyChange(SETTINGS.proficientSkillsOnly)
   });
 
+  game.settings.register(MODULE_ID, SETTINGS.repairBackup, {
+    name: "Adventurer HUD repair backup",
+    hint: "",
+    scope: "user",
+    config: false,
+    type: Object,
+    default: {}
+  });
   registerSettingsMenus();
 }
 
 function registerSettingsMenus() {
   const { ApplicationV2, HandlebarsApplicationMixin } =
     foundry.applications.api;
+
+  IntegrityApplication = createIntegrityApplication();
+  game.settings.registerMenu(MODULE_ID, "integrity", {
+    name: "ADVENTURER_HUD.Settings.Integrity.Name",
+    hint: "ADVENTURER_HUD.Settings.Integrity.Hint",
+    label: "ADVENTURER_HUD.Settings.Integrity.Label",
+    icon: "fa-solid fa-wrench",
+    type: IntegrityApplication,
+    restricted: false
+  });
 
   SettingsApplication = class AdventurerHudSettings extends (
     HandlebarsApplicationMixin(ApplicationV2)
@@ -121,7 +135,15 @@ function registerSettingsMenus() {
         title: "ADVENTURER_HUD.Settings.Advanced.Name"
       },
       position: { width: 620, height: "auto" },
-      form: { closeOnSubmit: true, handler: this.#onSubmit }
+      form: { closeOnSubmit: true, handler: this.#onSubmit },
+      actions: {
+        reset: function (event) {
+          event.preventDefault();
+          const confirmation = new ResetSettingsApplication();
+          confirmation.settingsApp = this;
+          return confirmation.render({ force: true });
+        }
+      }
     };
 
     static PARTS = {
@@ -138,33 +160,18 @@ function registerSettingsMenus() {
       }
       return {
         saveLabel: t("Settings.Save"),
-        groups: Object.entries(ADVANCED_SETTING_GROUPS)
-          .map(([id, keys]) => ({
-            label: t(`Settings.Groups.${id}`),
-            settings: keys
-              .filter(key => isSettingSupported(key))
-              .map(key => {
-                const definition = game.settings.settings.get(
-                  `${MODULE_ID}.${key}`
-                );
-                return {
-                  hint: t(definition.hint.replace("ADVENTURER_HUD.", "")),
-                  key,
-                  name: t(definition.name.replace("ADVENTURER_HUD.", "")),
-                  value: getSetting(key)
-                };
-              })
-          }))
-          .filter(group => group.settings.length)
+        resetLabel: t("Settings.Reset.Label"),
+        groups: prepareSettingsGroups({
+          groups: getAdvancedSettingGroups(),
+          readValue: getSetting,
+          t
+        })
       };
     }
 
     static async #onSubmit(_event, _form, formData) {
       await saveChangedSettings(
-        Object.values(ADVANCED_SETTING_GROUPS)
-          .flat()
-          .filter(key => isSettingSupported(key))
-          .map(key => [key, Boolean(formData.object[key])])
+        booleanSettingsEntries(getAdvancedSettingGroups(), formData.object)
       );
     }
   };
@@ -192,6 +199,11 @@ function registerSettingsMenus() {
       form: {
         closeOnSubmit: true,
         handler: this.#onSubmit
+      },
+      actions: {
+        cancel: function () {
+          return this.close();
+        }
       }
     };
 
@@ -211,6 +223,7 @@ function registerSettingsMenus() {
       }
       return {
         confirmLabel: t("Settings.Reset.Confirm"),
+        cancelLabel: t("Settings.Cancel"),
         resetLabel: t("Settings.Reset.Label")
       };
     }
@@ -222,17 +235,11 @@ function registerSettingsMenus() {
         i18n: game.i18n
       });
       ui.notifications.info(t("Settings.Reset.Done"));
+      if (this.settingsApp?.rendered) {
+        await this.settingsApp.render({ force: true });
+      }
     }
   };
-
-  game.settings.registerMenu(MODULE_ID, "reset", {
-    name: "ADVENTURER_HUD.Settings.Reset.Name",
-    hint: "ADVENTURER_HUD.Settings.Reset.Hint",
-    label: "ADVENTURER_HUD.Settings.Reset.Label",
-    icon: "fa-solid fa-arrow-rotate-left",
-    type: ResetSettingsApplication,
-    restricted: false
-  });
 }
 
 export async function openSettings() {
@@ -256,7 +263,7 @@ export function moveSettingsMenusToBottom(root) {
     return;
   }
 
-  for (const key of ["configure", "reset"]) {
+  for (const key of ["configure", "integrity"]) {
     const settingId = `${MODULE_ID}.${key}`;
     const control = element.querySelector(
       `[data-key="${settingId}"], [data-setting-id="${settingId}"], [name="${settingId}"]`
@@ -275,7 +282,8 @@ export async function localizeSettingsRows(root) {
     i18n: game.i18n
   });
 
-  for (const key of Object.keys(SETTING_DEFINITIONS)) {
+  const definitions = getSettingDefinitions();
+  for (const key of Object.keys(definitions)) {
     const settingId = `${MODULE_ID}.${key}`;
     const control = element.querySelector(
       `[data-key="${settingId}"], [data-setting-id="${settingId}"], [name="${settingId}"]`
@@ -289,7 +297,7 @@ export async function localizeSettingsRows(root) {
     if (hint) hint.textContent = t(`Settings.${key}.Hint`);
 
     for (const [value, choice] of Object.entries(
-      SETTING_DEFINITIONS[key].choices ?? {}
+      definitions[key].choices ?? {}
     )) {
       const option = row.querySelector(`option[value="${value}"]`);
       if (option) {
@@ -302,7 +310,7 @@ export async function localizeSettingsRows(root) {
 
   for (const [key, section] of [
     ["configure", "Advanced"],
-    ["reset", "Reset"]
+    ["integrity", "Integrity"]
   ]) {
     const settingId = `${MODULE_ID}.${key}`;
     const control = element.querySelector(
@@ -333,7 +341,7 @@ export async function localizeSettingsRows(root) {
 
 export async function resetSettings() {
   await saveChangedSettings([
-    ...Object.entries(SETTING_DEFAULTS),
+    ...Object.entries(getSettingDefaults()),
     [SETTINGS.proficientSkillsOnly, true]
   ]);
 }

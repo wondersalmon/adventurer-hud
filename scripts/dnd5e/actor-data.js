@@ -1,51 +1,17 @@
-export function proficiencyMultiplier(value) {
-  return (
-    Number(
-      value?.multiplier ??
-        value?.value ??
-        value?.prof?.multiplier ??
-        value?.prof?.value ??
-        value?.prof ??
-        value ??
-        0
-    ) || 0
-  );
-}
-
-export function proficiencyBonus(proficiency) {
-  const term = proficiency?.term;
-
-  if (
-    term === null ||
-    term === undefined ||
-    term === "" ||
-    !Number.isFinite(Number(term))
-  ) {
-    return 0;
-  }
-
-  return Number(proficiency.flat ?? term) || 0;
-}
+export const proficiencyMultiplier = value =>
+  Number(value?.multiplier ?? value ?? 0) || 0;
 
 export function abilityTotal(data = {}, type) {
-  const preparedValue = data[type]?.value;
-  const prepared = Number(preparedValue);
-
-  if (
-    preparedValue !== null &&
-    preparedValue !== undefined &&
-    preparedValue !== "" &&
-    Number.isFinite(prepared)
-  ) {
-    return prepared;
+  if (data[type]?.value !== undefined) return Number(data[type].value);
+  // D&D 5.3 prepares check components separately; D&D 6 also provides check.value.
+  if (type === "check") {
+    const proficiency = data.checkProf;
+    const flat = Number.isFinite(Number(proficiency?.term))
+      ? Number(proficiency.flat)
+      : 0;
+    return Number(data.mod ?? 0) + Number(data.checkBonus ?? 0) + flat;
   }
-
-  const legacyBonus = Number(data[`${type}Bonus`] ?? 0) || 0;
-  return (
-    (Number(data.mod) || 0) +
-    legacyBonus +
-    proficiencyBonus(data[`${type}Prof`])
-  );
+  return 0;
 }
 
 export function actorDeathData(actor) {

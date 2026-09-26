@@ -8,11 +8,12 @@ export const SETTINGS = Object.freeze({
   showVisualEffects: "showVisualEffects",
   showItemDetails: "showItemDetails",
   showActionTypes: "showActionTypes",
+  showCombatSkills: "showCombatSkills",
   showModeNavigation: "showModeNavigation",
   showSearch: "showSearch",
   showActivityPicker: "showActivityPicker",
   showFavorites: "showFavorites",
-  favoriteEntries: "favoriteEntries",
+  repairBackup: "repairBackup",
   panelStates: "panelStates",
   proficientSkillsOnly: "proficientSkillsOnly",
   windowGeometry: "windowGeometry"
@@ -34,7 +35,6 @@ const LANGUAGE_CHOICES = Object.freeze({
 const defineSetting = (
   group,
   {
-    capability,
     choices,
     defaultValue = true,
     placement = "advanced",
@@ -48,7 +48,6 @@ const defineSetting = (
     refresh,
     type,
     default: defaultValue,
-    ...(capability ? { capability } : {}),
     ...(choices ? { choices } : {})
   });
 
@@ -72,6 +71,7 @@ export const SETTING_DEFINITIONS = Object.freeze({
   }),
   [SETTINGS.pinWindow]: defineSetting("interface", {
     defaultValue: false,
+    placement: "internal",
     refresh: "runtime"
   }),
   [SETTINGS.showTokenControl]: defineSetting("interface", {
@@ -88,25 +88,25 @@ export const SETTING_DEFINITIONS = Object.freeze({
     placement: "basic",
     refresh: "none"
   }),
+  [SETTINGS.showActivityPicker]: defineSetting("itemUse"),
   [SETTINGS.showItemDetails]: defineSetting("itemUse"),
   [SETTINGS.showActionTypes]: defineSetting("itemUse"),
-  [SETTINGS.showModeNavigation]: defineSetting("behavior", {
-    defaultValue: false,
-    placement: "basic"
+  [SETTINGS.showCombatSkills]: defineSetting("quickAccess"),
+  [SETTINGS.showModeNavigation]: defineSetting("interface", {
+    defaultValue: false
   }),
   [SETTINGS.showSearch]: defineSetting("quickAccess"),
-  [SETTINGS.showFavorites]: defineSetting("quickAccess"),
-  [SETTINGS.showActivityPicker]: defineSetting("itemUse", {
-    capability: "activityChoice"
-  })
+  [SETTINGS.showFavorites]: defineSetting("quickAccess")
 });
 
-const definitionsBy = predicate =>
-  Object.entries(SETTING_DEFINITIONS)
+export const getSettingDefinitions = () => SETTING_DEFINITIONS;
+
+const definitionsBy = (definitions, predicate) =>
+  Object.entries(definitions)
     .filter(([, definition]) => predicate(definition))
     .map(([key]) => key);
 
-const groupDefinitions = placement =>
+export const getAdvancedSettingGroups = () =>
   Object.freeze(
     Object.fromEntries(
       ["behavior", "appearance", "quickAccess", "itemUse", "interface"]
@@ -114,9 +114,10 @@ const groupDefinitions = placement =>
           group,
           Object.freeze(
             definitionsBy(
+              getSettingDefinitions(),
               definition =>
                 definition.group === group &&
-                (!placement || definition.placement === placement)
+                definition.placement === "advanced"
             )
           )
         ])
@@ -124,7 +125,6 @@ const groupDefinitions = placement =>
     )
   );
 
-export const ADVANCED_SETTING_GROUPS = groupDefinitions("advanced");
 export const SETTING_DEFAULTS = Object.freeze(
   Object.fromEntries(
     Object.entries(SETTING_DEFINITIONS).map(([key, definition]) => [
@@ -133,3 +133,11 @@ export const SETTING_DEFAULTS = Object.freeze(
     ])
   )
 );
+
+export const getSettingDefaults = () =>
+  Object.fromEntries(
+    Object.entries(getSettingDefinitions()).map(([key, definition]) => [
+      key,
+      definition.default
+    ])
+  );

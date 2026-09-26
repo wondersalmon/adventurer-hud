@@ -3,7 +3,6 @@ import test from "node:test";
 
 import {
   actorContextChanged,
-  calculateResourceValue,
   findCombatant,
   getCurrentCombat,
   tokenForActor
@@ -49,6 +48,25 @@ test("combatant lookup prefers the selected token and falls back to actor", () =
   );
   assert.equal(findCombatant(combatants, { actorId: "actor" })?.id, "one");
   assert.equal(findCombatant(combatants, { actorId: "missing" }), null);
+  assert.equal(
+    findCombatant(combatants, { actorId: "actor", tokenId: "deleted" }),
+    null
+  );
+  assert.equal(
+    findCombatant(
+      [
+        {
+          id: "other-scene",
+          actorId: "actor",
+          tokenId: "token",
+          sceneId: "other"
+        },
+        { id: "scene", actorId: "actor", tokenId: "token", sceneId: "selected" }
+      ],
+      { actorId: "actor", tokenId: "token", sceneId: "selected" }
+    )?.id,
+    "scene"
+  );
 });
 
 test("combat lookup falls back to the viewed or active encounter", () => {
@@ -60,43 +78,4 @@ test("combat lookup falls back to the viewed or active encounter", () => {
   );
   assert.equal(getCurrentCombat({ combat: null, combats: { active } }), active);
   assert.equal(getCurrentCombat({ combat: null }), null);
-});
-
-test("resource changes are clamped and maxless resources cannot be restored", () => {
-  assert.equal(
-    calculateResourceValue({
-      amount: 3,
-      current: 2,
-      direction: "consume",
-      max: 5
-    }),
-    0
-  );
-  assert.equal(
-    calculateResourceValue({
-      amount: 4,
-      current: 3,
-      direction: "restore",
-      max: 5
-    }),
-    5
-  );
-  assert.equal(
-    calculateResourceValue({
-      amount: 1,
-      current: 3,
-      direction: "restore",
-      max: 0
-    }),
-    null
-  );
-  assert.equal(
-    calculateResourceValue({
-      amount: 1,
-      current: 1,
-      direction: "restoreAll",
-      max: 6
-    }),
-    6
-  );
 });

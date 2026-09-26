@@ -4,13 +4,12 @@ import { subscribeHudDocuments } from "./subscriptions.js";
 export async function activateHudWindow({
   actor,
   app,
-  canRollActor,
-  changeResource,
   visualEffectsEnabled = true,
   isCurrentCombatant,
   isPlayersTurn,
   onSearchInput,
   onToolsChange,
+  onStatusChange,
   readHp,
   readVisibility,
   syncPreferences,
@@ -75,26 +74,6 @@ export async function activateHudWindow({
   await app.render({ force: true });
   state.app = app;
   syncEffects();
-
-  app.element.addEventListener("contextmenu", event => {
-    const target = event.target.closest?.(".ws-resource-link");
-    if (!target || !event.shiftKey || !canRollActor) return;
-
-    event.preventDefault();
-    const item = target.dataset.itemId
-      ? actor.items.get(target.dataset.itemId)
-      : null;
-
-    void changeResource({
-      amount: 1,
-      direction: "restore",
-      item,
-      resourceId: target.dataset.resourceId
-    }).catch(error => {
-      console.error("Rolls HUD | quick resource restore", error);
-      ui.notifications.error(`Rolls HUD: ${error?.message ?? error}`);
-    });
-  });
 
   app.element.addEventListener("input", event => {
     if (event.target?.matches?.('[data-action="searchitems"]')) {
@@ -197,6 +176,7 @@ export async function activateHudWindow({
       showHpFeedback(change);
     },
     onToolsChange,
+    onStatusChange,
     scheduleRefresh: refreshScheduler.schedule
   });
 

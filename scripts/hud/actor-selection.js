@@ -27,7 +27,7 @@ export async function selectHudActor({
     if (!availableActors.length) {
       ui.notifications.warn(t("Warnings.NoActor"));
     } else if (availableActors.length === 1) {
-      await onSelect(availableActors[0]);
+      return { actor: availableActors[0], token: null };
     } else {
       await openActorPicker({
         actors: availableActors,

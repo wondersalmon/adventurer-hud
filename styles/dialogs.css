@@ -57,50 +57,12 @@
   white-space: nowrap;
 }
 
-.ws-resource-dialog .ws-resource-dialog-content {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.ws-resource-dialog .ws-resource-dialog-content p {
-  margin: 0;
-  font-weight: 800;
-}
-
-.ws-resource-dialog .ws-resource-dialog-content label {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 80px;
-  align-items: center;
-  gap: 10px;
-}
-
-.ws-resource-dialog .ws-resource-dialog-content button {
-  min-height: 36px;
-}
-
-.ws-resource-dialog .ws-resource-dialog-actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
-  gap: 6px;
-}
-
 .ws-hp-dialog .ws-hp-dialog-content {
   display: grid;
   gap: 10px;
 }
 
-.ws-spell-slots-dialog .ws-spell-slots-dialog-content {
-  display: grid;
-  gap: 10px;
-}
-
 .ws-hp-dialog .ws-hp-dialog-content label {
-  display: grid;
-  gap: 5px;
-}
-
-.ws-spell-slots-dialog .ws-spell-slots-dialog-content label {
   display: grid;
   gap: 5px;
 }

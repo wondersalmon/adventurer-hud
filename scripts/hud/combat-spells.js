@@ -1,9 +1,7 @@
 export function createCombatSpellRenderer({
   actor,
   adapter,
-  canRollActor,
   combatItemButton,
-  escapeHTML,
   hudState,
   t,
   tf
@@ -34,16 +32,8 @@ export function createCombatSpellRenderer({
         const label = t(isPact ? "Combat.PactSlots" : "Combat.SpellSlots");
         const kind = `<span class="ws-slot-kind" aria-hidden="true">${t(isPact ? "Combat.PactSlotsShort" : "Combat.SpellSlotsShort")}</span>`;
         const poolClass = isPact ? "ws-pact-slots" : "";
-        if (!pool || !canRollActor) {
-          return `<span class="ws-spell-slots ${poolClass}" title="${label}: ${value}/${max}">${kind}${dots}<b>${value}/${max}</b></span>`;
-        }
 
-        return `<button type="button" class="ws-spell-slots ws-spell-slots-edit ws-button ${poolClass}"
-          data-action="openspellslots" data-level="${level}" data-pool="${escapeHTML(pool)}"
-          title="${t("Combat.EditSpellSlots")}: ${label} ${value}/${max}"
-          aria-label="${t("Combat.EditSpellSlots")}: ${label} ${value}/${max}">
-          ${kind}${dots}<b>${value}/${max}</b>
-        </button>`;
+        return `<span class="ws-spell-slots ${poolClass}" title="${label}: ${value}/${max}">${kind}${dots}<b>${value}/${max}</b></span>`;
       })
       .join("");
   };
@@ -72,7 +62,7 @@ export function createCombatSpellRenderer({
                     ? t("Combat.Cantrips")
                     : tf("Combat.SpellLevel", { level })
                 }</strong>
-                ${spellSlots(level)}
+                <div class="ws-spell-slot-pools">${spellSlots(level)}</div>
               </div>
               <div class="ws-combat-item-grid">
                 ${spells.map(combatItemButton).join("")}

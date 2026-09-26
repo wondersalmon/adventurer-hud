@@ -257,41 +257,6 @@
   background: #7cc2d9;
 }
 
-.ws-rolls-dialog .ws-combat-resources {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.ws-rolls-dialog .ws-resource-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(105px, 180px));
-  justify-content: start;
-  gap: 6px;
-}
-
-.ws-rolls-dialog .ws-resource-shortcuts.ws-shortcuts {
-  justify-content: flex-start;
-  padding-top: 2px;
-}
-
-.ws-rolls-dialog .ws-resources-toggle {
-  min-height: 34px;
-  padding: 5px 9px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: calc(9px * var(--ws-type-scale));
-  font-weight: 800;
-}
-
-.ws-rolls-dialog .ws-resources-toggle > span {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
 .ws-rolls-dialog .ws-combat-stat {
   min-width: 0;
   min-height: 43px;
@@ -326,24 +291,6 @@
 .ws-rolls-dialog .ws-combat-stat small {
   color: var(--success);
   font-size: calc(8px * var(--ws-type-scale));
-}
-
-.ws-rolls-dialog .ws-resource-link {
-  width: 100%;
-  min-height: calc(52px + 1.15em);
-  height: auto;
-  margin: 0;
-}
-
-.ws-rolls-dialog .ws-resource-link > span {
-  width: 100%;
-  overflow-wrap: anywhere;
-  line-height: 1.15;
-}
-
-.ws-rolls-dialog .ws-resource-link > strong {
-  flex: 0 0 auto;
-  overflow: visible;
 }
 
 .ws-rolls-dialog .ws-combat-actions {
@@ -555,26 +502,44 @@
 }
 
 .ws-rolls-dialog .ws-spell-level-heading {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding-block: 5px;
+  background: var(--background, light-dark(#ece9e3, #19181f));
+  box-shadow: 0 1px 0 var(--line);
   min-height: 22px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 5px 10px;
   color: var(--muted);
   font-size: calc(8px * var(--ws-type-scale));
 }
 
 .ws-rolls-dialog .ws-spell-level-heading > strong {
+  flex: 0 0 auto;
   color: var(--text);
   letter-spacing: 0.06em;
+}
+
+.ws-rolls-dialog .ws-spell-slot-pools {
+  min-width: 0;
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 3px 8px;
 }
 
 .ws-rolls-dialog .ws-spell-slots {
   --ws-slot-color: #79c9e8;
 
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
+  white-space: nowrap;
   gap: 3px;
 }
 
@@ -586,24 +551,8 @@
   letter-spacing: 0.04em;
 }
 
-.ws-rolls-dialog .ws-spell-slots-edit {
-  min-height: 24px;
-  padding: 2px 5px;
-  border: 1px solid transparent !important;
-  background: transparent !important;
-}
-
-.ws-rolls-dialog .ws-spell-slots-edit:hover,
-.ws-rolls-dialog .ws-spell-slots-edit:focus-visible {
-  border-color: var(--ws-slot-color) !important;
-  background: color-mix(
-    in srgb,
-    var(--ws-slot-color) 15%,
-    transparent
-  ) !important;
-}
-
 .ws-rolls-dialog .ws-slot {
+  flex: 0 0 7px;
   width: 7px;
   height: 7px;
   border: 1px solid var(--ws-slot-color);
@@ -719,6 +668,22 @@
   color: var(--danger);
 }
 
+.ws-rolls-dialog .ws-combat-skill {
+  width: 100%;
+  height: 36px;
+  padding: 4px 7px;
+  font-size: calc(9.5px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-combat-skill.ws-skill-details {
+  height: 52px;
+}
+
+.ws-rolls-dialog .ws-combat-skill .ws-entry-name,
+.ws-rolls-dialog .ws-combat-skill .ws-entry-value {
+  font-size: inherit;
+}
+
 .ws-rolls-dialog .ws-item-unavailable {
   display: inline-flex;
   align-items: center;
@@ -820,3 +785,8 @@
 }
 
 /* Ability matrix */
+
+.ws-rolls-dialog .ws-unavailable-card .ws-combat-item {
+  filter: grayscale(1);
+  color: var(--muted);
+}

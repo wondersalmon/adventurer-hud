@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { readJson } from "./helpers/files.mjs";
 
-import { listFiles } from "../tools/files.mjs";
 import { createModuleTranslator } from "../scripts/localization.js";
+import {
+  readLocalizationCatalogs,
+  localeForLanguage
+} from "../tools/localization.mjs";
+
+const readManifest = () => readJson("module.json");
 
 test("module language choice overrides Foundry only for module strings", async () => {
   const i18n = {
@@ -30,40 +35,75 @@ test("module language choice overrides Foundry only for module strings", async (
   );
 });
 
-test("Russian and English localization keys stay synchronized", async () => {
-  const russian = JSON.parse(await readFile("lang/ru.json", "utf8"));
-  const english = JSON.parse(await readFile("lang/en.json", "utf8"));
-
-  assert.deepEqual(Object.keys(english).sort(), Object.keys(russian).sort());
-});
-
-test("English is available as the complete module fallback locale", async () => {
-  const manifest = JSON.parse(await readFile("module.json", "utf8"));
-  const english = JSON.parse(await readFile("lang/en.json", "utf8"));
-  const englishLanguage = manifest.languages.find(
-    language => language.lang === "en"
-  );
-
-  assert.equal(englishLanguage?.path, "lang/en.json");
-  assert.ok(Object.keys(english).length > 0);
-
-  for (const [key, value] of Object.entries(english)) {
-    assert.equal(typeof value, "string", `${key} must be a string`);
-    assert.ok(value.trim(), `${key} must not be empty`);
-  }
-});
-
-test("all directly referenced localization keys exist", async () => {
-  const russian = JSON.parse(await readFile("lang/ru.json", "utf8"));
-  const english = JSON.parse(await readFile("lang/en.json", "utf8"));
-  const files = await listFiles("scripts", file => file.endsWith(".js"));
-
-  for (const file of files) {
-    const source = await readFile(file, "utf8");
-    for (const match of source.matchAll(/\btf?\("([^"]+)"/g)) {
-      const key = `ADVENTURER_HUD.${match[1]}`;
-      assert.ok(russian[key], `${file} references missing key ${key}`);
-      assert.ok(english[key], `${file} references missing key ${key}`);
+test("automatic language delegates to Foundry without fetching HUD catalogs", async () => {
+  const translator = await createModuleTranslator({
+    language: "auto",
+    i18n: {
+      lang: "ru",
+      localize: key => key,
+      format: (_key, data) => data.actor
+    },
+    fetchCatalog: () => {
+      throw new Error("Automatic localization must use Foundry");
     }
+  });
+  assert.equal(translator.language, "ru");
+  assert.equal(translator.tf("Window.Title", { actor: "Рук" }), "Рук");
+});
+
+test("both catalogs contain all D&D translations", async () => {
+  const manifest = await readManifest();
+  assert.deepEqual(manifest.languages.map(entry => entry.path).sort(), [
+    "lang/en.json",
+    "lang/ru.json"
+  ]);
+  const catalogs = await readLocalizationCatalogs(manifest);
+  for (const language of ["en", "ru"]) {
+    const catalog = localeForLanguage(catalogs, language);
+    const translator = await createModuleTranslator({
+      language,
+      i18n: { localize: key => key },
+      fetchCatalog: async lang => localeForLanguage(catalogs, lang)
+    });
+    for (const [key, value] of Object.entries(catalog))
+      assert.equal(translator.t(key.slice("ADVENTURER_HUD.".length)), value);
   }
+});
+
+test("catalogs are cached per language and fetcher", async () => {
+  const calls = [];
+  const fetchCatalog = async language => {
+    calls.push(language);
+    return { "ADVENTURER_HUD.Example": language };
+  };
+  const options = {
+    language: "ru",
+    i18n: { localize: key => key },
+    fetchCatalog
+  };
+  await createModuleTranslator(options);
+  const again = await createModuleTranslator(options);
+  assert.equal(again.t("Example"), "ru");
+  assert.deepEqual(calls.sort(), ["en", "ru"]);
+  const other = await createModuleTranslator({
+    ...options,
+    fetchCatalog: async () => ({ "ADVENTURER_HUD.Example": "different" })
+  });
+  assert.equal(other.t("Example"), "different");
+});
+
+test("failed catalog loads fall back to English and can retry", async t => {
+  t.mock.method(console, "warn", () => {});
+  let missing = true;
+  const options = {
+    language: "ru",
+    i18n: { localize: key => key },
+    fetchCatalog: async language => {
+      if (language === "ru" && missing) throw new Error("offline");
+      return { "ADVENTURER_HUD.Example": language };
+    }
+  };
+  assert.equal((await createModuleTranslator(options)).t("Example"), "en");
+  missing = false;
+  assert.equal((await createModuleTranslator(options)).t("Example"), "ru");
 });

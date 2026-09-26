@@ -12,6 +12,7 @@ export const dnd5eActor = {
   proficiencyMultiplier,
   saveProficiency(actor, id) {
     const data = this.abilityData(actor, id);
+    // D&D 5.3 uses saveProf; D&D 6 stores the prepared proficiency in save.prof.
     return proficiencyMultiplier(data.save?.prof ?? data.saveProf);
   },
   skillProficiency: (actor, id) =>
@@ -23,7 +24,7 @@ export const dnd5eActor = {
     const classes = actor.items
       .filter(item => item.type === "class")
       .map(item => {
-        const level = Number(item.system?.levels ?? item.system?.level ?? 0);
+        const level = Number(item.system?.levels ?? 0);
         return `${item.name}${level > 0 ? ` ${level}` : ""}`;
       });
     if (classes.length) return classes.join(" / ");
@@ -49,12 +50,18 @@ export const dnd5eActor = {
         temp: Number(hp.temp ?? 0),
         tempmax: Number(hp.tempmax ?? 0)
       },
-      speed: movement.walk ?? movement.fly ?? "—",
+      speed: movement.speed ?? movement.speeds?.walk ?? "—",
       speedUnits: movement.units ?? "",
       proficiencyBonus: actor.system.attributes.prof ?? "—"
     };
   },
-  updateHp(actor, { value, temp }) {
+  async updateHp(actor, { value, temp, damage }) {
+    if (damage !== undefined) {
+      if (temp !== Number(actor.system.attributes.hp.temp ?? 0))
+        await actor.update({ "system.attributes.hp.temp": temp });
+      if (damage !== 0) return actor.applyDamage(damage);
+      return;
+    }
     return actor.update({
       "system.attributes.hp.value": value,
       "system.attributes.hp.temp": temp

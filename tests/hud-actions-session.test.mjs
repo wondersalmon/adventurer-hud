@@ -1,12 +1,14 @@
+import { restoreGlobalsAfterEach } from "./helpers/foundry.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createHudActions } from "../scripts/hud/actions.js";
-import {
-  applyHudSettingChange,
-  applyHudSettingChanges
-} from "../scripts/hud/settings-refresh.js";
+import { combatTurnState } from "../scripts/hud/actor-context.js";
+import { getCurrentCombat } from "../scripts/runtime-helpers.js";
+import { applyHudSettingChanges } from "../scripts/hud/settings-refresh.js";
 import { activateHudWindow } from "../scripts/hud/window-session.js";
+
+restoreGlobalsAfterEach();
 
 test("extracted HUD actions forward roll events through the adapter", async () => {
   const calls = [];
@@ -46,18 +48,71 @@ test("end turn advances only the current owned combatant", async () => {
   try {
     const options = {
       canRollActor: true,
-      getCombatant: () => combatant,
+      getCombatState: () => combatTurnState(combat, combatant, true),
       performAndRefresh: callback => callback()
     };
     const actions = createHudActions(options);
     await actions.endturn();
     await actions.endturn();
     assert.equal(advances, 1);
+    let deferred;
     combat.combatant = combatant;
-    await createHudActions({ ...options, canRollActor: false }).endturn();
+    await createHudActions({
+      ...options,
+      performAndRefresh: callback => {
+        deferred = callback;
+      }
+    }).endturn();
+    combat.combatant = { id: "changed-before-execution" };
+    await deferred();
+    assert.equal(advances, 1);
+    combat.combatant = combatant;
+    await createHudActions({
+      ...options,
+      getCombatState: () => combatTurnState(combat, combatant, false)
+    }).endturn();
     assert.equal(advances, 1);
   } finally {
     globalThis.game = previousGame;
+  }
+});
+
+test("description opens the sheet normally and Shift-click delegates the chat card to the adapter", async () => {
+  const previousUi = globalThis.ui;
+  const sheets = [];
+  const messages = [];
+  const warnings = [];
+  const actor = { id: "hero", items: new Map() };
+  const item = {
+    sheet: { render: options => sheets.push(options) }
+  };
+  actor.items.set("sword", item);
+  globalThis.ui = {
+    notifications: { warn: message => warnings.push(message) }
+  };
+  try {
+    const actions = createHudActions({
+      actor,
+      t: key => key,
+      adapter: {
+        showItemDescription: (received, options) =>
+          messages.push([received, options])
+      }
+    });
+    const target = { dataset: { itemId: "sword" } };
+    await actions.openitem({ shiftKey: false }, target);
+    assert.deepEqual(sheets, [{ force: true }]);
+    assert.deepEqual(messages, []);
+    const event = { shiftKey: true };
+    await actions.openitem(event, target);
+    assert.equal(sheets.length, 1);
+    assert.deepEqual(messages, [[item, { event }]]);
+    actor.items.delete("sword");
+    await actions.openitem({ shiftKey: true }, target);
+    assert.deepEqual(warnings, ["Combat.ItemMissing"]);
+    assert.equal(messages.length, 1);
+  } finally {
+    globalThis.ui = previousUi;
   }
 });
 
@@ -77,7 +132,7 @@ test("Shift-click on HP restores normal HP without changing temporary HP", async
   };
   const actions = createHudActions(options);
   await actions.edithp({ shiftKey: true });
-  assert.deepEqual(updates, [{ value: 12, temp: 4 }]);
+  assert.deepEqual(updates, [{ damage: -9, temp: 4 }]);
   assert.equal(dialogs, 0);
   hp.value = 12;
   await actions.edithp({ shiftKey: true });
@@ -107,25 +162,10 @@ test("spell preparation toggles only eligible owned spells", async () => {
   assert.deepEqual(calls, ["spell"]);
 });
 
-test("spell slot editing opens only an owned existing pool", () => {
-  const opened = [];
-  const options = {
-    actor: {},
-    adapter: { spellSlots: () => [[1, 3, "spell2"]] },
-    canRollActor: true,
-    openSpellSlotsDialog: selection => opened.push(selection)
-  };
-  const actions = createHudActions(options);
-  actions.openspellslots(null, { dataset: { level: "2", pool: "spell2" } });
-  actions.openspellslots(null, { dataset: { level: "2", pool: "pact" } });
-  assert.deepEqual(opened, [{ level: 2, pool: "spell2" }]);
-});
-
 test("panel toggles save their changed layout", () => {
   const saved = [];
   const hudState = {
     combatAbilitiesExpanded: false,
-    resourcesExpanded: false,
     combatCategory: null,
     actionMenuOpen: false
   };
@@ -136,11 +176,11 @@ test("panel toggles save their changed layout", () => {
     savePanelState: () => saved.push({ ...hudState })
   });
   actions.toggleabilities();
-  actions.toggleresources();
+  actions.combatfilter(null, { dataset: { category: "features" } });
   actions.combatfilter(null, { dataset: { category: "spells" } });
   assert.equal(saved.length, 3);
   assert.equal(saved[0].combatAbilitiesExpanded, true);
-  assert.equal(saved[1].resourcesExpanded, true);
+  assert.equal(saved[1].combatCategory, "features");
   assert.equal(saved[2].combatCategory, "spells");
 });
 
@@ -172,7 +212,8 @@ test("initiative can be rolled again after the GM clears one combatant's value",
       actor: { id: "hero" },
       adapter: { rollInitiative: (_actor, options) => rolls.push(options) },
       canRollActor: true,
-      getCombatant: () => combatant,
+      getCombatState: () =>
+        combatTurnState(getCurrentCombat(game), combatant, true),
       performRoll: callback => callback()
     });
     await actions.initiative({ altKey: false });
@@ -388,69 +429,6 @@ test("window session updates live settings and releases document hooks", async (
     assert.equal(state.app, null);
     assert.equal(state.actor, null);
     assert.equal(removed.length, hookIds.length);
-  } finally {
-    globalThis.Hooks = previousHooks;
-  }
-});
-
-test("language refresh reopens the HUD for the same actor after its element is released", async () => {
-  const previousHooks = globalThis.Hooks;
-  globalThis.Hooks = { on: name => name, off() {} };
-  try {
-    const actor = { uuid: "Actor.hero" };
-    const state = { app: null, actor, actorUuid: actor.uuid };
-    const makeWindow = () => {
-      const listeners = new Map();
-      const app = {
-        rendered: false,
-        element: {
-          classList: { add() {}, remove() {} },
-          addEventListener() {}
-        },
-        async render() {
-          this.rendered = true;
-        },
-        addEventListener(name, callback) {
-          listeners.set(name, callback);
-        }
-      };
-      return { app, listeners };
-    };
-    const activate = ({ app }) =>
-      activateHudWindow({
-        actor,
-        app,
-        canRollActor: true,
-        visualEffectsEnabled: false,
-        refreshScheduler: { schedule() {}, cancel() {} },
-        state,
-        visibility: {}
-      });
-
-    const first = makeWindow();
-    await activate(first);
-    const second = makeWindow();
-    let reopened;
-    applyHudSettingChange({
-      app: first.app,
-      key: "language",
-      strategy: "reopen",
-      reopen: () => {
-        reopened = (async () => {
-          const selectedActor = state.actor;
-          first.app.element = null;
-          first.app.rendered = false;
-          first.listeners.get("close")();
-          state.actor = selectedActor;
-          state.actorUuid = selectedActor.uuid;
-          await activate(second);
-        })();
-      }
-    });
-    await reopened;
-    assert.equal(state.app, second.app);
-    assert.equal(state.actor, actor);
-    assert.equal(second.app.rendered, true);
   } finally {
     globalThis.Hooks = previousHooks;
   }

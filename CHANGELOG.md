@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.1
+
+- Replaced Resources with Features after Actions. Click a feature to use its D&D activity and configured resource consumption.
+- Added Skills as the combat tab.
+- Spell levels and slot counters stay pinned while scrolling; the next level replaces the previous heading.
+- Favorites sync with the character sheet, including modern Tidy sheets.
+- HP damage and healing use D&D's native handling, including temporary HP.
+- Hover over conditions for descriptions; Shift-click an item's description button to share its description in chat.
+- Added a brief cooldown between rolls and character actions to prevent repeated clicks.
+- Improved narrow layouts for spell slots and cards; show up to five conditions before expanding the rest.
+- Simplified settings and added a HUD integrity check with repair for damaged saved data.
+- Show or hide mode buttons from the window's three-dot menu.
+- Fixed duplicate HUD windows and lost favorite changes during rapid clicks.
+- Tightened token matching so a removed combatant cannot redirect HUD actions to another token of the same character.
+- HP-bar labels show health thresholds without implying that a D&D condition has been applied.
+
 ## 1.1.1
 
 - Combat conditions show up to six icons with a button to reveal the rest.

@@ -1,3 +1,5 @@
+import { createActionCooldown } from "./action-cooldown.js";
+
 const ROLL_ACTIONS = [
   "initiative",
   "endturn",
@@ -9,12 +11,17 @@ const ROLL_ACTIONS = [
   "useactivity",
   "edithp",
   "togglespellprepared",
-  "openspellslots",
   "shortrest",
-  "longrest"
+  "longrest",
+  "inspiration"
 ];
 
-export function createHudRollRunner({ getApp, refreshHud, refreshScheduler }) {
+export function createHudRollRunner({
+  getApp,
+  refreshHud,
+  refreshScheduler,
+  canStartMutation = createActionCooldown()
+}) {
   let rollPending = false;
 
   const setRollControlsDisabled = disabled => {
@@ -28,7 +35,7 @@ export function createHudRollRunner({ getApp, refreshHud, refreshScheduler }) {
   };
 
   const perform = async callback => {
-    if (rollPending) return;
+    if (rollPending || !canStartMutation()) return;
     rollPending = true;
     setRollControlsDisabled(true);
 

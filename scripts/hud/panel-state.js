@@ -6,8 +6,7 @@ const BOOLEAN_KEYS = [
   "conditionsExpanded",
   "actionMenuOpen",
   "favoritesExpanded",
-  "preparedSpellsOnly",
-  "resourcesExpanded"
+  "preparedSpellsOnly"
 ];
 
 const COMBAT_CATEGORIES = new Set([
@@ -16,7 +15,9 @@ const COMBAT_CATEGORIES = new Set([
   "action",
   "bonus",
   "reaction",
-  "special"
+  "special",
+  "features",
+  "skills"
 ]);
 const INVENTORY_CATEGORIES = new Set(["equipped", "consumables", "other"]);
 
@@ -25,6 +26,7 @@ export function panelStateForActor(stored, actorUuid) {
   if (!saved || typeof saved !== "object") return {};
 
   const state = {};
+  if (saved.combatCategory === "resources") state.combatCategory = "features";
   for (const key of BOOLEAN_KEYS) {
     if (typeof saved[key] === "boolean") state[key] = saved[key];
   }

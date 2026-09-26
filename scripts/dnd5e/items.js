@@ -9,14 +9,10 @@ export function itemActivation(item, activityId = null) {
   const selected = activityId
     ? itemActivities(item).find(activity => activity.id === activityId)
     : null;
-  if (selected)
-    return selected.activation?.type ?? item.system?.activation?.type ?? "";
+  if (selected) return selected.activation?.type ?? "";
   return (
-    selected?.activation?.type ??
-    item.system?.activation?.type ??
     itemActivities(item).find(activity => activity?.activation?.type)
-      ?.activation?.type ??
-    ""
+      ?.activation?.type ?? ""
   );
 }
 
@@ -43,73 +39,29 @@ export function itemRangeData(item, activityId = null) {
       {});
 
   return {
-    value: range.value?.value ?? range.value ?? "",
-    long: range.long ?? range.value?.long ?? "",
-    units: range.units ?? range.value?.units ?? "",
+    value: range.value ?? "",
+    long: range.long ?? "",
+    units: range.units ?? "",
     special: range.special ?? ""
   };
 }
 
-export function hasItemProperty(item, property) {
-  const properties = item.system?.properties;
-  const activityHasProperty = itemActivities(item).some(activity =>
-    property === "concentration"
-      ? Boolean(activity?.duration?.concentration)
-      : false
-  );
+export const hasItemProperty = (item, property) =>
+  item.system.properties?.has(property) ?? false;
 
-  return [
-    properties?.has?.(property),
-    properties?.includes?.(property),
-    properties?.[property],
-    item.system?.components?.[property],
-    property === "concentration" && item.system?.duration?.concentration,
-    property === "ritual" && item.system?.preparation?.mode === "ritual",
-    activityHasProperty
-  ].some(Boolean);
-}
-
-export function isPreparedSpell(item) {
-  if (
-    item.system?.method !== undefined ||
-    item.system?.prepared !== undefined
-  ) {
-    const prepared = Number(item.system.prepared ?? 0);
-    return Boolean(
-      Number(item.system.level ?? 0) === 0 ||
-      prepared > 0 ||
-      ["atwill", "innate", "pact", "ritual"].includes(item.system.method)
-    );
-  }
-  const preparation = item.system?.preparation ?? {};
-  return Boolean(
-    Number(item.system?.level ?? 0) === 0 ||
-    preparation.prepared ||
-    ["always", "atwill", "innate", "pact"].includes(preparation.mode)
-  );
-}
+export const isPreparedSpell = item =>
+  !item.system.canPrepare ||
+  item.system.level === 0 ||
+  item.system.prepared > 0;
 
 export function spellPreparation(item) {
-  const system = item.system ?? {};
-  const modern = system.method !== undefined || system.prepared !== undefined;
-  if (modern) {
-    const prepared = Number(system.prepared ?? 0);
-    return {
-      canPrepare:
-        item.type === "spell" &&
-        Number(system.level ?? 0) > 0 &&
-        prepared !== 2 &&
-        (system.canPrepare ?? system.method === "spell"),
-      prepared: prepared > 0
-    };
-  }
-
   return {
     canPrepare:
       item.type === "spell" &&
-      Number(system.level ?? 0) > 0 &&
-      system.preparation?.mode === "prepared",
-    prepared: Boolean(system.preparation?.prepared)
+      item.system.level > 0 &&
+      item.system.canPrepare &&
+      item.system.prepared !== CONFIG.DND5E.spellPreparationStates.always.value,
+    prepared: item.system.prepared > 0
   };
 }
 
@@ -130,31 +82,48 @@ export function inventoryCategory(item) {
   return "other";
 }
 
-export function itemUsesData(item) {
-  const uses = item.system?.uses ?? {};
+export function itemUsesData(item, activityId = null) {
+  const activity = activityId
+    ? itemActivities(item).find(a => a.id === activityId)
+    : null;
+  const uses =
+    activity?.uses?.max > 0 ? activity.uses : (item.system?.uses ?? {});
   const max = Number(uses.max ?? 0);
 
   if (!Number.isFinite(max) || max <= 0) return null;
 
-  const hasLegacyValue = ![undefined, null, ""].includes(uses.value);
-  const value = hasLegacyValue
-    ? Number(uses.value) || 0
-    : Math.max(0, max - (Number(uses.spent) || 0));
-
-  return {
-    max,
-    value: Math.min(max, Math.max(0, value))
-  };
+  return { max, value: Number(uses.value ?? 0) };
 }
 
-export function damagePartFormula(part) {
-  if (Array.isArray(part)) return part[0] ?? "";
-  if (part?.formula) return part.formula;
-
-  const number = Number(part?.number ?? 0);
-  const denomination = Number(part?.denomination ?? 0);
-  const bonus = String(part?.bonus ?? "").trim();
-
-  if (!number || !denomination) return bonus;
-  return `${number}d${denomination}${bonus ? ` + ${bonus}` : ""}`;
+export function itemUseState(item, activityId = null) {
+  const activities = itemActivities(item);
+  const selected = activityId
+    ? activities.find(activity => activity.id === activityId)
+    : null;
+  if (activityId && !selected)
+    return { blocked: true, reason: "Quick.ActivityMissing" };
+  if (item.canUse === false)
+    return { blocked: true, reason: "Quick.ItemUnavailable" };
+  if (
+    selected &&
+    (selected.canUse === false || typeof selected.use !== "function")
+  ) {
+    return { blocked: true, reason: "Quick.ActivityUnavailable" };
+  }
+  if (
+    !activityId &&
+    activities.length &&
+    !activities.some(
+      activity =>
+        activity.canUse !== false && typeof activity.use === "function"
+    )
+  ) {
+    return { blocked: true, reason: "Quick.NoAvailableActivities" };
+  }
+  // Native usage can offer consumption overrides or activities with separate costs.
+  return {
+    blocked: false,
+    reason:
+      itemUsesData(item, activityId)?.value === 0 ? "Quick.NoCharges" : null
+  };
 }

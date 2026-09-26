@@ -27,18 +27,3 @@ export const skillIcons = {
   ste: "fa-user-ninja",
   sur: "fa-compass"
 };
-
-export const musical = new Set([
-  "bagpipes",
-  "drum",
-  "dulcimer",
-  "flute",
-  "horn",
-  "lute",
-  "lyre",
-  "panflute",
-  "shawm",
-  "viol"
-]);
-
-export const gaming = new Set(["card", "chess", "dice"]);

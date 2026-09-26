@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import {
+  installSettings,
+  restoreGlobalsAfterEach
+} from "./helpers/foundry.mjs";
+restoreGlobalsAfterEach();
 
 import {
-  isSettingSupported,
+  getSettingDefinitions,
+  getSettingDefaults,
   localizeSettingsRows,
   moveSettingsMenusToBottom,
-  registerSettings,
   resetSettings,
   SETTING_DEFINITIONS,
   SETTING_DEFAULTS,
@@ -13,43 +18,11 @@ import {
   SETTINGS
 } from "../scripts/settings.js";
 
-function installFoundryApplicationStub() {
-  class ApplicationV2 {}
-  globalThis.foundry = {
-    applications: {
-      api: {
-        ApplicationV2,
-        HandlebarsApplicationMixin: Base => class extends Base {}
-      }
-    }
-  };
-}
-
 test("main and additional settings use task-based groups", async () => {
-  const registrations = new Map();
-  const menus = new Map();
-
-  globalThis.Hooks = { callAll() {} };
-  installFoundryApplicationStub();
-  globalThis.game = {
-    system: { id: "dnd5e" },
-    i18n: { localize: key => key },
-    settings: {
-      settings: { get: id => registrations.get(id.split(".").at(-1)) },
-      get: (_moduleId, key) => registrations.get(key)?.default,
-      register(_moduleId, key, config) {
-        registrations.set(key, config);
-      },
-      registerMenu(_moduleId, key, config) {
-        menus.set(key, config);
-      }
-    }
-  };
-
-  registerSettings();
+  const { registrations, menus } = installSettings();
 
   assert.equal(registrations.get(SETTINGS.showModeNavigation)?.default, false);
-  assert.equal(registrations.get(SETTINGS.showModeNavigation)?.config, true);
+  assert.equal(registrations.get(SETTINGS.showModeNavigation)?.config, false);
   assert.equal(registrations.get(SETTINGS.fontSize)?.config, true);
   assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.config, true);
   assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.default, false);
@@ -79,7 +52,8 @@ test("main and additional settings use task-based groups", async () => {
   );
   assert.equal(SETTING_DEFINITIONS[SETTINGS.language].placement, "basic");
   assert.equal(menus.get("configure")?.restricted, false);
-  assert.equal(menus.get("reset")?.restricted, false);
+  assert.equal(menus.has("reset"), false);
+  assert.equal(menus.has("gm"), false);
   assert.equal(SETTING_DEFINITIONS[SETTINGS.fontSize].placement, "basic");
   assert.equal(
     SETTING_DEFINITIONS[SETTINGS.autoUpdateActor].placement,
@@ -91,13 +65,30 @@ test("main and additional settings use task-based groups", async () => {
   );
   assert.equal(
     SETTING_DEFINITIONS[SETTINGS.showModeNavigation].group,
-    "behavior"
+    "interface"
   );
   assert.equal(
     SETTING_DEFINITIONS[SETTINGS.showModeNavigation].placement,
-    "basic"
+    "advanced"
   );
   const context = await new (menus.get("configure").type)()._prepareContext();
+  assert.deepEqual(
+    [...registrations]
+      .filter(([, definition]) => definition.config)
+      .map(([key]) => key),
+    [
+      SETTINGS.language,
+      SETTINGS.fontSize,
+      SETTINGS.autoOpenHud,
+      SETTINGS.autoUpdateActor
+    ]
+  );
+  const visibleKeys = context.groups.flatMap(group =>
+    group.settings.map(setting => setting.key)
+  );
+  assert.equal(visibleKeys.includes(SETTINGS.pinWindow), false);
+  assert.equal(visibleKeys.includes(SETTINGS.showModeNavigation), true);
+  assert.equal(new Set(visibleKeys).size, visibleKeys.length);
   assert.deepEqual(
     context.groups.map(group => group.label),
     [
@@ -115,49 +106,34 @@ test("main and additional settings use task-based groups", async () => {
     assert.equal(registrations.get(key)?.default, true);
   }
 
-  const groupedKeys = Object.keys(SETTING_DEFINITIONS);
+  const groupedKeys = Object.keys(getSettingDefinitions());
   const configurableKeys = [...registrations]
     .filter(([, definition]) =>
       definition.name.startsWith("ADVENTURER_HUD.Settings.")
     )
     .map(([key]) => key);
-  assert.equal(new Set(groupedKeys).size, groupedKeys.length);
   assert.deepEqual(new Set(groupedKeys), new Set(configurableKeys));
 });
 
 test("reset restores configurable defaults", async () => {
-  const writes = [];
   const batches = [];
-  const current = new Map(
-    Object.entries(SETTING_DEFAULTS).map(([key, value]) => [key, !value])
+  const values = Object.fromEntries(
+    Object.entries(getSettingDefaults("dnd5e")).map(([key, value]) => [
+      key,
+      !value
+    ])
   );
-  current.set(SETTINGS.proficientSkillsOnly, false);
-  globalThis.Hooks = {
-    callAll(name, changes) {
+  values[SETTINGS.proficientSkillsOnly] = false;
+  const { writes } = installSettings({
+    values,
+    onEvent: (name, changes) => {
       if (name === "adventurerHudSettingsChanged") batches.push(changes);
     }
-  };
-  installFoundryApplicationStub();
-  const registrations = new Map();
-  globalThis.game = {
-    system: { id: "dnd5e" },
-    settings: {
-      get: (_moduleId, key) => current.get(key),
-      register: (_moduleId, key, config) => registrations.set(key, config),
-      registerMenu() {},
-      async set(_moduleId, key, value) {
-        writes.push([key, value]);
-        current.set(key, value);
-        registrations.get(key)?.onChange?.(value);
-      }
-    }
-  };
-
-  registerSettings();
+  });
   await resetSettings();
 
   assert.deepEqual(writes, [
-    ...Object.entries(SETTING_DEFAULTS),
+    ...Object.entries(getSettingDefaults("dnd5e")),
     [SETTINGS.proficientSkillsOnly, true]
   ]);
   assert.equal(batches.length, 1);
@@ -167,36 +143,21 @@ test("reset restores configurable defaults", async () => {
   assert.equal(batches.length, 1);
 });
 
-test("additional settings save only changed controls", async () => {
-  const registrations = new Map();
-  const menus = new Map();
-  const current = new Map(Object.entries(SETTING_DEFAULTS));
-  const writes = [];
+test("additional settings serialize concurrent saves and write only changed controls", async () => {
   const batches = [];
-  globalThis.Hooks = {
-    callAll(name, changes) {
+  const { current, menus, writes } = installSettings({
+    onEvent: (name, changes) => {
       if (name === "adventurerHudSettingsChanged") batches.push(changes);
     }
-  };
-  installFoundryApplicationStub();
-  globalThis.game = {
-    system: { id: "dnd5e" },
-    settings: {
-      get: (_moduleId, key) => current.get(key),
-      register: (_moduleId, key, config) => registrations.set(key, config),
-      registerMenu: (_moduleId, key, config) => menus.set(key, config),
-      async set(_moduleId, key, value) {
-        writes.push([key, value]);
-        current.set(key, value);
-        registrations.get(key)?.onChange?.(value);
-      }
-    }
-  };
-  registerSettings();
+  });
   const handler = menus.get("configure").type.DEFAULT_OPTIONS.form.handler;
   const values = Object.fromEntries(current);
   values.showSearch = false;
-  await handler(null, null, { object: values });
+  values.pinWindow = true;
+  await Promise.all([
+    handler(null, null, { object: values }),
+    handler(null, null, { object: values })
+  ]);
   assert.deepEqual(writes, [[SETTINGS.showSearch, false]]);
   assert.equal(batches.length, 1);
   assert.deepEqual([...batches[0]], [[SETTINGS.showSearch, false]]);
@@ -205,13 +166,55 @@ test("additional settings save only changed controls", async () => {
   assert.equal(batches.length, 1);
 });
 
-test("system capabilities control system-specific settings", () => {
-  assert.equal(isSettingSupported(SETTINGS.showActivityPicker, "dnd5e"), true);
-  assert.equal(
-    isSettingSupported(SETTINGS.showActivityPicker, "unknown"),
-    false
+test("footer reset requires confirmation, preserves saved data, and refreshes the form", async () => {
+  const savedData = {
+    [SETTINGS.panelStates]: { "Actor.hero": { currentView: "inventory" } },
+    [SETTINGS.windowGeometry]: { width: 900, left: 20 }
+  };
+  const { current, menus, writes } = installSettings({
+    values: {
+      ...savedData,
+      [SETTINGS.showSearch]: false,
+      [SETTINGS.pinWindow]: true
+    }
+  });
+  const SettingsApp = menus.get("configure").type;
+  const app = await new SettingsApp().render();
+  const searchValue = () =>
+    app.context.groups
+      .flatMap(group => group.settings)
+      .find(setting => setting.key === SETTINGS.showSearch)?.value;
+  assert.equal(searchValue(), false);
+  let prevented = 0;
+  const event = { preventDefault: () => prevented++ };
+  const cancelled = await SettingsApp.DEFAULT_OPTIONS.actions.reset.call(
+    app,
+    event
   );
-  assert.equal(isSettingSupported(SETTINGS.fontSize, "unknown"), true);
+  assert.equal(cancelled.rendered, true);
+  assert.deepEqual(writes, []);
+  cancelled.constructor.DEFAULT_OPTIONS.actions.cancel.call(cancelled);
+  assert.equal(cancelled.rendered, false);
+  assert.equal(current.get(SETTINGS.pinWindow), true);
+  assert.deepEqual(writes, []);
+
+  const confirmation = await SettingsApp.DEFAULT_OPTIONS.actions.reset.call(
+    app,
+    event
+  );
+  await confirmation.constructor.DEFAULT_OPTIONS.form.handler.call(
+    confirmation
+  );
+  assert.equal(prevented, 2);
+  assert.equal(app.renderCount, 2);
+  assert.equal(searchValue(), true);
+  assert.equal(current.get(SETTINGS.pinWindow), false);
+  assert.deepEqual(writes, [
+    [SETTINGS.pinWindow, false],
+    [SETTINGS.showSearch, true]
+  ]);
+  for (const [key, value] of Object.entries(savedData))
+    assert.equal(current.get(key), value);
 });
 
 test("setting metadata drives defaults, placement, and refresh behavior", () => {
@@ -229,7 +232,7 @@ test("setting metadata drives defaults, placement, and refresh behavior", () => 
   assert.equal(settingRefreshStrategy("unknown"), "none");
 });
 
-test("additional and reset settings menus are moved below regular options", () => {
+test("additional settings menu is moved below regular options", () => {
   const appended = [];
   const parent = { append: row => appended.push(row.id) };
   const rows = {
@@ -245,7 +248,7 @@ test("additional and reset settings menus are moved below regular options", () =
 
   moveSettingsMenusToBottom(root);
 
-  assert.deepEqual(appended, ["configure", "reset"]);
+  assert.deepEqual(appended, ["configure"]);
 });
 
 test("module settings rows use the selected module language", async () => {
@@ -284,10 +287,10 @@ test("module settings rows use the selected module language", async () => {
   }
 });
 
-test("additional and reset menu labels follow the module translator", async () => {
+test("additional menu labels follow the module translator", async () => {
   const previousGame = globalThis.game;
   const menuRows = Object.fromEntries(
-    ["configure", "reset"].map(key => {
+    ["configure"].map(key => {
       const buttonText = { nodeType: 3, textContent: "Old label" };
       const button = {
         nodeType: 1,
@@ -320,7 +323,7 @@ test("additional and reset menu labels follow the module translator", async () =
   try {
     await localizeSettingsRows({
       querySelector: selector => {
-        const key = ["configure", "reset"].find(name =>
+        const key = ["configure"].find(name =>
           selector.includes(`adventurer-hud.${name}`)
         );
         return key ? { closest: () => menuRows[key] } : null;
@@ -333,10 +336,6 @@ test("additional and reset menu labels follow the module translator", async () =
     assert.equal(
       menuRows.configure.buttonText.textContent,
       "translated:ADVENTURER_HUD.Settings.Advanced.Label"
-    );
-    assert.equal(
-      menuRows.reset.hint.textContent,
-      "translated:ADVENTURER_HUD.Settings.Reset.Hint"
     );
   } finally {
     globalThis.game = previousGame;

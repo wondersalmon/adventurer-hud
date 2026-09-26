@@ -8,12 +8,12 @@ export function renderHealthBar({ hp, canEdit, formatMod, t }) {
   const { normal, temp: temporary } = healthWidths({ value, temp, max });
   const condition =
     value <= 0
-      ? { key: "Combat.Unconscious", className: "ws-health-unconscious" }
+      ? { key: "Combat.ZeroHP", className: "ws-health-unconscious" }
       : max <= 0 || percent > 50
         ? null
         : percent <= 10
           ? { key: "Combat.CriticalHP", className: "ws-health-critical" }
-          : { key: "Combat.Bloodied", className: "ws-health-bloodied" };
+          : { key: "Combat.HalfHP", className: "ws-health-bloodied" };
   const color =
     percent <= 0
       ? "var(--muted)"

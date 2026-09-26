@@ -1,7 +1,16 @@
-import { createHudState, resolveHudMode, setRegularView } from "./hud/state.js";
+import {
+  createHudState,
+  resolveHudMode,
+  setRegularView,
+  syncHudPreferences
+} from "./hud/state.js";
 import { createHudActions } from "./hud/actions.js";
 import { selectHudActor } from "./hud/actor-selection.js";
+import { createHudActorContext } from "./hud/actor-context.js";
+import { createLatestRefresh } from "./hud/async-refresh.js";
 import { createCombatRenderer } from "./hud/combat.js";
+import { createItemPanelRenderer } from "./hud/item-panels.js";
+import { createHpDialogController } from "./hud/hp-dialog.js";
 import { createHudComponents } from "./hud/components.js";
 import { syncHealthAppearance as syncHealthAppearanceClass } from "./hud/health-feedback.js";
 import {
@@ -12,7 +21,11 @@ import {
 import { createRefreshScheduler, refreshHudView } from "./hud/refresh.js";
 import { createHudRollRunner } from "./hud/roll-runner.js";
 import { createHudToolState } from "./hud/tool-state.js";
-import { favoriteEntriesForActor, toggleFavorite } from "./hud/quick-access.js";
+import {
+  favoriteEntries,
+  toggleFavorite,
+  queueFavoriteChange
+} from "./dnd5e/favorites.js";
 import { panelStateForActor, panelStateSnapshot } from "./hud/panel-state.js";
 import { createModuleTranslator } from "./localization.js";
 import { createRegularRenderer } from "./hud/regular.js";
@@ -20,7 +33,7 @@ import { activateHudWindow } from "./hud/window-session.js";
 import { createHudApplicationClass } from "./hud/window-controls.js";
 import { readHudVisibility } from "./hud/visibility.js";
 import { renderHudMode } from "./render/index.js";
-import { findCombatant, getCurrentCombat } from "./runtime-helpers.js";
+import { getCurrentCombat } from "./runtime-helpers.js";
 import {
   flushWindowGeometry,
   getSetting,
@@ -29,10 +42,22 @@ import {
   setSetting,
   SETTINGS
 } from "./settings.js";
-import { getSystemAdapter } from "./systems/index.js";
+import { dnd5eAdapter } from "./dnd5e/index.js";
+import { createTaskQueue } from "./task-queue.js";
+import { actorActionCooldown } from "./hud/action-cooldown.js";
 
-export async function openRollsHud(actorOverride = null) {
+const queueOpening = createTaskQueue();
+
+export function openRollsHud(actorOverride = null) {
+  return queueOpening(() => openHud(actorOverride));
+}
+
+async function openHud(actorOverride) {
   try {
+    if (game.system.id !== "dnd5e")
+      throw new Error(
+        game.i18n.localize("ADVENTURER_HUD.Errors.UnsupportedSystem")
+      );
     // =========================================================
     // System
     // =========================================================
@@ -41,14 +66,7 @@ export async function openRollsHud(actorOverride = null) {
       language: getSetting(SETTINGS.language),
       i18n: game.i18n
     });
-    const adapter = getSystemAdapter(game.system.id);
-    if (!adapter) {
-      throw new Error(
-        tf("Errors.UnsupportedSystem", {
-          system: game.system.title ?? game.system.id
-        })
-      );
-    }
+    const adapter = dnd5eAdapter;
 
     const { DialogV2 } = foundry.applications.api;
 
@@ -56,7 +74,6 @@ export async function openRollsHud(actorOverride = null) {
     state.app ??= null;
     state.actor ??= null;
     state.position ??= null;
-    state.toolNames ??= new Map();
 
     // =========================================================
     // Actor
@@ -72,29 +89,32 @@ export async function openRollsHud(actorOverride = null) {
       tf
     });
     if (!selection) return;
-    const { actor, token } = selection;
-
+    const actorContext = createHudActorContext({
+      ...selection,
+      getCombat: () => getCurrentCombat(game)
+    });
+    const { actor, getCombatState } = actorContext;
     if (state.app?.rendered) {
       await flushWindowGeometry();
       await state.app.close();
     }
 
-    state.actorUuid = actor.uuid;
+    state.actorUuid = actorContext.actorUuid;
     state.actor = actor;
-    state.tokenUuid = token?.document?.uuid ?? token?.uuid ?? null;
+    state.tokenUuid = actorContext.tokenUuid;
 
     const canRollActor = actor.isOwner;
+    const canStartMutation = actorActionCooldown(actor);
     const fontSize = getSetting(SETTINGS.fontSize) || "medium";
 
-    const readVisibility = () => readHudVisibility(adapter);
+    const readVisibility = () => readHudVisibility();
     const visibility = readVisibility();
 
     const abilities = adapter.abilityDefinitions();
-    const skills = adapter.capabilities.skills
-      ? adapter.skillDefinitions({
-          localize: value => game.i18n.localize(value)
-        })
-      : [];
+    const skills = adapter.skillDefinitions({
+      localize: value => game.i18n.localize(value),
+      actor
+    });
 
     // =========================================================
     // Helpers
@@ -113,14 +133,10 @@ export async function openRollsHud(actorOverride = null) {
     let pinned = Boolean(getSetting(SETTINGS.pinWindow));
 
     const hudState = createHudState({
-      ...(getSetting(SETTINGS.autoOpenHud)
-        ? panelStateForActor(getSetting(SETTINGS.panelStates), actor.uuid)
-        : {}),
+      ...panelStateForActor(getSetting(SETTINGS.panelStates), actor.uuid),
       proficientSkillsOnly: getSetting(SETTINGS.proficientSkillsOnly),
-      favoriteEntries: favoriteEntriesForActor(
-        getSetting(SETTINGS.favoriteEntries),
-        actor.uuid
-      )
+      favoriteEntries: favoriteEntries(actor),
+      statusDescriptions: await adapter.statusDescriptions(actor)
     });
 
     let panelStateWrite = Promise.resolve();
@@ -163,20 +179,6 @@ export async function openRollsHud(actorOverride = null) {
 
     const skillProf = id => adapter.skillProficiency(actor, id);
 
-    const getCombatant = () => {
-      const combat = getCurrentCombat(game);
-
-      if (!combat) {
-        return null;
-      }
-
-      const tokenId = token?.document?.id ?? token?.id;
-      return findCombatant(combat.combatants, {
-        actorId: actor.id,
-        tokenId
-      });
-    };
-
     // =========================================================
     // Death saves
     // =========================================================
@@ -188,17 +190,13 @@ export async function openRollsHud(actorOverride = null) {
       return hp <= 0 && !dead && !stable && failure < 3 && success < 3;
     };
 
-    const isActiveCombatant = () =>
-      Boolean(getCurrentCombat(game)?.started && getCombatant());
-
-    const combatModeAvailable = () =>
-      adapter.capabilities.combat && adapter.isActorSupported(actor);
+    const combatModeAvailable = () => adapter.isActorSupported(actor);
 
     const currentMode = () =>
       resolveHudMode({
         combatAvailable: combatModeAvailable(),
         forcedMode: hudState.forcedMode,
-        isActiveCombatant: isActiveCombatant()
+        isActiveCombatant: getCombatState().isActive
       });
 
     // =========================================================
@@ -208,7 +206,6 @@ export async function openRollsHud(actorOverride = null) {
     const { toolState, refreshTools } = await createHudToolState({
       actor,
       adapter,
-      cache: state.toolNames,
       isRendered: () => app?.rendered,
       scheduleRefresh: () => refreshScheduler.schedule()
     });
@@ -231,20 +228,40 @@ export async function openRollsHud(actorOverride = null) {
       visibility
     });
 
+    const itemPanels = createItemPanelRenderer({
+      skills,
+      actor,
+      adapter,
+      escapeHTML,
+      hudState,
+      skillsHTML: components.skillsHTML,
+      skillFilterHTML: components.skillFilterHTML,
+      spellFilterHTML: components.spellFilterHTML,
+      t,
+      tf,
+      visibility
+    });
+    const { openHpDialog } = createHpDialogController({
+      actor,
+      adapter,
+      canStartMutation,
+      DialogV2,
+      t
+    });
     const combatRenderer = createCombatRenderer({
       actor,
       adapter,
       canRollActor,
       canRollDeathSave,
       deathData,
-      DialogV2,
       escapeHTML,
       formatMod,
-      getCombatant,
+      getCombatState,
       hudState,
       ...components,
+      combatActions: itemPanels.combatActions,
+      favoriteSection: itemPanels.favoriteSection,
       t,
-      tf,
       visibility
     });
 
@@ -252,19 +269,15 @@ export async function openRollsHud(actorOverride = null) {
       hudState,
       toolState,
       ...components,
-      ...combatRenderer,
+      ...itemPanels,
+      combatInitiative: combatRenderer.combatInitiative,
+      healthPanel: combatRenderer.healthPanel,
       t,
       visibility
     });
 
-    const {
-      changeResource,
-      combatActions,
-      combatHTML,
-      openHpDialog,
-      openResourceDialog,
-      openSpellSlotsDialog
-    } = combatRenderer;
+    const { combatHTML } = combatRenderer;
+    const { combatActions } = itemPanels;
     const { availableViews, normalHTML } = regularRenderer;
 
     // =========================================================
@@ -317,12 +330,13 @@ export async function openRollsHud(actorOverride = null) {
     const syncHealthAppearance = () =>
       syncHealthAppearanceClass(
         app?.element,
-        adapter.capabilities.combat ? adapter.combatStats(actor).hp : null,
-        adapter.capabilities.combat
+        adapter.combatStats(actor).hp,
+        true
       );
 
     const refreshHud = (region = null) => {
-      if (!combatModeAvailable()) {
+      hudState.favoriteEntries = favoriteEntries(actor);
+      if (!visibility.modeNavigation || !combatModeAvailable()) {
         hudState.forcedMode = null;
       }
       syncHealthAppearance();
@@ -343,7 +357,19 @@ export async function openRollsHud(actorOverride = null) {
     };
 
     const refreshScheduler = createRefreshScheduler(refreshHud);
+    const refreshStatuses = createLatestRefresh({
+      load: () => adapter.statusDescriptions(actor),
+      isCurrent: () => app?.rendered,
+      apply: descriptions => {
+        hudState.statusDescriptions = descriptions;
+        refreshScheduler.schedule();
+      },
+      onError: error => {
+        console.warn("Adventurer HUD | status refresh failed", error);
+      }
+    });
     const { performRoll, performAndRefresh } = createHudRollRunner({
+      canStartMutation,
       getApp: () => app,
       refreshHud,
       refreshScheduler
@@ -357,16 +383,11 @@ export async function openRollsHud(actorOverride = null) {
       input?.setSelectionRange?.(query.length, query.length);
     };
 
-    const toggleFavoriteEntry = async (itemId, activityId) => {
-      const next = toggleFavorite(hudState.favoriteEntries, itemId, activityId);
-      const stored = getSetting(SETTINGS.favoriteEntries) ?? {};
-      await setSetting(SETTINGS.favoriteEntries, {
-        ...stored,
-        [actor.uuid]: next
+    const toggleFavoriteEntry = (itemId, activityId) =>
+      queueFavoriteChange(actor, async () => {
+        await toggleFavorite(actor, itemId, activityId);
+        refreshHud();
       });
-      hudState.favoriteEntries = next;
-      refreshHud();
-    };
 
     // =========================================================
     // ApplicationV2 actions
@@ -375,16 +396,14 @@ export async function openRollsHud(actorOverride = null) {
     const actions = createHudActions({
       actor,
       adapter,
+      canStartMutation,
       canRollActor,
       canRollDeathSave,
-      changeResource,
       combatModeAvailable,
       currentMode,
-      getCombatant,
+      getCombatState,
       hudState,
       openHpDialog,
-      openResourceDialog,
-      openSpellSlotsDialog,
       performAndRefresh,
       refreshHud,
       savePanelState,
@@ -440,6 +459,11 @@ export async function openRollsHud(actorOverride = null) {
         resizable: true,
         controls: [
           {
+            icon: "fa-solid fa-arrows-left-right",
+            label: t("Window.ToggleModeNavigation"),
+            action: "togglemodes"
+          },
+          {
             icon: "fa-solid fa-arrow-rotate-left",
             label: t("Window.ResetHint"),
             action: "resetwindow"
@@ -473,44 +497,29 @@ export async function openRollsHud(actorOverride = null) {
     await activateHudWindow({
       actor,
       app,
-      canRollActor,
-      changeResource,
       visualEffectsEnabled: getSetting(SETTINGS.showVisualEffects),
-      isCurrentCombatant: combatant => {
-        const tokenId = token?.document?.id ?? token?.id;
-        return (
-          Boolean(combatant?.tokenId) &&
-          getCombatant()?.id === combatant?.id &&
-          (!tokenId || combatant?.tokenId === tokenId)
-        );
-      },
-      isPlayersTurn: () => {
-        const combat = getCurrentCombat(game);
-        const combatant = getCombatant();
-        return Boolean(
-          combat?.started && combatant && combat.combatant?.id === combatant.id
-        );
-      },
+      isCurrentCombatant: actorContext.isCurrentCombatant,
+      isPlayersTurn: () => getCombatState().isTurn,
       readVisibility,
       syncPreferences: () => {
-        hudState.proficientSkillsOnly = getSetting(
-          SETTINGS.proficientSkillsOnly
-        );
+        syncHudPreferences(hudState, {
+          modeNavigation: visibility.modeNavigation,
+          proficientSkillsOnly: getSetting(SETTINGS.proficientSkillsOnly)
+        });
       },
       onSearchInput: query => updateSearch(query),
-      readHp: adapter.capabilities.combat
-        ? () => {
-            const hp = adapter.combatStats(actor).hp;
-            return {
-              value: Number(hp.value ?? 0),
-              temp: Number(hp.temp ?? 0),
-              max: Number(hp.max ?? 0)
-            };
-          }
-        : null,
+      readHp: () => {
+        const hp = adapter.combatStats(actor).hp;
+        return {
+          value: Number(hp.value ?? 0),
+          temp: Number(hp.temp ?? 0),
+          max: Number(hp.max ?? 0)
+        };
+      },
       refreshHud,
       refreshScheduler,
       onToolsChange: refreshTools,
+      onStatusChange: refreshStatuses,
       setPinned: value => {
         pinned = value;
       },

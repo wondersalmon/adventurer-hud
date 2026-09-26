@@ -26,19 +26,19 @@ export function matchesItemSearch(adapter, item, query) {
   );
 }
 
-export const favoriteEntriesForActor = (stored, actorUuid) =>
-  Array.isArray(stored?.[actorUuid]) ? stored[actorUuid] : [];
-
 export const isFavorite = (entries, itemId, activityId = null) =>
   entries.some(
-    entry => entry.itemId === itemId && entry.activityId === activityId
+    entry =>
+      entry.itemId === itemId && (entry.activityId ?? null) === activityId
   );
 
-export function toggleFavorite(entries, itemId, activityId = null) {
-  if (isFavorite(entries, itemId, activityId)) {
-    return entries.filter(
-      entry => entry.itemId !== itemId || entry.activityId !== activityId
-    );
-  }
-  return [...entries, { itemId, activityId }];
+export function itemAvailability(adapter, actor, item, activityId = null) {
+  if (actor.isOwner === false)
+    return { blocked: true, reason: "Quick.NoPermission" };
+  return (
+    adapter.itemUseState?.(item, activityId) ?? {
+      blocked: false,
+      reason: adapter.itemUsesData(item)?.value === 0 ? "Quick.NoCharges" : null
+    }
+  );
 }

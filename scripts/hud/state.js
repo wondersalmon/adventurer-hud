@@ -20,7 +20,6 @@ export function createHudState(initial = {}) {
     inventoryCategory: "equipped",
     preparedSpellsOnly: true,
     proficientSkillsOnly: true,
-    resourcesExpanded: false,
     renderedMode: null,
     searchQuery: "",
     openActivityItemId: null,
@@ -32,6 +31,14 @@ export function createHudState(initial = {}) {
 export function setForcedMode(state, mode) {
   state.forcedMode = HUD_MODES.includes(mode) ? mode : null;
   state.currentView = "main";
+}
+
+export function syncHudPreferences(
+  state,
+  { modeNavigation, proficientSkillsOnly }
+) {
+  state.proficientSkillsOnly = proficientSkillsOnly;
+  if (!modeNavigation) state.forcedMode = null;
 }
 
 export function setRegularView(state, view) {

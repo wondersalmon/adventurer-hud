@@ -28,10 +28,6 @@
   .ws-rolls-dialog .ws-health-stack {
     grid-column: 1 / -1;
   }
-
-  .ws-rolls-dialog .ws-resource-grid {
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 @container ws-rolls (max-width: 285px) {

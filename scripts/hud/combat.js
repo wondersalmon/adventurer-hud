@@ -1,9 +1,6 @@
-import { createCombatItemRenderer } from "./combat-items.js";
-import { createCombatResourceController } from "./combat-resources.js";
 import { createCombatStatusRenderer } from "./combat-statuses.js";
 import { renderHealthBar } from "./health-bar.js";
 import { renderDeathSaveControl } from "./death-save-control.js";
-import { getCurrentCombat } from "../runtime-helpers.js";
 
 export function createCombatRenderer(context) {
   const {
@@ -13,57 +10,19 @@ export function createCombatRenderer(context) {
     abilitiesSection,
     canRollActor,
     canRollDeathSave,
+    combatActions,
     deathData,
-    DialogV2,
     escapeHTML,
     formatMod,
-    getCombatant,
+    favoriteSection,
+    getCombatState,
     hudState,
     inspirationControl,
     modeNavigation,
     shortcutHint,
     t,
-    tf,
     visibility
   } = context;
-
-  const {
-    changeResource,
-    combatResources,
-    openHpDialog,
-    openResourceDialog,
-    openSpellSlotsDialog
-  } = createCombatResourceController({
-    actor,
-    adapter,
-    DialogV2,
-    escapeHTML,
-    hudState,
-    t,
-    tf,
-    visibility
-  });
-
-  const {
-    combatActions,
-    combatItemButton,
-    combatItems,
-    favoriteSection,
-    inventoryCategories,
-    inventoryItems,
-    searchItems,
-    searchControl,
-    spellGroups
-  } = createCombatItemRenderer({
-    actor,
-    adapter,
-    canRollActor,
-    escapeHTML,
-    hudState,
-    t,
-    tf,
-    visibility
-  });
 
   const { combatStatuses } = createCombatStatusRenderer({
     actor,
@@ -75,9 +34,9 @@ export function createCombatRenderer(context) {
   });
 
   const combatInitiative = () => {
-    const combatant = getCombatant();
+    const { combatant } = getCombatState();
 
-    if (!visibility.initiative || !combatant) {
+    if (!combatant) {
       return "";
     }
 
@@ -108,12 +67,12 @@ export function createCombatRenderer(context) {
   const healthPanel = (hp = adapter.combatStats(actor).hp) => `
     <div class="ws-health-stack">
       ${healthBar(hp)}
-      ${adapter.capabilities?.deathSaves ? renderDeathSaveControl({ canRoll: canRollDeathSave(), canRollActor, death: deathData(), t }) : ""}
+      ${renderDeathSaveControl({ canRoll: canRollDeathSave(), canRollActor, death: deathData(), t })}
     </div>
   `;
 
   function combatHTML() {
-    const combatant = getCombatant();
+    const { isTurn, canEndTurn } = getCombatState();
     const {
       ac,
       hp,
@@ -121,10 +80,6 @@ export function createCombatRenderer(context) {
       speedUnits: units,
       proficiencyBonus
     } = adapter.combatStats(actor);
-    const combat = getCurrentCombat(game);
-    const isTurn = Boolean(
-      combat?.started && combatant && combat.combatant?.id === combatant.id
-    );
 
     return `
         <div
@@ -140,7 +95,7 @@ export function createCombatRenderer(context) {
               ? `<div class="ws-combat-heading ws-current-turn">
               <div class="ws-turn-controls">
                 <b>${t("Combat.YourTurn")}</b>
-                ${canRollActor ? `<button type="button" class="ws-end-turn ws-button" data-action="endturn" aria-label="${t("Combat.EndTurn")}"><i class="fa-solid fa-forward-step" aria-hidden="true"></i>${t("Combat.EndTurn")}</button>` : ""}
+                ${canEndTurn ? `<button type="button" class="ws-end-turn ws-button" data-action="endturn" aria-label="${t("Combat.EndTurn")}"><i class="fa-solid fa-forward-step" aria-hidden="true"></i>${t("Combat.EndTurn")}</button>` : ""}
               </div>
             </div>`
               : ""
@@ -148,7 +103,7 @@ export function createCombatRenderer(context) {
 
           ${combatStatuses()}
 
-          <div class="ws-combat-stats ${visibility.combatStats ? "" : "ws-hidden"}">
+          <div class="ws-combat-stats">
             ${healthPanel(hp)}
 
             <div class="ws-combat-stat">
@@ -174,8 +129,6 @@ export function createCombatRenderer(context) {
 
           ${abilitiesSection("combat")}
 
-          ${combatResources()}
-
           ${favoriteSection()}
 
           ${combatActions()}
@@ -186,23 +139,9 @@ export function createCombatRenderer(context) {
   }
 
   return {
-    changeResource,
-    combatActions,
     combatHTML,
     combatInitiative,
-    healthBar,
     healthPanel,
-    combatItemButton,
-    combatItems,
-    favoriteSection,
-    combatStatuses,
-    inventoryCategories,
-    inventoryItems,
-    searchItems,
-    searchControl,
-    openHpDialog,
-    openResourceDialog,
-    openSpellSlotsDialog,
-    spellGroups
+    combatStatuses
   };
 }

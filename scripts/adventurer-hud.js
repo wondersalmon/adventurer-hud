@@ -13,15 +13,11 @@ import {
   settingRefreshStrategy,
   SETTINGS
 } from "./settings.js";
-import {
-  defineSystemAdapter,
-  getSystemAdapter,
-  listSystemAdapters,
-  registerSystemAdapter
-} from "./systems/index.js";
 
 let selectionTimer = null;
 let settingsRefreshTimer = null;
+
+const isDnd5e = () => game.system.id === "dnd5e";
 
 const getOpenApp = () => globalThis.__adventurerHud?.app ?? null;
 
@@ -36,6 +32,7 @@ const toggleHud = () => {
 };
 
 const scheduleActorRefresh = () => {
+  if (!isDnd5e()) return;
   if (!getSetting(SETTINGS.autoUpdateActor) || !getOpenApp()?.rendered) {
     return;
   }
@@ -67,22 +64,8 @@ const scheduleActorRefresh = () => {
 
 Hooks.once("init", () => {
   const module = game.modules.get(MODULE_ID);
-  const systems = Object.freeze({
-    define: defineSystemAdapter,
-    get: getSystemAdapter,
-    list: listSystemAdapters,
-    register: registerSystemAdapter
-  });
-
-  if (module) {
-    module.api = Object.freeze({
-      open: openRollsHud,
-      systems
-    });
-  }
-
-  Hooks.callAll("adventurerHudRegisterSystemAdapters", systems);
-
+  if (module) module.api = Object.freeze({ open: openRollsHud });
+  if (!isDnd5e()) return;
   registerSettings();
 
   game.keybindings.register(MODULE_ID, "openHud", {
@@ -103,6 +86,7 @@ Hooks.once("init", () => {
 });
 
 Hooks.once("ready", () => {
+  if (!isDnd5e()) return;
   const module = game.modules.get(MODULE_ID);
 
   Hooks.callAll("adventurerHudReady", module?.api);
@@ -112,6 +96,7 @@ Hooks.once("ready", () => {
 });
 
 Hooks.on("getSceneControlButtons", controls => {
+  if (!isDnd5e()) return;
   const tokenControls = controls.tokens;
   if (!tokenControls?.tools || !getSetting(SETTINGS.showTokenControl)) {
     return;
@@ -134,6 +119,7 @@ Hooks.on("controlToken", scheduleActorRefresh);
 Hooks.on("canvasReady", scheduleActorRefresh);
 
 Hooks.on("renderSettingsConfig", (app, html) => {
+  if (!isDnd5e()) return;
   const root = html ?? app.element;
   moveSettingsMenusToBottom(root);
   void localizeSettingsRows(root).catch(error => {
@@ -141,7 +127,8 @@ Hooks.on("renderSettingsConfig", (app, html) => {
   });
 });
 
-const refreshControls = () => void ui.controls?.render({ force: true });
+const refreshControls = () =>
+  void ui.controls?.render({ force: true, reset: true });
 
 const reopenHud = () => {
   clearTimeout(settingsRefreshTimer);

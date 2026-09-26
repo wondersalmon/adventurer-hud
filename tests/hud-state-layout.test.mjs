@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFile } from "node:fs/promises";
 
 import {
   createHudState,
   resolveHudMode,
   setForcedMode,
-  setRegularView
+  setRegularView,
+  syncHudPreferences
 } from "../scripts/hud/state.js";
 import { renderHudMode, renderRegularView } from "../scripts/render/index.js";
 import {
@@ -19,7 +19,6 @@ test("panel layout is restored per actor and ignores transient state", () => {
     combatAbilitiesExpanded: true,
     conditionsExpanded: true,
     combatCategory: "spells",
-    resourcesExpanded: true,
     currentView: "inventory",
     searchQuery: "sword",
     openActivityItemId: "item-1"
@@ -32,12 +31,26 @@ test("panel layout is restored per actor and ignores transient state", () => {
     actionMenuOpen: false,
     favoritesExpanded: true,
     preparedSpellsOnly: true,
-    resourcesExpanded: true,
     combatCategory: "spells",
     currentView: "inventory",
     inventoryCategory: "equipped"
   });
   assert.deepEqual(panelStateForActor(stored, "Actor.other"), {});
+  assert.equal(
+    panelStateForActor(
+      { "Actor.hero": { combatCategory: "resources" } },
+      "Actor.hero"
+    ).combatCategory,
+    "features"
+  );
+  state.combatCategory = "features";
+  assert.equal(
+    panelStateForActor(
+      { "Actor.hero": panelStateSnapshot(state) },
+      "Actor.hero"
+    ).combatCategory,
+    "features"
+  );
   assert.equal(stored["Actor.hero"].searchQuery, undefined);
   assert.equal(stored["Actor.hero"].openActivityItemId, undefined);
   assert.deepEqual(
@@ -56,7 +69,6 @@ test("manual mode is limited to exploration and combat", () => {
   assert.equal(state.combatAbilitiesExpanded, false);
   assert.equal(state.conditionsExpanded, false);
   assert.equal(state.combatCategory, null);
-  assert.equal(state.resourcesExpanded, false);
   setForcedMode(state, "combat");
   assert.equal(state.forcedMode, "combat");
   assert.equal(state.currentView, "main");
@@ -89,6 +101,37 @@ test("automatic mode chooses combat for active combatants", () => {
   );
 });
 
+test("hiding mode buttons restores automatic mode without losing the selected view", () => {
+  const state = createHudState({
+    forcedMode: "regular",
+    currentView: "inventory"
+  });
+  const mode = () =>
+    resolveHudMode({
+      combatAvailable: true,
+      isActiveCombatant: true,
+      forcedMode: state.forcedMode
+    });
+  syncHudPreferences(state, {
+    modeNavigation: true,
+    proficientSkillsOnly: false
+  });
+  assert.equal(mode(), "regular");
+  syncHudPreferences(state, {
+    modeNavigation: false,
+    proficientSkillsOnly: true
+  });
+  assert.equal(state.forcedMode, null);
+  assert.equal(mode(), "combat");
+  assert.equal(state.currentView, "inventory");
+  assert.equal(state.proficientSkillsOnly, true);
+  syncHudPreferences(state, {
+    modeNavigation: true,
+    proficientSkillsOnly: true
+  });
+  assert.equal(mode(), "combat");
+});
+
 test("regular views are validated and rendered on demand", () => {
   const state = createHudState();
   assert.equal(state.inventoryCategory, "equipped");
@@ -111,98 +154,4 @@ test("regular views are validated and rendered on demand", () => {
     }),
     "combat"
   );
-});
-
-test("regular HUD places initiative and inspiration beside rests", async () => {
-  const source = await readFile(
-    new URL("../scripts/hud/regular.js", import.meta.url),
-    "utf8"
-  );
-
-  assert.match(
-    source,
-    /restControls\(`\$\{combatInitiative\(\)\}\$\{inspirationControl\(\)\}`\)/
-  );
-});
-
-test("extra-large typography has dedicated styles", async () => {
-  const css = await readFile(
-    new URL("../styles/adventurer-hud.css", import.meta.url),
-    "utf8"
-  );
-
-  assert.match(css, /\.ws-font-extralarge \.ws-view/);
-});
-
-test("combat HUD renders its own combined ability section", async () => {
-  const source = await readFile(
-    new URL("../scripts/hud/combat.js", import.meta.url),
-    "utf8"
-  );
-
-  assert.match(source, /abilitiesSection\("combat"\)/);
-});
-
-test("regular HUD exposes inventory filters and item charges", async () => {
-  const regularSource = await readFile(
-    new URL("../scripts/hud/regular.js", import.meta.url),
-    "utf8"
-  );
-  const cardSource = await readFile(
-    new URL("../scripts/hud/combat-item-card.js", import.meta.url),
-    "utf8"
-  );
-
-  assert.match(regularSource, /id="ws-inventory"/);
-  assert.match(regularSource, /data-action="inventoryfilter"/);
-  assert.match(regularSource, /inventoryItems\(hudState\.inventoryCategory\)/);
-  assert.match(cardSource, /t\("Inventory\.Charges"\)/);
-});
-
-test("HUD mode renderers are split from the application controller", async () => {
-  const controller = await readFile(
-    new URL("../scripts/rolls-hud.js", import.meta.url),
-    "utf8"
-  );
-
-  assert.match(controller, /from "\.\/hud\/components\.js"/);
-  assert.match(controller, /from "\.\/hud\/actor-selection\.js"/);
-  assert.match(controller, /from "\.\/hud\/regular\.js"/);
-  assert.match(controller, /from "\.\/hud\/combat\.js"/);
-  assert.match(controller, /from "\.\/hud\/actions\.js"/);
-  assert.match(controller, /from "\.\/hud\/refresh\.js"/);
-  assert.match(controller, /from "\.\/hud\/window-session\.js"/);
-  assert.match(controller, /from "\.\/hud\/window-controls\.js"/);
-  assert.match(controller, /from "\.\/hud\/geometry\.js"/);
-  assert.doesNotMatch(controller, /function normalHTML\(/);
-  assert.doesNotMatch(controller, /function combatHTML\(/);
-});
-
-test("settings refresh preserves the actor attached to an open HUD", async () => {
-  const entrypoint = await readFile(
-    new URL("../scripts/adventurer-hud.js", import.meta.url),
-    "utf8"
-  );
-  const controller = await readFile(
-    new URL("../scripts/rolls-hud.js", import.meta.url),
-    "utf8"
-  );
-
-  assert.match(entrypoint, /openRollsHud\(state\.actor \?\? null\)/);
-  assert.match(controller, /state\.actor = actor/);
-  const session = await readFile(
-    new URL("../scripts/hud/window-session.js", import.meta.url),
-    "utf8"
-  );
-  assert.match(session, /state\.actor = null/);
-});
-
-test("Token Controls button visibility follows its client setting", async () => {
-  const entrypoint = await readFile(
-    new URL("../scripts/adventurer-hud.js", import.meta.url),
-    "utf8"
-  );
-
-  assert.match(entrypoint, /getSetting\(SETTINGS\.showTokenControl\)/);
-  assert.match(entrypoint, /ui\.controls\?\.render\(\{ force: true \}\)/);
 });

@@ -20,19 +20,20 @@ export function createRegularRenderer(context) {
     searchControl,
     searchItems,
     shortcutHint,
+    skillFilterHTML,
     skillsHTML,
+    spellFilterHTML,
     spellGroups,
     t,
     toolSection,
-    toolState,
-    visibility
+    toolState
   } = context;
 
   const availableViews = () => ({
-    inventory: visibility.inventory,
-    skills: visibility.skills,
-    spells: visibility.combatSpells && combatItems("spells").length > 0,
-    tools: visibility.tools
+    inventory: true,
+    skills: true,
+    spells: combatItems("spells").length > 0,
+    tools: true
   });
 
   const inventoryHTML = () => {
@@ -76,140 +77,24 @@ export function createRegularRenderer(context) {
 
   const mainHTML = () => {
     const { spells: hasSpells } = availableViews();
-    return `
-        <div
-          id="ws-main"
-          class="ws-view"
-        >
-          ${actorHeader()}
-
-          ${visibility.combatStats ? `<div class="ws-regular-health">${healthPanel()}</div>` : ""}
-
-          ${restControls(`${combatInitiative()}${inspirationControl()}`)}
-
-          ${modeNavigation("regular")}
-
-          ${favoriteSection()}
-
-          ${abilitiesSection()}
-
-          ${
-            visibility.skills ||
-            visibility.tools ||
-            hasSpells ||
-            visibility.inventory
-              ? `
-                <div class="ws-divider"></div>
-
-                <div class="ws-nav-grid">
-
-            ${
-              visibility.skills
-                ? `
-            <button
-              type="button"
-              class="ws-nav ws-button"
-              data-action="view"
-              data-view="skills"
-            >
-              <span class="ws-nav-main">
-                <i
-                  class="fa-solid fa-list-check"
-                ></i>
-
-                ${t("Labels.Skills")}
-              </span>
-
-              <i
-                class="
-                  fa-solid
-                  fa-chevron-right
-                  ws-arrow
-                "
-              ></i>
-            </button>
-            `
-                : ""
-            }
-
-            ${
-              visibility.tools
-                ? `
-            <button
-              type="button"
-              class="ws-nav ws-button"
-              data-action="view"
-              data-view="tools"
-            >
-              <span class="ws-nav-main">
-                <i
-                  class="
-                    fa-solid
-                    fa-screwdriver-wrench
-                  "
-                ></i>
-
-                ${t("Labels.Tools")}
-              </span>
-
-              <i
-                class="
-                  fa-solid
-                  fa-chevron-right
-                  ws-arrow
-                "
-              ></i>
-            </button>
-            `
-                : ""
-            }
-
-            ${
-              hasSpells
-                ? `
-            <button
-              type="button"
-              class="ws-nav ws-button"
-              data-action="view"
-              data-view="spells"
-            >
-              <span class="ws-nav-main">
-                <i class="fa-solid fa-wand-magic-sparkles"></i>
-                ${t("Combat.Spells")}
-              </span>
-              <i class="fa-solid fa-chevron-right ws-arrow"></i>
-            </button>
-            `
-                : ""
-            }
-
-            ${
-              visibility.inventory
-                ? `
-            <button
-              type="button"
-              class="ws-nav ws-button"
-              data-action="view"
-              data-view="inventory"
-            >
-              <span class="ws-nav-main">
-                <i class="fa-solid fa-box-open"></i>
-                ${t("Inventory.Title")}
-              </span>
-              <i class="fa-solid fa-chevron-right ws-arrow"></i>
-            </button>
-            `
-                : ""
-            }
-
-                </div>
-              `
-              : ""
-          }
-
-          ${shortcutHint()}
-        </div>
-      `;
+    const nav = (view, icon, label) =>
+      `<button type="button" class="ws-nav ws-button" data-action="view" data-view="${view}"><span class="ws-nav-main"><i class="fa-solid ${icon}"></i>${t(label)}</span><i class="fa-solid fa-chevron-right ws-arrow"></i></button>`;
+    return `<div id="ws-main" class="ws-view">
+      ${actorHeader()}
+      <div class="ws-regular-health">${healthPanel()}</div>
+      ${restControls(`${combatInitiative()}${inspirationControl()}`)}
+      ${modeNavigation("regular")}
+      ${favoriteSection()}
+      ${abilitiesSection()}
+      <div class="ws-divider"></div>
+      <div class="ws-nav-grid">
+        ${nav("skills", "fa-list-check", "Labels.Skills")}
+        ${nav("tools", "fa-screwdriver-wrench", "Labels.Tools")}
+        ${hasSpells ? nav("spells", "fa-wand-magic-sparkles", "Combat.Spells") : ""}
+        ${nav("inventory", "fa-box-open", "Inventory.Title")}
+      </div>
+      ${shortcutHint()}
+    </div>`;
   };
 
   const skillsViewHTML = () => `
@@ -221,16 +106,7 @@ export function createRegularRenderer(context) {
 
           <div class="ws-divider"></div>
 
-          <div class="ws-skill-filter" role="group" aria-label="${t("Skills.Filter")}">
-            <button type="button" class="ws-button ${hudState.proficientSkillsOnly ? "ws-active" : ""}"
-              data-action="skillfilter" data-proficient="true" aria-pressed="${hudState.proficientSkillsOnly}">
-              ${t("Skills.Trained")}
-            </button>
-            <button type="button" class="ws-button ${hudState.proficientSkillsOnly ? "" : "ws-active"}"
-              data-action="skillfilter" data-proficient="false" aria-pressed="${!hudState.proficientSkillsOnly}">
-              ${t("Skills.All")}
-            </button>
-          </div>
+          ${skillFilterHTML()}
 
           <div class="ws-scroll">
             <div class="ws-entry-grid">
@@ -315,14 +191,7 @@ export function createRegularRenderer(context) {
 
           ${searchControl()}
 
-          <div class="ws-spell-filter" role="group" aria-label="${t("Combat.SpellFilter")}">
-            <button type="button" class="ws-button ${hudState.preparedSpellsOnly ? "ws-active" : ""}" data-action="spellfilter" data-prepared="true">
-              ${t("Combat.Prepared")}
-            </button>
-            <button type="button" class="ws-button ${hudState.preparedSpellsOnly ? "" : "ws-active"}" data-action="spellfilter" data-prepared="false">
-              ${t("Combat.AllSpells")}
-            </button>
-          </div>
+          ${spellFilterHTML()}
 
           <div class="ws-combat-item-list">
             ${
@@ -338,7 +207,7 @@ export function createRegularRenderer(context) {
   const normalHTML = () =>
     renderRegularView(hudState.currentView, {
       main: mainHTML,
-      inventory: () => (visibility.inventory ? inventoryHTML() : ""),
+      inventory: inventoryHTML,
       skills: skillsViewHTML,
       spells: spellsViewHTML,
       tools: toolsViewHTML

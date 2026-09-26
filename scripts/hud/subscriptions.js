@@ -10,6 +10,7 @@ export function subscribeHudDocuments({
   onInitiativeRolled,
   onTurnStart,
   onToolsChange,
+  onStatusChange,
   isCurrentCombatant,
   isPlayersTurn
 }) {
@@ -22,14 +23,19 @@ export function subscribeHudDocuments({
     wasPlayersTurn = playersTurn;
   };
   const refreshActorEffect = effect => {
-    if (effect?.parent?.uuid === actor.uuid) {
+    if (
+      effect?.parent?.uuid === actor.uuid ||
+      effect?.parent?.parent?.uuid === actor.uuid
+    ) {
       scheduleRefresh();
+      void onStatusChange?.();
     }
   };
 
   const refreshActorItem = item => {
     if (item?.parent?.uuid === actor.uuid) {
       scheduleRefresh();
+      void onStatusChange?.();
       if (item.type === "tool") void onToolsChange?.();
     }
   };
@@ -43,6 +49,7 @@ export function subscribeHudDocuments({
         const change = hpChange(previousHp, nextHp);
         if (change) onHpChange?.(change);
         previousHp = nextHp;
+        void onStatusChange?.();
         scheduleRefresh();
         if (
           changes?.system?.tools ||

@@ -1,5 +1,4 @@
 import {
-  damagePartFormula,
   hasItemProperty,
   inventoryCategory,
   isPreparedSpell,
@@ -7,44 +6,36 @@ import {
   itemActivities,
   itemRangeData,
   itemUsesData,
+  itemUseState,
   spellPreparation
 } from "./items.js";
-const resolveDamageFormula = (formula, actor, item, activity) => {
-  if (!formula) return "";
-
-  const source = String(formula);
-  const rollData =
-    activity?.getRollData?.({ deterministic: true }) ??
-    item.getRollData?.() ??
-    actor.getRollData?.() ??
-    {};
-
-  try {
-    return Roll.replaceFormulaData(source, rollData, {
-      missing: 0,
-      warn: false
-    })
-      .replaceAll(/\s+/g, " ")
-      .trim();
-  } catch {
-    return source.replaceAll(/\s+/g, " ").trim();
-  }
-};
-
 const combatItemCategories = item => {
   const categories = new Set();
   if (item.type === "weapon") categories.add("weapons");
   if (item.type === "spell") categories.add("spells");
+  if (isResourceFeature(item)) categories.add("features");
 
   const activities = itemActivities(item);
-  const activation =
-    item.system?.activation?.type ??
-    activities.find(activity => activity?.activation?.type)?.activation?.type;
+  const activation = activities.find(activity => activity?.activation?.type)
+    ?.activation?.type;
   if (activation) categories.add(activation);
   for (const activity of activities) {
     if (activity?.activation?.type) categories.add(activity.activation.type);
   }
   return categories;
+};
+
+const isResourceFeature = item => {
+  if (item.type !== "feat") return false;
+  const activities = itemActivities(item);
+  return (
+    activities.length > 0 &&
+    (itemUsesData(item) !== null ||
+      activities.some(
+        activity =>
+          activity.uses?.max > 0 || activity.consumption?.targets?.length > 0
+      ))
+  );
 };
 
 export const dnd5eItems = {
@@ -53,15 +44,16 @@ export const dnd5eItems = {
   itemRangeData,
   hasItemProperty,
   isPreparedSpell,
-  damagePartFormula,
   inventoryCategory,
   itemUsesData,
+  itemUseState,
   itemRole(item) {
     if (item.type === "weapon") return "weapon";
     if (item.type === "spell") return "spell";
     return "other";
   },
   combatItems(actor, category) {
+    if (category === "features") return actor.items.filter(isResourceFeature);
     if (category === "weapons") {
       return actor.items.filter(item => item.type === "weapon");
     }
@@ -75,7 +67,7 @@ export const dnd5eItems = {
     const includesActions = categoryNames.some(
       category => category !== "weapons" && category !== "spells"
     );
-    for (const item of actor.items) {
+    for (const item of actor.items.values()) {
       if (!includesActions) {
         if (item.type === "weapon") categories.get("weapons")?.push(item);
         if (item.type === "spell") categories.get("spells")?.push(item);
@@ -92,129 +84,38 @@ export const dnd5eItems = {
   toggleSpellPreparation(item) {
     const prepared = spellPreparation(item);
     if (!prepared.canPrepare) return;
-    const modern =
-      item.system?.method !== undefined || item.system?.prepared !== undefined;
-    return item.update(
-      modern
-        ? { "system.prepared": prepared.prepared ? 0 : 1 }
-        : { "system.preparation.prepared": !prepared.prepared }
-    );
-  },
-  itemResourceCost(actor, item, { fallbackLabel, activityId = null }) {
-    const activityTarget = itemActivities(item)
-      .filter(activity => !activityId || activity.id === activityId)
-      .flatMap(activity => activity?.consumption?.targets ?? [])
-      .find(target => Number(target?.value ?? target?.amount) > 0);
-    const legacy = item.system?.consume;
-    const amount = Number(
-      activityTarget?.value ?? activityTarget?.amount ?? legacy?.amount ?? 0
-    );
-    if (!amount) return "";
-
-    const targetId = activityTarget?.target ?? legacy?.target;
-    const targetItem = targetId ? actor.items.get(targetId) : null;
-    const label =
-      targetItem?.name ||
-      String(targetId ?? "")
-        .split(".")
-        .filter(Boolean)
-        .at(-1) ||
-      fallbackLabel;
-    return `${amount} ${label}`;
+    return item.update({
+      "system.prepared":
+        CONFIG.DND5E.spellPreparationStates[
+          prepared.prepared ? "unprepared" : "prepared"
+        ].value
+    });
   },
   itemAttackBonus(item, activityId = null) {
-    const activities = itemActivities(item);
     const activity = activityId
-      ? activities.find(candidate => candidate.id === activityId)
-      : activities.find(
-          candidate => candidate?.type === "attack" || candidate?.attack
-        );
-    if (activityId && !(activity?.type === "attack" || activity?.attack)) {
-      return "";
-    }
-    const value =
+      ? itemActivities(item).find(a => a.id === activityId)
+      : itemActivities(item).find(a => a.type === "attack");
+    return (
       activity?.labels?.toHit ??
-      activity?.labels?.modifier ??
-      (activityId ? null : (item.labels?.toHit ?? item.labels?.attack));
-    if ([undefined, null, ""].includes(value)) return "";
-
-    const label = String(value).trim();
-    return /^\d/.test(label) ? `+${label}` : label;
+      (!activityId ? (item.labels?.toHit ?? item.labels?.modifier) : "") ??
+      ""
+    );
   },
   itemSaveDc(item, activityId = null) {
-    const activities = itemActivities(item);
     const activity = activityId
-      ? activities.find(candidate => candidate.id === activityId)
-      : activities.find(candidate => candidate?.save);
-    if (activityId && !activity?.save) return "";
-    const dc =
-      activity?.save?.dc?.value ??
-      (activityId
-        ? null
-        : (item.system?.save?.dc?.value ?? item.system?.save?.dc));
-    const value = Number(dc);
-    return Number.isFinite(value) && value > 0 ? String(value) : "";
+      ? itemActivities(item).find(a => a.id === activityId)
+      : itemActivities(item).find(a => a.type === "save");
+    return activity?.save?.dc?.value ?? "";
   },
-  itemDamageFormula(actor, item, activityId = null) {
-    const activities = itemActivities(item);
-    const selected = activityId
-      ? activities.find(activity => activity.id === activityId)
-      : null;
-    if (activityId && !selected) return "";
-
-    const activityParts = (activityId ? [selected] : activities).flatMap(
-      activity =>
-        (activity?.damage?.parts ?? []).map(part => ({ activity, part }))
-    );
-    const legacyParts = activityId ? [] : (item.system?.damage?.parts ?? []);
-    const base = item.system?.damage?.base;
-    const includeBase = activityId
-      ? selected.damage?.includeBase &&
-        !activityParts.some(({ part }) => part.base)
-      : true;
-    const baseRecords =
-      includeBase && base?.formula
-        ? [{ activity: selected ?? activities[0], part: base }]
-        : [];
-    const records = [
-      ...(activityId ? baseRecords : []),
-      ...activityParts,
-      ...(activityId ? [] : baseRecords),
-      ...legacyParts.map(part => ({ activity: activities[0], part }))
-    ];
-    const sourceFormulas = records.map(({ part }) => damagePartFormula(part));
-    const includesAbilityModifier = sourceFormulas.some(formula =>
-      /@(?:mod|abilities\.[^.\s]+\.mod)\b/.test(String(formula))
-    );
-    const unique = [
-      ...new Set(
-        records
-          .map(({ activity, part }) =>
-            resolveDamageFormula(damagePartFormula(part), actor, item, activity)
-          )
-          .filter(Boolean)
-      )
-    ];
-
-    if (
-      item.type === "weapon" &&
-      unique.length &&
-      !includesAbilityModifier &&
-      (!selected || selected.type === "attack" || selected.attack)
-    ) {
-      const activity =
-        selected ?? activities.find(candidate => candidate?.attack);
-      const abilityId =
-        activity?.attack?.ability ??
-        activity?.ability ??
-        item.system?.ability ??
-        (item.system?.actionType?.startsWith("r") ? "dex" : "str");
-      const modifier = Number(actor.system.abilities?.[abilityId]?.mod ?? 0);
-      if (modifier) {
-        unique[0] = `${unique[0]} ${modifier > 0 ? "+" : "-"} ${Math.abs(modifier)}`;
-      }
-    }
-
-    return unique.join(" + ");
+  itemDamageFormula(_actor, item, activityId = null) {
+    const activity = activityId
+      ? itemActivities(item).find(a => a.id === activityId)
+      : itemActivities(item).find(a => a.labels?.damages?.length);
+    const damages =
+      activity?.labels?.damages ?? (!activityId ? item.labels?.damages : null);
+    return (damages ?? [])
+      .map(d => d.formula)
+      .filter(Boolean)
+      .join(" + ");
   }
 };

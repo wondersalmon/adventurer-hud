@@ -63,3 +63,33 @@ test("roll runner refreshes after a rejected native action", async () => {
   );
   assert.equal(refreshed, 1);
 });
+
+test("cooldown blocks sequential actions of different types until the configured interval, including after failure", async () => {
+  const { createActionCooldown, ACTION_COOLDOWN_MS } =
+    await import("../scripts/hud/action-cooldown.js");
+  let time = 0,
+    count = 0;
+  const runner = createHudRollRunner({
+    getApp: () => null,
+    refreshHud: () => {},
+    refreshScheduler: { cancel() {} },
+    canStartMutation: createActionCooldown({ now: () => time })
+  });
+  await runner.performRoll(() => ++count);
+  time = ACTION_COOLDOWN_MS - 1;
+  await runner.performAndRefresh(() => ++count);
+  assert.equal(count, 1);
+  time = ACTION_COOLDOWN_MS;
+  await assert.rejects(
+    runner.performAndRefresh(() => {
+      count++;
+      throw Error("failed");
+    }),
+    /failed/
+  );
+  await runner.performRoll(() => ++count);
+  assert.equal(count, 2);
+  time = ACTION_COOLDOWN_MS * 2;
+  await runner.performRoll(() => ++count);
+  assert.equal(count, 3);
+});

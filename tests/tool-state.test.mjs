@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createHudToolState } from "../scripts/hud/tool-state.js";
+import { createLatestRefresh } from "../scripts/hud/async-refresh.js";
 
 test("tool refresh keeps the latest result when requests finish out of order", async () => {
   const previousGame = globalThis.game;
@@ -12,7 +13,6 @@ test("tool refresh keeps the latest result when requests finish out of order", a
   const pending = [];
   let loads = 0;
   const adapter = {
-    capabilities: { tools: true },
     getTools: async () => {
       loads++;
       if (loads === 1) return [{ id: "first", isMusic: false }];
@@ -24,7 +24,6 @@ test("tool refresh keeps the latest result when requests finish out of order", a
     const { toolState, refreshTools } = await createHudToolState({
       actor: {},
       adapter,
-      cache: new Map(),
       isRendered: () => true,
       scheduleRefresh: () => refreshes++
     });
@@ -48,4 +47,32 @@ test("tool refresh keeps the latest result when requests finish out of order", a
     globalThis.game = previousGame;
     globalThis.fromUuid = previousFromUuid;
   }
+});
+
+test("async refresh discards data after session close and remains usable after errors", async () => {
+  const pending = [];
+  const applied = [];
+  const errors = [];
+  let current = true;
+  const refresh = createLatestRefresh({
+    load: () =>
+      new Promise((resolve, reject) => pending.push({ resolve, reject })),
+    apply: value => applied.push(value),
+    isCurrent: () => current,
+    onError: error => errors.push(error.message)
+  });
+  const closed = refresh();
+  current = false;
+  pending[0].resolve("old actor");
+  await closed;
+  assert.deepEqual(applied, []);
+  current = true;
+  const failed = refresh();
+  pending[1].reject(new Error("load failed"));
+  await failed;
+  const recovered = refresh();
+  pending[2].resolve("new data");
+  await recovered;
+  assert.deepEqual(errors, ["load failed"]);
+  assert.deepEqual(applied, ["new data"]);
 });

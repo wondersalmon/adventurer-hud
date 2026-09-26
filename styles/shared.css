@@ -283,11 +283,12 @@
 }
 
 .ws-rolls-dialog .ws-legend {
-  height: 22px;
+  min-height: 22px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 17px;
+  gap: 4px 12px;
   color: var(--muted);
   font-size: calc(9px * var(--ws-type-scale));
 }
@@ -326,4 +327,11 @@
   font: inherit;
   font-weight: 750;
   box-shadow: none;
+}
+
+.ws-rolls-dialog img.ws-entry-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  border: 0;
 }

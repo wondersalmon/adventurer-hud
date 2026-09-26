@@ -80,7 +80,9 @@ export function refreshHudView({
     if (current) {
       const template = document.createElement("template");
       template.innerHTML = renderers.actions();
-      current.replaceWith(template.content.firstElementChild);
+      const next = template.content.firstElementChild;
+      if (next) current.replaceWith(next);
+      else current.remove();
       return;
     }
   }

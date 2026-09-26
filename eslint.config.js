@@ -5,7 +5,13 @@ export default [
     ignores: ["dist/**", "node_modules/**"]
   },
   {
-    files: ["scripts/**/*.js", "tools/**/*.mjs", "tests/**/*.mjs"],
+    files: [
+      "scripts/**/*.js",
+      "tools/**/*.mjs",
+      "tests/**/*.mjs",
+      "test-ui/**/*.mjs",
+      "playwright.config.mjs"
+    ],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",

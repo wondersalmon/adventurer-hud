@@ -45,8 +45,8 @@ export function createHudComponents(context) {
         };
         return `<div class="ws-ability-card">
         <div class="ws-ability-card-title"><i class="fa-solid ${escapeHTML(icon)}"></i>${escapeHTML(short)}</div>
-        ${visibility.savingThrows ? rollButton("save", t("Labels.Save")) : ""}
-        ${visibility.abilityChecks ? rollButton("check", t("Labels.Check")) : ""}
+        ${rollButton("save", t("Labels.Save"))}
+        ${rollButton("check", t("Labels.Check"))}
       </div>`;
       })
       .join("")}</div>`;
@@ -57,7 +57,6 @@ export function createHudComponents(context) {
       hudState[
         mode === "combat" ? "combatAbilitiesExpanded" : "abilitiesExpanded"
       ];
-    if (!visibility.abilityChecks && !visibility.savingThrows) return "";
 
     return `
       <section class="ws-ability-table ${expanded ? "ws-expanded" : ""}">
@@ -80,7 +79,31 @@ export function createHudComponents(context) {
   // Skills
   // =========================================================
 
-  function skillsHTML() {
+  const skillFilterHTML = () => `
+    <div class="ws-skill-filter" role="group" aria-label="${t("Skills.Filter")}">
+      <button type="button" class="ws-button ${hudState.proficientSkillsOnly ? "ws-active" : ""}"
+        data-action="skillfilter" data-proficient="true" aria-pressed="${hudState.proficientSkillsOnly}">
+        ${t("Skills.Trained")}
+      </button>
+      <button type="button" class="ws-button ${hudState.proficientSkillsOnly ? "" : "ws-active"}"
+        data-action="skillfilter" data-proficient="false" aria-pressed="${!hudState.proficientSkillsOnly}">
+        ${t("Skills.All")}
+      </button>
+    </div>`;
+
+  const spellFilterHTML = () => `
+    <div class="ws-spell-filter" role="group" aria-label="${t("Combat.SpellFilter")}">
+      <button type="button" class="ws-button ${hudState.preparedSpellsOnly ? "ws-active" : ""}"
+        data-action="spellfilter" data-prepared="true" aria-pressed="${hudState.preparedSpellsOnly}">
+        ${t("Combat.Prepared")}
+      </button>
+      <button type="button" class="ws-button ${hudState.preparedSpellsOnly ? "" : "ws-active"}"
+        data-action="spellfilter" data-prepared="false" aria-pressed="${!hudState.preparedSpellsOnly}">
+        ${t("Combat.AllSpells")}
+      </button>
+    </div>`;
+
+  function skillsHTML(mode = "regular") {
     const visibleSkills = hudState.proficientSkillsOnly
       ? skills.filter(([id]) => skillProf(id) >= 1)
       : skills;
@@ -100,7 +123,7 @@ export function createHudComponents(context) {
         return `
             <button
               type="button"
-              class="ws-entry ws-button"
+              class="ws-entry ws-button ${mode === "combat" ? `ws-combat-skill ${visibility.itemDetails ? "ws-skill-details" : ""}` : ""}"
               data-action="skill"
               data-key="${safeId}"
               title="${safeName}${label ? ` • ${label}` : ""}"
@@ -160,15 +183,8 @@ export function createHudComponents(context) {
             aria-label="${name}"
             ${canRollActor ? "" : "disabled"}
           >
-            <i
-              class="
-                fa-solid
-                  ${escapeHTML(tool.icon)}
-                ws-entry-icon
-              "
-            ></i>
-
-              <span class="ws-entry-name">
+            <img class="ws-entry-icon" src="${escapeHTML(tool.img)}" alt="">
+             <span class="ws-entry-name">
               ${name}
             </span>
 
@@ -230,7 +246,6 @@ export function createHudComponents(context) {
   };
 
   const inspirationControl = () => {
-    if (!adapter.capabilities.inspiration) return "";
     const active = adapter.inspiration(actor);
 
     return `
@@ -248,27 +263,16 @@ export function createHudComponents(context) {
       `;
   };
 
-  const restControls = (extra = "") =>
-    adapter.capabilities.rests || extra
-      ? `
-      <div class="ws-rest-controls">
-        ${extra}
-        ${
-          adapter.capabilities.rests
-            ? `
-        <button type="button" class="ws-header-control ws-button" data-action="shortrest" title="${t("Actor.ShortRest")}" ${canRollActor ? "" : "disabled"}>
-          <i class="fa-solid fa-campground"></i>
-          <span>${t("Actor.ShortRestShort")}</span>
-        </button>
-        <button type="button" class="ws-header-control ws-button" data-action="longrest" title="${t("Actor.LongRest")}" ${canRollActor ? "" : "disabled"}>
-          <i class="fa-solid fa-moon"></i>
-          <span>${t("Actor.LongRestShort")}</span>
-        </button>`
-            : ""
-        }
-      </div>
-    `
-      : "";
+  const restControls = (extra = "") => `
+    <div class="ws-rest-controls">
+      ${extra}
+      <button type="button" class="ws-header-control ws-button" data-action="shortrest" title="${t("Actor.ShortRest")}" ${canRollActor ? "" : "disabled"}>
+        <i class="fa-solid fa-campground"></i><span>${t("Actor.ShortRestShort")}</span>
+      </button>
+      <button type="button" class="ws-header-control ws-button" data-action="longrest" title="${t("Actor.LongRest")}" ${canRollActor ? "" : "disabled"}>
+        <i class="fa-solid fa-moon"></i><span>${t("Actor.LongRestShort")}</span>
+      </button>
+    </div>`;
 
   const actorHeader = (extra = "") => {
     const summary = classSummary();
@@ -335,25 +339,19 @@ export function createHudComponents(context) {
       : "";
   };
 
-  const legend = () => `
+  const legend = () => {
+    const entries = [
+      ["●", "ws-proficient", t("Labels.Proficiency")],
+      ["★", "ws-expertise", t("Labels.Expertise")]
+    ];
+    return `
       <div class="ws-legend">
-
-        <span>
-          <b class="ws-proficient">●</b>
-          ${t("Labels.Proficiency")}
-        </span>
-
-        <span>
-          <b class="ws-expertise">★</b>
-          ${t("Labels.Expertise")}
-        </span>
-
+        ${entries.map(([symbol, css, label]) => `<span><b class="${escapeHTML(css)}">${escapeHTML(symbol)}</b>${escapeHTML(label)}</span>`).join("")}
       </div>
     `;
+  };
 
-  const shortcutHint = () =>
-    visibility.shortcuts
-      ? `
+  const shortcutHint = () => `
       <div
         class="ws-shortcuts"
         title="${t("Shortcuts.Hint")}"
@@ -363,8 +361,7 @@ export function createHudComponents(context) {
         <span><kbd>Alt</kbd> ${t("Shortcuts.Advantage")}</span>
         <span><kbd>Ctrl</kbd> ${t("Shortcuts.Disadvantage")}</span>
       </div>
-    `
-      : "";
+    `;
 
   const back = (context, icon) => `
       <button
@@ -400,7 +397,9 @@ export function createHudComponents(context) {
     modeNavigation,
     restControls,
     shortcutHint,
+    skillFilterHTML,
     skillsHTML,
+    spellFilterHTML,
     toolSection
   };
 }

@@ -40,6 +40,12 @@ jobs:
       - name: Run checks
         run: npm run check
 
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Check browser layout
+        run: npm run test:ui
+
       - name: Build release assets
         run: npm run build
 

@@ -1,21 +1,5 @@
-import { gaming, musical, skillIcons } from "./constants.js";
+import { skillIcons } from "./constants.js";
 import { proficiencyMultiplier } from "./actor-data.js";
-const toolIcon = (id, isMusic) => {
-  if (isMusic) return "fa-music";
-  if (gaming.has(id)) return "fa-dice";
-
-  return (
-    {
-      thief: "fa-key",
-      herb: "fa-leaf",
-      disg: "fa-masks-theater",
-      forg: "fa-file-signature",
-      navg: "fa-compass",
-      pois: "fa-flask"
-    }[id] ?? "fa-screwdriver-wrench"
-  );
-};
-
 export const dnd5eConfig = {
   skillDefinitions({ localize }) {
     return Object.entries(CONFIG.DND5E.skills ?? {})
@@ -27,61 +11,86 @@ export const dnd5eConfig = {
       .sort((a, b) => a[1].localeCompare(b[1], game.i18n.lang));
   },
 
-  async getTools(actor, { cache, localize, resolveUuid }) {
-    const ownedNames = new Map(
-      actor.items
-        .filter(item => item.type === "tool")
-        .map(item => [item.system?.type?.baseItem, item.name])
-    );
-
-    const toolName = async (id, config) => {
-      if (ownedNames.has(id)) return ownedNames.get(id);
-      if (config?.label) return localize(config.label);
-
-      if (config?.id) {
-        const cacheKey = `${game.i18n.lang}:${config.id}`;
-        if (cache.has(cacheKey)) return cache.get(cacheKey);
-
-        try {
-          const document = await resolveUuid(config.id);
-          if (document?.name) {
-            cache.set(cacheKey, document.name);
-            return document.name;
-          }
-        } catch (error) {
-          console.warn(`Adventurer HUD | tool ${id}`, error);
-        }
-      }
-
-      return id
-        .replace(/([a-z])([A-Z])/g, "$1 $2")
-        .replace(/^./, character => character.toUpperCase());
-    };
-
+  async getTools(actor, { localize }) {
     const tools = await Promise.all(
       Object.entries(actor.system.tools ?? {}).map(async ([id, data]) => {
-        const proficiency = proficiencyMultiplier(data);
+        const proficiency = proficiencyMultiplier(data.prof);
         if (proficiency <= 0) return null;
-
-        const config = CONFIG.DND5E.tools?.[id] ?? {};
-        const isMusic = musical.has(id);
+        const config = CONFIG.DND5E.tools[id] ?? {};
+        const owned = actor.items.find(
+          item => item.type === "tool" && item.system.type?.baseItem === id
+        );
+        const document =
+          owned ??
+          (config.id
+            ? await game.dnd5e.documents.Trait.getBaseItem(config.id, {
+                fullItem: true
+              })
+            : null);
         return {
           id,
-          name: await toolName(id, config),
+          name: document?.name ?? localize(config.label ?? id),
+          img: document?.img ?? "icons/svg/item-bag.svg",
           proficiency,
-          ability: data?.ability ?? config.ability ?? "",
-          isMusic,
-          icon: toolIcon(id, isMusic)
+          ability: data.ability,
+          isMusic: document?.system?.type?.value === "music"
         };
       })
     );
-
     return tools
       .filter(Boolean)
       .sort(
         (a, b) =>
-          Number(a.isMusic) - Number(b.isMusic) || a.name.localeCompare(b.name)
+          Number(a.isMusic) - Number(b.isMusic) ||
+          a.name.localeCompare(b.name, game.i18n.lang)
       );
+  },
+  async statusDescriptions(actor) {
+    const effects =
+      typeof actor.allApplicableEffects === "function"
+        ? [...actor.allApplicableEffects()]
+        : [...(actor.effects ?? [])];
+    const result = new Map();
+    const activeEffects = effects.filter(
+      effect => !effect.disabled && !effect.isSuppressed
+    );
+    const statuses = new Map(
+      this.statusDefinitions()
+        .filter(status => actor.statuses?.has(status.id))
+        .map(status => [status.id, status])
+    );
+    for (const effect of activeEffects) {
+      for (const id of effect.statuses ?? []) {
+        if (!statuses.has(id)) statuses.set(id, { id });
+      }
+    }
+    for (const status of statuses.values()) {
+      const effect = effects.find(
+        effect =>
+          !effect.disabled &&
+          !effect.isSuppressed &&
+          effect.statuses?.has?.(status.id)
+      );
+      const description =
+        effect?.description ||
+        (status.reference
+          ? `@Embed[${status.reference} inline]`
+          : status.description);
+      if (!description) continue;
+      const editor = foundry.applications.ux.TextEditor.implementation;
+      try {
+        result.set(
+          status.id,
+          await editor.enrichHTML(description, {
+            relativeTo: effect ?? actor,
+            secrets: actor.isOwner
+          })
+        );
+      } catch (error) {
+        console.warn("Adventurer HUD | status description", error);
+      }
+    }
+    return result;
   },
   rangeUnitLabel(units, { localizeConfig }) {
     return (

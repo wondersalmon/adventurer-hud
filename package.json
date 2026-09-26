@@ -1,6 +1,6 @@
 {
   "name": "adventurer-hud",
-  "version": "1.1.1",
+  "version": "1.2.1",
   "private": true,
   "type": "module",
   "description": "A player-focused character, rolls and combat HUD for Foundry VTT D&D 5e.",
@@ -13,19 +13,23 @@
     "check": "npm run format:check && npm run lint && npm test && npm run validate",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "eslint scripts tools tests && stylelint \"styles/**/*.css\"",
+    "lint": "eslint scripts tools tests test-ui playwright.config.mjs && stylelint \"styles/**/*.css\"",
     "release:notes": "node tools/release-notes.mjs",
     "test": "node --test",
     "validate": "node tools/validate.mjs",
-    "version:sync": "node tools/sync-version.mjs"
+    "version:sync": "node tools/sync-version.mjs",
+    "test:ui": "playwright test"
   },
   "engines": {
     "node": ">=22"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "archiver": "^8.0.0",
     "eslint": "^10.11.0",
     "globals": "^17.12.0",
+    "handlebars": "^4.7.9",
+    "linkedom": "^0.18.13",
     "prettier": "^3.9.8",
     "stylelint": "^17.15.0",
     "stylelint-config-standard": "^40.0.0"

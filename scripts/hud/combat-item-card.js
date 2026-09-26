@@ -1,4 +1,8 @@
-import { isFavorite, usableActivities } from "./quick-access.js";
+import {
+  isFavorite,
+  itemAvailability,
+  usableActivities
+} from "./quick-access.js";
 
 export function createCombatItemCardRenderer({
   actor,
@@ -32,7 +36,10 @@ export function createCombatItemCardRenderer({
     return escapeHTML([distance, unit].filter(part => part !== "").join(" "));
   };
 
-  const combatItemButton = (item, { activityId = null } = {}) => {
+  const combatItemButton = (
+    item,
+    { activityId = null, inFavorites = false } = {}
+  ) => {
     const activities = usableActivities(adapter, item);
     const offersActivities =
       visibility.activityPicker && !activityId && activities.length > 1;
@@ -61,10 +68,6 @@ export function createCombatItemCardRenderer({
       visibility.itemDetails &&
       isSpell &&
       adapter.hasItemProperty(item, "ritual");
-    const resourceCost = adapter.itemResourceCost(actor, item, {
-      fallbackLabel: t("Combat.Resource"),
-      activityId
-    });
     const attackBonus = visibility.itemDetails
       ? adapter.itemAttackBonus(item, activityId)
       : "";
@@ -75,20 +78,20 @@ export function createCombatItemCardRenderer({
       visibility.itemDetails && isSpell
         ? adapter.itemSaveDc?.(item, activityId)
         : "";
-    const uses = adapter.itemUsesData(item);
-    const unavailableLabel = uses?.value === 0 ? t("Quick.NoCharges") : "";
+    const uses = adapter.itemUsesData(item, activityId);
+    const useState = itemAvailability(adapter, actor, item, activityId);
+    const unavailableLabel = useState.reason ? t(useState.reason) : "";
     const showsDetails = Boolean(
       showsRange ||
       activationBadge ||
-      resourceCost ||
       uses ||
-      unavailableLabel ||
+      (!inFavorites && unavailableLabel) ||
       (visibility.itemDetails &&
         (concentration || ritual || attackBonus || damageFormula || saveDc))
     );
 
     return `
-        <div class="ws-combat-item-card ${
+        <div class="ws-combat-item-card ${unavailableLabel ? "ws-unavailable-card" : ""} ${
           showsDetails ? "ws-detailed-card" : ""
         } ${hasSideActions ? "ws-has-side-actions" : ""}">
           <button
@@ -96,12 +99,14 @@ export function createCombatItemCardRenderer({
             class="ws-combat-item ws-button ${unavailableLabel ? "ws-item-depleted" : ""}"
             data-action="${activityId ? "useactivity" : "useitem"}"
             data-item-id="${escapeHTML(item.id)}"
+            ${unavailableLabel ? `title="${escapeHTML(unavailableLabel)}"` : ""}
+            ${useState.blocked ? 'disabled aria-disabled="true"' : ""}
             ${activityId ? `data-activity-id="${escapeHTML(activityId)}"` : ""}
           >
             <img src="${escapeHTML(item.img ?? "icons/svg/item-bag.svg")}" alt="">
 
             <span class="ws-combat-item-content">
-              <strong>${escapeHTML(activityId ? `${item.name}: ${activities.find(activity => activity.id === activityId)?.name ?? ""}` : item.name)}</strong>
+              <strong>${escapeHTML(activityId ? `${item.name}: ${adapter.itemActivities(item).find(activity => activity.id === activityId)?.name ?? t("Quick.ActivityMissing")}` : item.name)}</strong>
               ${
                 showsDetails
                   ? `
@@ -162,16 +167,11 @@ export function createCombatItemCardRenderer({
                           ? `<b title="${t("Combat.Ritual")}">${t("Combat.RitualShort")}</b>`
                           : ""
                       }
-                      ${
-                        resourceCost
-                          ? `<b title="${t("Combat.ResourceCost")}"><i class="fa-solid fa-battery-half"></i> ${escapeHTML(resourceCost)}</b>`
-                          : ""
-                      }
                     </small>
                   `
                   : ""
               }
-              ${unavailableLabel ? `<small class="ws-item-unavailable"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>${unavailableLabel}</small>` : ""}
+              ${!inFavorites && unavailableLabel ? `<small class="ws-item-unavailable"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>${unavailableLabel}</small>` : ""}
             </span>
 
             <i class="fa-solid ${offersActivities ? "fa-chevron-down" : "fa-dice-d20"}"></i>
@@ -195,7 +195,7 @@ export function createCombatItemCardRenderer({
             class="ws-item-description ws-button"
             data-action="openitem"
             data-item-id="${escapeHTML(item.id)}"
-            title="${t("Combat.OpenDescription")}"
+            title="${t("Combat.OpenDescriptionHint")}"
             aria-label="${t("Combat.OpenDescription")}: ${escapeHTML(item.name)}"
           >
             <i class="fa-solid fa-book-open"></i>

@@ -1,4 +1,4 @@
-const VISIBLE_STATUS_LIMIT = 6;
+const VISIBLE_STATUS_LIMIT = 5;
 const statusPriority = kind => {
   if (kind === "concentrating") return 0;
   if (kind === "bloodied") return 1;
@@ -10,8 +10,7 @@ export function createCombatStatusRenderer({
   adapter,
   escapeHTML,
   hudState,
-  t,
-  visibility
+  t
 }) {
   let previousStatusIds = null;
 
@@ -29,10 +28,12 @@ export function createCombatStatusRenderer({
       statuses.set(id, status);
     }
 
-    for (const effect of actor.effects ?? []) {
+    for (const effect of typeof actor.allApplicableEffects === "function"
+      ? actor.allApplicableEffects()
+      : (actor.effects ?? [])) {
       const effectStatuses = [...(effect.statuses ?? [])];
 
-      if (effect.disabled || !effectStatuses.length) {
+      if (effect.disabled || effect.isSuppressed || !effectStatuses.length) {
         continue;
       }
 
@@ -46,7 +47,8 @@ export function createCombatStatusRenderer({
             configuredStatus.img ??
             configuredStatus.icon ??
             effect.img ??
-            effect.icon
+            effect.icon,
+          description: effect.description ?? configuredStatus.description
         });
       }
     }
@@ -55,10 +57,6 @@ export function createCombatStatusRenderer({
   };
 
   const combatStatuses = () => {
-    if (!visibility.conditions) {
-      return "";
-    }
-
     const kinds = new Map();
     const statusKind = status => {
       if (!kinds.has(status.id)) {
@@ -94,6 +92,23 @@ export function createCombatStatusRenderer({
 
     const statusMarkup = status => {
       const label = statusLabel(status);
+      const summary =
+        hudState.statusDescriptions?.get(status.id) ?? status.description;
+      let description = "";
+      if (summary) {
+        const node = globalThis.document?.createElement?.("div");
+        if (node) {
+          node.innerHTML = String(summary);
+          description = node.textContent.replace(/\s+/g, " ").trim();
+        } else
+          description = String(summary)
+            .replace(/<[^>]*>/g, "")
+            .replace(/\s+/g, " ")
+            .trim();
+        if (description.length > 300)
+          description = `${description.slice(0, 297)}…`;
+      }
+      const tooltip = description ? `${label}\n${description}` : label;
       const kind = statusKind(status);
       const classes = [
         "ws-status",
@@ -103,7 +118,7 @@ export function createCombatStatusRenderer({
         .filter(Boolean)
         .join(" ");
       return `
-        <span class="${classes}" role="img" aria-label="${escapeHTML(label)}" title="${escapeHTML(label)}">
+        <span class="${classes}" role="img" aria-label="${escapeHTML(tooltip)}" title="${escapeHTML(tooltip)}">
           <img src="${escapeHTML(statusIcon(status))}" alt="">
         </span>
       `;

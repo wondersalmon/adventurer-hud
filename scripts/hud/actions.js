@@ -1,21 +1,18 @@
 import { setForcedMode, setRegularView } from "./state.js";
-import { openSettings, setSetting, SETTINGS } from "../settings.js";
+import { getSetting, openSettings, setSetting, SETTINGS } from "../settings.js";
 import { usableActivities } from "./quick-access.js";
-import { getCurrentCombat } from "../runtime-helpers.js";
 
 export function createHudActions({
   actor,
   adapter,
   canRollActor,
+  canStartMutation = () => true,
   canRollDeathSave,
-  changeResource,
   combatModeAvailable,
   currentMode,
-  getCombatant,
+  getCombatState,
   hudState,
   openHpDialog,
-  openResourceDialog,
-  openSpellSlotsDialog,
   performAndRefresh,
   refreshHud,
   savePanelState,
@@ -34,11 +31,10 @@ export function createHudActions({
         return ui.notifications.warn(t("Warnings.NoPermission"));
       }
 
-      if (!getCurrentCombat(game)) {
+      const { combat, combatant } = getCombatState();
+      if (!combat) {
         return ui.notifications.warn(t("Initiative.NoCombat"));
       }
-
-      const combatant = getCombatant();
 
       if (combatant?.initiative != null) {
         return;
@@ -54,17 +50,12 @@ export function createHudActions({
     },
 
     endturn: async function () {
-      const combat = getCurrentCombat(game);
-      const combatant = getCombatant();
-      if (
-        !canRollActor ||
-        !combat?.started ||
-        !combatant ||
-        combat.combatant?.id !== combatant.id
-      ) {
-        return;
-      }
-      return performAndRefresh(() => combat.nextTurn());
+      if (!getCombatState().canEndTurn) return;
+      return performAndRefresh(() => {
+        const { combat, canEndTurn } = getCombatState();
+        if (!canEndTurn) return;
+        return combat.nextTurn();
+      });
     },
 
     ability: async function (event, target) {
@@ -162,19 +153,6 @@ export function createHudActions({
       refreshHud(currentMode() === "combat" ? "actions" : null);
     },
 
-    openspellslots: function (_event, target) {
-      if (!canRollActor) {
-        return ui.notifications.warn(t("Warnings.NoPermission"));
-      }
-      const level = Number(target.dataset.level);
-      const pool = target.dataset.pool;
-      if (!Number.isInteger(level) || level < 1 || !pool) return;
-      if (!adapter.spellSlots(actor, level).some(([, , key]) => key === pool)) {
-        return;
-      }
-      return openSpellSlotsDialog({ level, pool });
-    },
-
     skillfilter: async function (_event, target) {
       const proficientOnly = target.dataset.proficient === "true";
       if (hudState.proficientSkillsOnly === proficientOnly) return;
@@ -199,12 +177,6 @@ export function createHudActions({
       refreshHud();
     },
 
-    toggleresources: function () {
-      hudState.resourcesExpanded = !hudState.resourcesExpanded;
-      savePanelState?.();
-      refreshHud();
-    },
-
     toggleconditions: function () {
       hudState.conditionsExpanded = !hudState.conditionsExpanded;
       savePanelState?.();
@@ -221,7 +193,10 @@ export function createHudActions({
         const max = Number(hp.max ?? 0);
         if (max <= 0 || Number(hp.value ?? 0) >= max) return;
         return performAndRefresh(() =>
-          adapter.updateHp(actor, { value: max, temp: Number(hp.temp ?? 0) })
+          adapter.updateHp(actor, {
+            damage: Number(hp.value ?? 0) - max,
+            temp: Number(hp.temp ?? 0)
+          })
         );
       }
 
@@ -263,6 +238,9 @@ export function createHudActions({
         return ui.notifications.warn(t("Combat.ItemMissing"));
       }
 
+      const useState = adapter.itemUseState?.(item);
+      if (useState?.blocked) return ui.notifications.warn(t(useState.reason));
+
       if (
         visibility.activityPicker &&
         !event.shiftKey &&
@@ -283,6 +261,8 @@ export function createHudActions({
       }
       const item = actor.items.get(target.dataset.itemId);
       if (!item) return ui.notifications.warn(t("Combat.ItemMissing"));
+      const useState = adapter.itemUseState?.(item, target.dataset.activityId);
+      if (useState?.blocked) return ui.notifications.warn(t(useState.reason));
       return performRoll(() =>
         adapter.useActivity(item, target.dataset.activityId, { event })
       );
@@ -314,44 +294,30 @@ export function createHudActions({
       updateSearch("");
     },
 
-    openitem: function (_event, target) {
+    openitem: function (event, target) {
       const item = actor.items.get(target.dataset.itemId);
 
       if (!item) {
         return ui.notifications.warn(t("Combat.ItemMissing"));
       }
 
-      return item.sheet.render({ force: true });
-    },
-
-    openresource: async function (event, target) {
-      if (!canRollActor) {
-        return ui.notifications.warn(t("Warnings.NoPermission"));
-      }
-
-      const item = target.dataset.itemId
-        ? actor.items.get(target.dataset.itemId)
-        : null;
-      const resourceId = target.dataset.resourceId;
-
-      if (!item && !resourceId) {
-        return ui.notifications.warn(t("Combat.ItemMissing"));
-      }
-
       if (event.shiftKey) {
-        return changeResource({
-          amount: 1,
-          direction: "consume",
-          item,
-          resourceId
-        });
+        if (!canStartMutation()) return;
+        return adapter.showItemDescription(item, { event });
       }
 
-      return openResourceDialog({ item, resourceId });
+      return item.sheet.render({ force: true });
     },
 
     settings: async function () {
       return openSettings();
+    },
+
+    togglemodes: async function () {
+      return setSetting(
+        SETTINGS.showModeNavigation,
+        !getSetting(SETTINGS.showModeNavigation)
+      );
     },
 
     togglepin: function () {

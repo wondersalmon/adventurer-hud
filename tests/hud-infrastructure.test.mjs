@@ -1,3 +1,4 @@
+import { restoreGlobalsAfterEach } from "./helpers/foundry.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -35,6 +36,8 @@ class FakeClassList {
     else this.#classes.delete(value);
   }
 }
+
+restoreGlobalsAfterEach();
 
 test("HUD becomes gray at zero HP and regains color after healing", () => {
   const element = { classList: new FakeClassList() };
@@ -256,7 +259,7 @@ test("runtime and content settings update an open HUD without reopening it", () 
   });
   applyHudSettingChange({
     ...options,
-    key: "showSkills",
+    key: "showSearch",
     strategy: "content",
     value: false
   });

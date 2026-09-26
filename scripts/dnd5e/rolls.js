@@ -19,6 +19,7 @@ export const dnd5eRolls = {
       }
     ),
   useItem: (item, { event }) => item.use({ event }),
+  showItemDescription: item => item.displayCard(),
   useActivity: (item, activityId, { event }) => {
     const activity =
       item.system.activities?.get?.(activityId) ??

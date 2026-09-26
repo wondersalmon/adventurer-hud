@@ -17,15 +17,16 @@ Alternatively, paste this manifest URL into **Install Module**:
 https://github.com/wondersalmon/adventurer-hud/releases/latest/download/module.json
 ```
 
-## Requirements
+## Supported systems
 
-- Foundry VTT 14
-- D&D 5e 5.3 or newer
+For Foundry VTT 14:
+
+- D&D 5e 5.3+
 
 ## Usage
 
 Press `Shift+R` to open the HUD for the selected character (You can change the keyboard shortcut in the settings).
-Enable **Open HUD on login** in the module settings to open it when entering the world or refreshing the page.
+Enable **Open on login** in the module settings to open it when entering the world or refreshing the page.
 You can also enable a button for opening the HUD in the Token Controls from the module settings.
 
 ## AI disclosure

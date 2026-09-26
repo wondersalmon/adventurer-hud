@@ -1,0 +1,27 @@
+<div class="ws-settings-form">
+  <p>{{intro}}</p>
+  <p role="status">{{summary}}</p>
+  {{#if repaired}}<p>{{repaired}}</p>{{/if}}
+  <ul>{{#each issues}}<li>{{message}} — {{action}}</li>{{/each}}</ul>
+  {{#if manualHint}}<p class="hint">{{manualHint}}</p>{{/if}}
+  <footer class="form-footer">
+    {{#if busy}}<button
+        type="button"
+        disabled
+      >{{checkLabel}}</button>{{else}}<button
+        type="button"
+        data-action="check"
+      >{{checkLabel}}</button>{{/if}}
+    {{#if canRepair}}<button
+        type="button"
+        data-action="repair"
+      >{{repairLabel}}</button>{{/if}}
+    {{#if busy}}<button
+        type="button"
+        disabled
+      >{{closeLabel}}</button>{{else}}<button
+        type="button"
+        data-action="close"
+      >{{closeLabel}}</button>{{/if}}
+  </footer>
+</div>

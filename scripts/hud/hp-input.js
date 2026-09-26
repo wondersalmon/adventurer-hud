@@ -19,14 +19,10 @@ export function resolveHpChanges({ valueInput, tempInput, value, temp, max }) {
   if (nextTemp === null) return null;
 
   const hpText = String(valueInput ?? "").trim();
-  if (hpText.startsWith("-")) {
-    const damage = Number(hpText.slice(1));
-    if (!/^-\d+$/.test(hpText) || !Number.isSafeInteger(damage)) return null;
-    const absorbed = Math.min(nextTemp, damage);
-    return {
-      value: Math.max(0, value - (damage - absorbed)),
-      temp: nextTemp - absorbed
-    };
+  if (/^[+-]/.test(hpText)) {
+    const amount = Number(hpText);
+    if (!/^[+-]\d+$/.test(hpText) || !Number.isSafeInteger(amount)) return null;
+    return { damage: -amount, temp: nextTemp };
   }
 
   const nextValue = resolveHpInput(hpText, value, max);
