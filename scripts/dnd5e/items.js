@@ -87,12 +87,15 @@ export function itemUsesData(item, activityId = null) {
     ? itemActivities(item).find(a => a.id === activityId)
     : null;
   const uses =
-    activity?.uses?.max > 0 ? activity.uses : (item.system?.uses ?? {});
+    activity?.uses?.max > 0 ? activity.uses : (item?.system?.uses ?? {});
   const max = Number(uses.max ?? 0);
 
   if (!Number.isFinite(max) || max <= 0) return null;
 
-  return { max, value: Number(uses.value ?? 0) };
+  return {
+    max,
+    value: Number(uses.value ?? Math.max(0, max - Number(uses.spent ?? 0)))
+  };
 }
 
 export function itemUseState(item, activityId = null) {

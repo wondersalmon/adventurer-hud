@@ -1,0 +1,1765 @@
+{
+  "tarrasque": {
+    "name": "Tarrasque",
+    "type": "npc",
+    "system": {
+      "attributes": {
+        "movement": {
+          "speeds": {
+            "burrow": "40",
+            "climb": "60",
+            "walk": "60"
+          },
+          "units": "ft",
+          "hover": false,
+          "ignoredDifficultTerrain": [],
+          "special": ""
+        }
+      },
+      "resources": {
+        "legact": {
+          "max": 3,
+          "spent": 0
+        },
+        "legres": {
+          "max": 6,
+          "spent": 0
+        },
+        "lair": {
+          "value": false,
+          "initiative": null,
+          "inside": false
+        }
+      },
+      "traits": {
+        "size": "grg",
+        "di": {
+          "value": ["fire", "poison"],
+          "custom": "",
+          "bypasses": []
+        },
+        "dr": {
+          "value": ["bludgeoning", "piercing", "slashing"],
+          "custom": "",
+          "bypasses": []
+        },
+        "dv": {
+          "value": [],
+          "custom": "",
+          "bypasses": []
+        },
+        "dm": {
+          "amount": {},
+          "bypasses": []
+        },
+        "ci": {
+          "value": [
+            "charmed",
+            "deafened",
+            "frightened",
+            "paralyzed",
+            "poisoned"
+          ],
+          "custom": ""
+        },
+        "languages": {
+          "value": [],
+          "custom": "",
+          "communication": {}
+        },
+        "important": false
+      }
+    },
+    "items": [
+      {
+        "id": "nKcv5OR4qthNCJz4",
+        "name": "Thunderous Bellow",
+        "type": "feat",
+        "flags": {
+          "dnd5e": {}
+        },
+        "system": {
+          "activities": {
+            "dnd5eactivity001": {
+              "_id": "dnd5eactivity001",
+              "type": "save",
+              "name": "",
+              "activation": {
+                "type": "action",
+                "value": 1,
+                "override": false
+              },
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "targets": [
+                  {
+                    "target": "",
+                    "value": "1",
+                    "type": "itemUses",
+                    "scaling": {}
+                  }
+                ],
+                "spellSlot": true
+              },
+              "description": {
+                "value": "<div  class=\"ve-rd__b  ve-rd__b--3\"><p><i>Constitution Saving Throw:</i> DC <span class=\"ve-rd__dc\">27</span>, each creature and each object that isn't being worn or carried in a 150-foot @variantrule[Cone [Area of Effect]|XPHB|Cone]. <i>Failure:</i> 78 ([[/damage 12d12 type=thunder]]) damage, and the target has the &Reference[condition=Deafened] and &Reference[condition=Frightened] conditions until the end of its next turn.</p></div>"
+              },
+              "duration": {
+                "units": "inst",
+                "expiry": null,
+                "concentration": false,
+                "override": false
+              },
+              "effects": [
+                {
+                  "_id": "lmD9Y3KvutFfvCsh",
+                  "uuid": null,
+                  "level": {},
+                  "onSave": false
+                }
+              ],
+              "range": {
+                "units": "self",
+                "override": false
+              },
+              "target": {
+                "template": {
+                  "count": "",
+                  "contiguous": false,
+                  "type": "cone",
+                  "size": "150",
+                  "width": "",
+                  "height": "",
+                  "units": "ft",
+                  "stationary": false
+                },
+                "affects": {
+                  "count": "",
+                  "type": "creature",
+                  "choice": false,
+                  "special": ""
+                },
+                "prompt": true,
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "recovery": []
+              },
+              "save": {
+                "ability": ["con"],
+                "dc": {
+                  "calculation": "",
+                  "formula": "27"
+                },
+                "visible": true
+              },
+              "damage": {
+                "onSave": "half",
+                "parts": [
+                  {
+                    "types": ["thunder"],
+                    "number": 12,
+                    "denomination": 12,
+                    "bonus": "",
+                    "scaling": {
+                      "mode": "",
+                      "number": 1
+                    },
+                    "custom": {
+                      "enabled": false
+                    },
+                    "modifiers": []
+                  }
+                ]
+              },
+              "img": null,
+              "sort": 0,
+              "behaviors": [],
+              "flags": {},
+              "visibility": {
+                "level": {},
+                "requireAttunement": false,
+                "requireIdentification": false,
+                "requireMagic": false
+              }
+            }
+          },
+          "uses": {
+            "max": "1",
+            "recovery": [
+              {
+                "formula": "5",
+                "period": "recharge",
+                "type": "recoverAll"
+              }
+            ],
+            "spent": 0
+          }
+        }
+      },
+      {
+        "id": "0N0BRQol4nnCjmsU",
+        "name": "Legendary Resistance",
+        "type": "feat",
+        "flags": {
+          "dnd5e": {}
+        },
+        "system": {
+          "activities": {
+            "dnd5eactivity003": {
+              "_id": "dnd5eactivity003",
+              "type": "utility",
+              "activation": {
+                "type": "special",
+                "override": false
+              },
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "targets": [
+                  {
+                    "type": "attribute",
+                    "target": "resources.legres.value",
+                    "value": "1",
+                    "scaling": {}
+                  }
+                ],
+                "spellSlot": true
+              },
+              "description": {
+                "value": ""
+              },
+              "duration": {
+                "units": "inst",
+                "expiry": null,
+                "concentration": false,
+                "override": false
+              },
+              "range": {
+                "units": "self",
+                "override": false
+              },
+              "target": {
+                "template": {
+                  "contiguous": false,
+                  "stationary": false,
+                  "units": "ft"
+                },
+                "affects": {
+                  "choice": false
+                },
+                "prompt": true,
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "recovery": []
+              },
+              "roll": {
+                "prompt": false,
+                "visible": false
+              },
+              "img": null,
+              "sort": 0,
+              "behaviors": [],
+              "effects": [],
+              "flags": {},
+              "visibility": {
+                "level": {},
+                "requireAttunement": false,
+                "requireIdentification": false,
+                "requireMagic": false
+              }
+            }
+          },
+          "uses": {
+            "max": "",
+            "spent": 0,
+            "recovery": []
+          }
+        }
+      },
+      {
+        "id": "cgh5aXsuX8McgExu",
+        "name": "Onslaught",
+        "type": "feat",
+        "flags": {
+          "dnd5e": {}
+        },
+        "system": {
+          "activities": {
+            "dnd5eactivity003": {
+              "_id": "dnd5eactivity003",
+              "type": "utility",
+              "activation": {
+                "type": "legendary",
+                "value": 1,
+                "override": false
+              },
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "targets": [
+                  {
+                    "type": "attribute",
+                    "target": "resources.legact.value",
+                    "value": "1",
+                    "scaling": {}
+                  }
+                ],
+                "spellSlot": true
+              },
+              "description": {
+                "value": ""
+              },
+              "duration": {
+                "units": "inst",
+                "expiry": null,
+                "concentration": false,
+                "override": false
+              },
+              "range": {
+                "units": "self",
+                "override": false
+              },
+              "target": {
+                "template": {
+                  "contiguous": false,
+                  "stationary": false,
+                  "units": "ft"
+                },
+                "affects": {
+                  "choice": false
+                },
+                "prompt": true,
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "recovery": []
+              },
+              "roll": {
+                "prompt": false,
+                "visible": false
+              },
+              "img": null,
+              "sort": 0,
+              "behaviors": [],
+              "effects": [],
+              "flags": {},
+              "visibility": {
+                "level": {},
+                "requireAttunement": false,
+                "requireIdentification": false,
+                "requireMagic": false
+              }
+            }
+          },
+          "uses": {
+            "max": "",
+            "spent": 0,
+            "recovery": []
+          }
+        }
+      }
+    ]
+  },
+  "cultist": {
+    "name": "Aberrant Cultist",
+    "type": "npc",
+    "system": {
+      "attributes": {
+        "movement": {
+          "speeds": {
+            "walk": "30"
+          },
+          "units": "ft",
+          "hover": false,
+          "ignoredDifficultTerrain": [],
+          "special": ""
+        }
+      },
+      "resources": {
+        "legact": {
+          "max": 0,
+          "spent": 0
+        },
+        "legres": {
+          "max": 0,
+          "spent": 0
+        },
+        "lair": {
+          "value": false,
+          "initiative": null,
+          "inside": false
+        }
+      },
+      "traits": {
+        "size": "med",
+        "di": {
+          "value": [],
+          "custom": "",
+          "bypasses": []
+        },
+        "dr": {
+          "value": [],
+          "custom": "",
+          "bypasses": []
+        },
+        "dv": {
+          "value": [],
+          "custom": "",
+          "bypasses": []
+        },
+        "dm": {
+          "amount": {},
+          "bypasses": []
+        },
+        "ci": {
+          "value": [],
+          "custom": ""
+        },
+        "languages": {
+          "value": ["common", "deep"],
+          "custom": "Deep Speech; telepathy 30 ft.",
+          "communication": {}
+        },
+        "important": false
+      }
+    },
+    "items": [
+      {
+        "id": "UxDZKW6nLUBptXsk",
+        "name": "Multiattack",
+        "type": "feat",
+        "flags": {
+          "dnd5e": {}
+        },
+        "system": {
+          "activities": {
+            "dnd5eactivity003": {
+              "_id": "dnd5eactivity003",
+              "type": "utility",
+              "activation": {
+                "type": "action",
+                "value": 1,
+                "override": false
+              },
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": []
+              },
+              "description": {
+                "value": ""
+              },
+              "duration": {
+                "units": "inst",
+                "expiry": null,
+                "concentration": false,
+                "override": false
+              },
+              "range": {
+                "units": "self",
+                "override": false
+              },
+              "target": {
+                "template": {
+                  "contiguous": false,
+                  "stationary": false,
+                  "units": "ft"
+                },
+                "affects": {
+                  "choice": false
+                },
+                "prompt": true,
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "recovery": []
+              },
+              "roll": {
+                "prompt": false,
+                "visible": false
+              },
+              "img": null,
+              "sort": 0,
+              "behaviors": [],
+              "effects": [],
+              "flags": {},
+              "visibility": {
+                "level": {},
+                "requireAttunement": false,
+                "requireIdentification": false,
+                "requireMagic": false
+              }
+            }
+          },
+          "uses": {
+            "max": "",
+            "spent": 0,
+            "recovery": []
+          }
+        }
+      },
+      {
+        "id": "qebYpKxHKAbhcrdr",
+        "name": "Tentacle Lash",
+        "type": "weapon",
+        "flags": {
+          "dnd5e": {}
+        },
+        "system": {
+          "activities": {
+            "dnd5eactivity000": {
+              "_id": "dnd5eactivity000",
+              "type": "attack",
+              "name": "",
+              "activation": {
+                "type": "action",
+                "value": 1,
+                "override": false
+              },
+              "description": {
+                "value": "<div class=\"ve-rd__b  ve-rd__b--3\"><p><i>Melee Attack Roll:</i> [[/r 1d20+7]]{+7}, reach 10 ft. <i>Hit:</i> 7 ([[/damage 1d6 + 4 type=slashing]]) damage plus 14 ([[/damage 4d6 type=psychic]]) damage. If the target is a Large or smaller creature, it has the &amp;Reference[condition=Grappled] condition (escape DC <span class=\"ve-rd__dc\">14</span>) from one of two tentacles, and it has the &amp;Reference[condition=Restrained] condition until the grapple ends.</p></div>"
+              },
+              "effects": [
+                {
+                  "_id": "QzLfFNVyO0UNzlVH",
+                  "uuid": null,
+                  "level": {}
+                }
+              ],
+              "target": {
+                "prompt": true,
+                "template": {
+                  "contiguous": false,
+                  "stationary": false,
+                  "units": "ft"
+                },
+                "affects": {
+                  "choice": false
+                },
+                "override": false
+              },
+              "attack": {
+                "flat": false,
+                "type": {
+                  "value": "melee",
+                  "classification": ""
+                },
+                "ability": "dex",
+                "bonus": "",
+                "critical": {}
+              },
+              "damage": {
+                "parts": [
+                  {
+                    "types": ["slashing"],
+                    "number": 1,
+                    "denomination": 6,
+                    "bonus": "@mod",
+                    "scaling": {
+                      "mode": "",
+                      "number": 1
+                    },
+                    "custom": {
+                      "enabled": false
+                    },
+                    "modifiers": []
+                  },
+                  {
+                    "types": ["psychic"],
+                    "number": 4,
+                    "denomination": 6,
+                    "bonus": "",
+                    "scaling": {
+                      "mode": "",
+                      "number": 1
+                    },
+                    "custom": {
+                      "enabled": false
+                    },
+                    "modifiers": []
+                  }
+                ],
+                "critical": {},
+                "includeBase": true
+              },
+              "img": null,
+              "sort": 0,
+              "behaviors": [],
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": []
+              },
+              "duration": {
+                "units": "inst",
+                "expiry": null,
+                "concentration": false,
+                "override": false
+              },
+              "flags": {},
+              "range": {
+                "units": "self",
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "recovery": []
+              },
+              "visibility": {
+                "level": {},
+                "requireAttunement": false,
+                "requireIdentification": false,
+                "requireMagic": false
+              }
+            }
+          },
+          "uses": {
+            "max": "",
+            "spent": 0,
+            "recovery": []
+          }
+        }
+      },
+      {
+        "id": "qQH9UDzTtjPGylSZ",
+        "name": "Mind Rot",
+        "type": "feat",
+        "flags": {
+          "dnd5e": {}
+        },
+        "system": {
+          "activities": {
+            "dnd5eactivity001": {
+              "_id": "dnd5eactivity001",
+              "type": "save",
+              "name": "",
+              "activation": {
+                "type": "action",
+                "value": 1,
+                "override": false
+              },
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": []
+              },
+              "description": {
+                "value": "<div class=\"ve-rd__b  ve-rd__b--3\"><p><i>Wisdom Saving Throw:</i> DC <span class=\"ve-rd__dc\">15</span>, one creature the cultist can see within 90 feet. <i>Failure:</i> 27 ([[/damage 6d8 type=psychic]]) damage, and the target has the &amp;Reference[condition=Poisoned] condition until the start of the cultist's next turn.</p></div>"
+              },
+              "duration": {
+                "units": "inst",
+                "expiry": null,
+                "concentration": false,
+                "override": false
+              },
+              "effects": [
+                {
+                  "_id": "AorzZtMduGXAS57K",
+                  "uuid": null,
+                  "level": {},
+                  "onSave": false
+                }
+              ],
+              "range": {
+                "units": "self",
+                "override": false
+              },
+              "target": {
+                "template": {
+                  "count": "",
+                  "contiguous": false,
+                  "type": "",
+                  "size": "",
+                  "width": "",
+                  "height": "",
+                  "units": "ft",
+                  "stationary": false
+                },
+                "affects": {
+                  "count": "1",
+                  "type": "creature",
+                  "choice": false,
+                  "special": ""
+                },
+                "prompt": true,
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "recovery": []
+              },
+              "save": {
+                "ability": ["wis"],
+                "dc": {
+                  "calculation": "",
+                  "formula": "15"
+                },
+                "visible": true
+              },
+              "damage": {
+                "onSave": "half",
+                "parts": [
+                  {
+                    "types": ["psychic"],
+                    "number": 6,
+                    "denomination": 8,
+                    "bonus": "",
+                    "scaling": {
+                      "mode": "",
+                      "number": 1
+                    },
+                    "custom": {
+                      "enabled": false
+                    },
+                    "modifiers": []
+                  }
+                ]
+              },
+              "img": null,
+              "sort": 0,
+              "behaviors": [],
+              "flags": {},
+              "visibility": {
+                "level": {},
+                "requireAttunement": false,
+                "requireIdentification": false,
+                "requireMagic": false
+              }
+            }
+          },
+          "uses": {
+            "max": "",
+            "spent": 0,
+            "recovery": []
+          }
+        }
+      },
+      {
+        "id": "ibeh5B1AgcyjwEw1",
+        "name": "Detect Thoughts",
+        "type": "spell",
+        "flags": {
+          "dnd5e": {}
+        },
+        "system": {
+          "activities": {
+            "dnd5eactivity000": {
+              "name": "Probe Deeper",
+              "type": "save",
+              "activation": {
+                "type": "action",
+                "override": false
+              },
+              "target": {
+                "affects": {
+                  "count": "1",
+                  "type": "creature",
+                  "choice": false
+                },
+                "prompt": true,
+                "template": {
+                  "contiguous": false,
+                  "stationary": false,
+                  "units": "ft"
+                },
+                "override": false
+              },
+              "range": {
+                "units": "ft",
+                "value": "30",
+                "override": false
+              },
+              "damage": {
+                "onSave": "half",
+                "parts": []
+              },
+              "save": {
+                "ability": ["wis"],
+                "dc": {
+                  "calculation": "spellcasting"
+                },
+                "visible": true
+              },
+              "_id": "dnd5eactivity000",
+              "img": null,
+              "sort": 0,
+              "behaviors": [],
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": []
+              },
+              "description": {
+                "value": ""
+              },
+              "duration": {
+                "units": "inst",
+                "expiry": null,
+                "concentration": false,
+                "override": false
+              },
+              "effects": [],
+              "flags": {},
+              "uses": {
+                "spent": 0,
+                "recovery": []
+              },
+              "visibility": {
+                "level": {},
+                "requireAttunement": false,
+                "requireIdentification": false,
+                "requireMagic": false
+              }
+            },
+            "dnd5eactivity001": {
+              "name": "Sense Thoughts",
+              "type": "utility",
+              "img": "systems/dnd5e/icons/svg/damage/psychic.svg",
+              "activation": {
+                "type": "action",
+                "override": false
+              },
+              "_id": "dnd5eactivity001",
+              "target": {
+                "prompt": true,
+                "template": {
+                  "contiguous": false,
+                  "stationary": false,
+                  "units": "ft"
+                },
+                "affects": {
+                  "choice": false
+                },
+                "override": false
+              },
+              "sort": 0,
+              "behaviors": [],
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": []
+              },
+              "description": {
+                "value": ""
+              },
+              "duration": {
+                "units": "inst",
+                "expiry": null,
+                "concentration": false,
+                "override": false
+              },
+              "effects": [],
+              "flags": {},
+              "range": {
+                "units": "self",
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "recovery": []
+              },
+              "visibility": {
+                "level": {},
+                "requireAttunement": false,
+                "requireIdentification": false,
+                "requireMagic": false
+              },
+              "roll": {
+                "prompt": false,
+                "visible": false
+              }
+            }
+          },
+          "uses": {
+            "max": "",
+            "spent": 0,
+            "recovery": []
+          },
+          "level": 2,
+          "prepared": 1
+        }
+      },
+      {
+        "id": "pKfUGpnVnosFl5tW",
+        "name": "Minor Illusion",
+        "type": "spell",
+        "flags": {
+          "dnd5e": {}
+        },
+        "system": {
+          "activities": {
+            "dnd5eactivity000": {
+              "type": "utility",
+              "activation": {
+                "type": "action",
+                "override": false
+              },
+              "_id": "dnd5eactivity000",
+              "target": {
+                "prompt": true,
+                "template": {
+                  "contiguous": false,
+                  "stationary": false,
+                  "units": "ft"
+                },
+                "affects": {
+                  "choice": false
+                },
+                "override": false
+              },
+              "img": null,
+              "sort": 0,
+              "behaviors": [],
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": []
+              },
+              "description": {
+                "value": ""
+              },
+              "duration": {
+                "units": "inst",
+                "expiry": null,
+                "concentration": false,
+                "override": false
+              },
+              "effects": [],
+              "flags": {},
+              "range": {
+                "units": "self",
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "recovery": []
+              },
+              "visibility": {
+                "level": {},
+                "requireAttunement": false,
+                "requireIdentification": false,
+                "requireMagic": false
+              },
+              "roll": {
+                "prompt": false,
+                "visible": false
+              }
+            },
+            "dnd5eactivity001": {
+              "name": "Study",
+              "type": "check",
+              "activation": {
+                "type": "",
+                "condition": "Study Action taken by other creature",
+                "override": false
+              },
+              "range": {
+                "units": "any",
+                "override": false
+              },
+              "check": {
+                "associated": ["inv"],
+                "dc": {
+                  "calculation": "spellcasting"
+                },
+                "visible": true
+              },
+              "_id": "dnd5eactivity001",
+              "target": {
+                "prompt": true,
+                "template": {
+                  "contiguous": false,
+                  "stationary": false,
+                  "units": "ft"
+                },
+                "affects": {
+                  "choice": false
+                },
+                "override": false
+              },
+              "img": null,
+              "sort": 0,
+              "behaviors": [],
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": []
+              },
+              "description": {
+                "value": ""
+              },
+              "duration": {
+                "units": "inst",
+                "expiry": null,
+                "concentration": false,
+                "override": false
+              },
+              "effects": [],
+              "flags": {},
+              "uses": {
+                "spent": 0,
+                "recovery": []
+              },
+              "visibility": {
+                "level": {},
+                "requireAttunement": false,
+                "requireIdentification": false,
+                "requireMagic": false
+              }
+            }
+          },
+          "uses": {
+            "max": "",
+            "spent": 0,
+            "recovery": []
+          },
+          "level": 0,
+          "prepared": 1
+        }
+      },
+      {
+        "id": "anF22yCxn1W2Xzkq",
+        "name": "Counterspell",
+        "type": "spell",
+        "flags": {
+          "dnd5e": {}
+        },
+        "system": {
+          "activities": {
+            "dnd5eactivity000": {
+              "type": "save",
+              "activation": {
+                "type": "action",
+                "override": false
+              },
+              "damage": {
+                "onSave": "half",
+                "parts": []
+              },
+              "save": {
+                "ability": ["con"],
+                "dc": {
+                  "calculation": "spellcasting"
+                },
+                "visible": true
+              },
+              "_id": "dnd5eactivity000",
+              "consumption": {
+                "targets": [
+                  {
+                    "target": "",
+                    "value": "1",
+                    "type": "itemUses",
+                    "scaling": {}
+                  }
+                ],
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true
+              },
+              "target": {
+                "prompt": true,
+                "template": {
+                  "contiguous": false,
+                  "stationary": false,
+                  "units": "ft"
+                },
+                "affects": {
+                  "choice": false
+                },
+                "override": false
+              },
+              "img": null,
+              "sort": 0,
+              "behaviors": [],
+              "description": {
+                "value": ""
+              },
+              "duration": {
+                "units": "inst",
+                "expiry": null,
+                "concentration": false,
+                "override": false
+              },
+              "effects": [],
+              "flags": {},
+              "range": {
+                "units": "self",
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "recovery": []
+              },
+              "visibility": {
+                "level": {},
+                "requireAttunement": false,
+                "requireIdentification": false,
+                "requireMagic": false
+              }
+            }
+          },
+          "uses": {
+            "max": "2",
+            "recovery": [
+              {
+                "period": "day",
+                "type": "recoverAll"
+              }
+            ],
+            "spent": 0
+          },
+          "level": 3,
+          "prepared": 1
+        }
+      },
+      {
+        "id": "5163MFgwsEbVHmfq",
+        "name": "Spellcasting",
+        "type": "feat",
+        "flags": {
+          "dnd5e": {}
+        },
+        "system": {
+          "activities": {
+            "dnd5eactivity000": {
+              "_id": "dnd5eactivity000",
+              "type": "cast",
+              "activation": {
+                "type": "action",
+                "value": 1,
+                "override": false
+              },
+              "spell": {
+                "uuid": "Actor.5X41XNuCVLoEngo7.Item.ibeh5B1AgcyjwEw1",
+                "spellbook": false,
+                "properties": [],
+                "challenge": {
+                  "override": false
+                }
+              },
+              "target": {
+                "prompt": true,
+                "template": {
+                  "contiguous": false,
+                  "stationary": false,
+                  "units": "ft"
+                },
+                "affects": {
+                  "choice": false
+                },
+                "override": false
+              },
+              "img": null,
+              "sort": 0,
+              "behaviors": [],
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": []
+              },
+              "description": {
+                "value": ""
+              },
+              "duration": {
+                "units": "inst",
+                "expiry": null,
+                "concentration": false,
+                "override": false
+              },
+              "flags": {},
+              "range": {
+                "units": "self",
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "recovery": []
+              },
+              "visibility": {
+                "level": {},
+                "requireAttunement": false,
+                "requireIdentification": false,
+                "requireMagic": false
+              }
+            },
+            "dnd5eactivity001": {
+              "_id": "dnd5eactivity001",
+              "type": "cast",
+              "activation": {
+                "type": "action",
+                "value": 1,
+                "override": false
+              },
+              "spell": {
+                "uuid": "Actor.5X41XNuCVLoEngo7.Item.pKfUGpnVnosFl5tW",
+                "spellbook": false,
+                "properties": [],
+                "challenge": {
+                  "override": false
+                }
+              },
+              "target": {
+                "prompt": true,
+                "template": {
+                  "contiguous": false,
+                  "stationary": false,
+                  "units": "ft"
+                },
+                "affects": {
+                  "choice": false
+                },
+                "override": false
+              },
+              "img": null,
+              "sort": 0,
+              "behaviors": [],
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": []
+              },
+              "description": {
+                "value": ""
+              },
+              "duration": {
+                "units": "inst",
+                "expiry": null,
+                "concentration": false,
+                "override": false
+              },
+              "flags": {},
+              "range": {
+                "units": "self",
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "recovery": []
+              },
+              "visibility": {
+                "level": {},
+                "requireAttunement": false,
+                "requireIdentification": false,
+                "requireMagic": false
+              }
+            }
+          },
+          "uses": {
+            "max": "",
+            "spent": 0,
+            "recovery": []
+          }
+        }
+      },
+      {
+        "id": "8fQfOcQtypCOAF2b",
+        "name": "Minor Illusion",
+        "type": "spell",
+        "flags": {
+          "dnd5e": {
+            "cachedFor": ".Item.5163MFgwsEbVHmfq.Activity.dnd5eactivity001"
+          }
+        },
+        "system": {
+          "activities": {
+            "dnd5eactivity000": {
+              "type": "utility",
+              "activation": {
+                "type": "action",
+                "override": false
+              },
+              "_id": "dnd5eactivity000",
+              "target": {
+                "prompt": true,
+                "template": {
+                  "contiguous": false,
+                  "stationary": false,
+                  "units": "ft"
+                },
+                "affects": {
+                  "choice": false
+                },
+                "override": false
+              },
+              "img": null,
+              "sort": 0,
+              "behaviors": [],
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": []
+              },
+              "description": {
+                "value": ""
+              },
+              "duration": {
+                "units": "inst",
+                "expiry": null,
+                "concentration": false,
+                "override": false
+              },
+              "effects": [],
+              "flags": {},
+              "range": {
+                "units": "self",
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "recovery": []
+              },
+              "visibility": {
+                "level": {},
+                "requireAttunement": false,
+                "requireIdentification": false,
+                "requireMagic": false
+              },
+              "roll": {
+                "prompt": false,
+                "visible": false
+              }
+            },
+            "dnd5eactivity001": {
+              "name": "Study",
+              "type": "check",
+              "activation": {
+                "type": "",
+                "condition": "Study Action taken by other creature",
+                "override": false
+              },
+              "range": {
+                "units": "any",
+                "override": false
+              },
+              "check": {
+                "associated": ["inv"],
+                "dc": {
+                  "calculation": "spellcasting"
+                },
+                "visible": true
+              },
+              "_id": "dnd5eactivity001",
+              "target": {
+                "prompt": true,
+                "template": {
+                  "contiguous": false,
+                  "stationary": false,
+                  "units": "ft"
+                },
+                "affects": {
+                  "choice": false
+                },
+                "override": false
+              },
+              "img": null,
+              "sort": 0,
+              "behaviors": [],
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": []
+              },
+              "description": {
+                "value": ""
+              },
+              "duration": {
+                "units": "inst",
+                "expiry": null,
+                "concentration": false,
+                "override": false
+              },
+              "effects": [],
+              "flags": {},
+              "uses": {
+                "spent": 0,
+                "recovery": []
+              },
+              "visibility": {
+                "level": {},
+                "requireAttunement": false,
+                "requireIdentification": false,
+                "requireMagic": false
+              }
+            }
+          },
+          "uses": {
+            "max": "",
+            "spent": 0,
+            "recovery": []
+          },
+          "level": 0,
+          "prepared": 1
+        }
+      },
+      {
+        "id": "yZgxiZn4gbBuqVH3",
+        "name": "Detect Thoughts",
+        "type": "spell",
+        "flags": {
+          "dnd5e": {
+            "cachedFor": ".Item.5163MFgwsEbVHmfq.Activity.dnd5eactivity000"
+          }
+        },
+        "system": {
+          "activities": {
+            "dnd5eactivity000": {
+              "name": "Probe Deeper",
+              "type": "save",
+              "activation": {
+                "type": "action",
+                "override": false
+              },
+              "target": {
+                "affects": {
+                  "count": "1",
+                  "type": "creature",
+                  "choice": false
+                },
+                "prompt": true,
+                "template": {
+                  "contiguous": false,
+                  "stationary": false,
+                  "units": "ft"
+                },
+                "override": false
+              },
+              "range": {
+                "units": "ft",
+                "value": "30",
+                "override": false
+              },
+              "damage": {
+                "onSave": "half",
+                "parts": []
+              },
+              "save": {
+                "ability": ["wis"],
+                "dc": {
+                  "calculation": "spellcasting"
+                },
+                "visible": true
+              },
+              "_id": "dnd5eactivity000",
+              "img": null,
+              "sort": 0,
+              "behaviors": [],
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": []
+              },
+              "description": {
+                "value": ""
+              },
+              "duration": {
+                "units": "inst",
+                "expiry": null,
+                "concentration": false,
+                "override": false
+              },
+              "effects": [],
+              "flags": {},
+              "uses": {
+                "spent": 0,
+                "recovery": []
+              },
+              "visibility": {
+                "level": {},
+                "requireAttunement": false,
+                "requireIdentification": false,
+                "requireMagic": false
+              }
+            },
+            "dnd5eactivity001": {
+              "name": "Sense Thoughts",
+              "type": "utility",
+              "img": "systems/dnd5e/icons/svg/damage/psychic.svg",
+              "activation": {
+                "type": "action",
+                "override": false
+              },
+              "_id": "dnd5eactivity001",
+              "target": {
+                "prompt": true,
+                "template": {
+                  "contiguous": false,
+                  "stationary": false,
+                  "units": "ft"
+                },
+                "affects": {
+                  "choice": false
+                },
+                "override": false
+              },
+              "sort": 0,
+              "behaviors": [],
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": []
+              },
+              "description": {
+                "value": ""
+              },
+              "duration": {
+                "units": "inst",
+                "expiry": null,
+                "concentration": false,
+                "override": false
+              },
+              "effects": [],
+              "flags": {},
+              "range": {
+                "units": "self",
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "recovery": []
+              },
+              "visibility": {
+                "level": {},
+                "requireAttunement": false,
+                "requireIdentification": false,
+                "requireMagic": false
+              },
+              "roll": {
+                "prompt": false,
+                "visible": false
+              }
+            }
+          },
+          "uses": {
+            "max": "",
+            "spent": 0,
+            "recovery": []
+          },
+          "level": 2,
+          "prepared": 1
+        }
+      },
+      {
+        "id": "GnDNGaySF6uZeB3a",
+        "name": "Counterspell",
+        "type": "feat",
+        "flags": {
+          "dnd5e": {}
+        },
+        "system": {
+          "activities": {
+            "dnd5eactivity000": {
+              "_id": "dnd5eactivity000",
+              "type": "cast",
+              "activation": {
+                "type": "reaction",
+                "value": 1,
+                "override": false
+              },
+              "spell": {
+                "uuid": "Actor.5X41XNuCVLoEngo7.Item.anF22yCxn1W2Xzkq",
+                "spellbook": false,
+                "properties": [],
+                "challenge": {
+                  "override": false
+                }
+              },
+              "target": {
+                "prompt": true,
+                "template": {
+                  "contiguous": false,
+                  "stationary": false,
+                  "units": "ft"
+                },
+                "affects": {
+                  "choice": false
+                },
+                "override": false
+              },
+              "img": null,
+              "sort": 0,
+              "behaviors": [],
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": []
+              },
+              "description": {
+                "value": ""
+              },
+              "duration": {
+                "units": "inst",
+                "expiry": null,
+                "concentration": false,
+                "override": false
+              },
+              "flags": {},
+              "range": {
+                "units": "self",
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "recovery": []
+              },
+              "visibility": {
+                "level": {},
+                "requireAttunement": false,
+                "requireIdentification": false,
+                "requireMagic": false
+              }
+            }
+          },
+          "uses": {
+            "max": "2",
+            "recovery": [
+              {
+                "period": "day",
+                "type": "recoverAll"
+              }
+            ],
+            "spent": 0
+          }
+        }
+      },
+      {
+        "id": "hkDD4uyI3wFoatea",
+        "name": "Counterspell",
+        "type": "spell",
+        "flags": {
+          "dnd5e": {
+            "cachedFor": ".Item.GnDNGaySF6uZeB3a.Activity.dnd5eactivity000"
+          }
+        },
+        "system": {
+          "activities": {
+            "dnd5eactivity000": {
+              "type": "save",
+              "activation": {
+                "type": "action",
+                "override": false
+              },
+              "damage": {
+                "onSave": "half",
+                "parts": []
+              },
+              "save": {
+                "ability": ["con"],
+                "dc": {
+                  "calculation": "spellcasting"
+                },
+                "visible": true
+              },
+              "_id": "dnd5eactivity000",
+              "consumption": {
+                "targets": [
+                  {
+                    "target": "",
+                    "value": "1",
+                    "type": "itemUses",
+                    "scaling": {}
+                  }
+                ],
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true
+              },
+              "target": {
+                "prompt": true,
+                "template": {
+                  "contiguous": false,
+                  "stationary": false,
+                  "units": "ft"
+                },
+                "affects": {
+                  "choice": false
+                },
+                "override": false
+              },
+              "img": null,
+              "sort": 0,
+              "behaviors": [],
+              "description": {
+                "value": ""
+              },
+              "duration": {
+                "units": "inst",
+                "expiry": null,
+                "concentration": false,
+                "override": false
+              },
+              "effects": [],
+              "flags": {},
+              "range": {
+                "units": "self",
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "recovery": []
+              },
+              "visibility": {
+                "level": {},
+                "requireAttunement": false,
+                "requireIdentification": false,
+                "requireMagic": false
+              }
+            }
+          },
+          "uses": {
+            "max": "2",
+            "recovery": [
+              {
+                "period": "day",
+                "type": "recoverAll"
+              }
+            ],
+            "spent": 0
+          },
+          "level": 3,
+          "prepared": 1
+        }
+      }
+    ]
+  }
+}

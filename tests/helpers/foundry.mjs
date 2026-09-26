@@ -39,6 +39,7 @@ export function restoreGlobalsAfterEach() {
 }
 
 export function installSettings({
+  isGM = false,
   systemId = "dnd5e",
   values = {},
   onEvent = () => {}
@@ -77,6 +78,7 @@ export function installSettings({
     )
   };
   globalThis.game = {
+    user: { isGM },
     system: { id: systemId },
     i18n: { lang: "en", localize: key => key, format: key => key },
     settings: {

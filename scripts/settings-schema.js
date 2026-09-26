@@ -13,6 +13,15 @@ export const SETTINGS = Object.freeze({
   showSearch: "showSearch",
   showActivityPicker: "showActivityPicker",
   showFavorites: "showFavorites",
+  gmEnabled: "gmEnabled",
+  gmFollowTurn: "gmFollowTurn",
+  gmAutoAdvance: "gmAutoAdvance",
+  gmIncludePlayerNpcs: "gmIncludePlayerNpcs",
+  gmShowAttackDetails: "gmShowAttackDetails",
+  gmHighlightDead: "gmHighlightDead",
+  gmAutoRemoveDead: "gmAutoRemoveDead",
+  gmOpenOnCombat: "gmOpenOnCombat",
+  gmCloseAfterCombat: "gmCloseAfterCombat",
   repairBackup: "repairBackup",
   panelStates: "panelStates",
   proficientSkillsOnly: "proficientSkillsOnly",
@@ -39,7 +48,8 @@ const defineSetting = (
     defaultValue = true,
     placement = "advanced",
     refresh = "content",
-    type = Boolean
+    type = Boolean,
+    gmOnly = false
   } = {}
 ) =>
   Object.freeze({
@@ -48,6 +58,7 @@ const defineSetting = (
     refresh,
     type,
     default: defaultValue,
+    gmOnly,
     ...(choices ? { choices } : {})
   });
 
@@ -96,10 +107,61 @@ export const SETTING_DEFINITIONS = Object.freeze({
     defaultValue: false
   }),
   [SETTINGS.showSearch]: defineSetting("quickAccess"),
-  [SETTINGS.showFavorites]: defineSetting("quickAccess")
+  [SETTINGS.showFavorites]: defineSetting("quickAccess"),
+  [SETTINGS.gmEnabled]: defineSetting("gm", {
+    placement: "gm",
+    gmOnly: true,
+    defaultValue: true,
+    refresh: "reopen"
+  }),
+  [SETTINGS.gmFollowTurn]: defineSetting("gm", {
+    placement: "gm",
+    gmOnly: true
+  }),
+  [SETTINGS.gmShowAttackDetails]: defineSetting("gm", {
+    placement: "gm",
+    gmOnly: true
+  }),
+  [SETTINGS.gmHighlightDead]: defineSetting("gm", {
+    placement: "gm",
+    gmOnly: true,
+    defaultValue: false
+  }),
+  [SETTINGS.gmAutoRemoveDead]: defineSetting("gm", {
+    placement: "gm",
+    gmOnly: true,
+    defaultValue: false,
+    refresh: "none"
+  }),
+  [SETTINGS.gmOpenOnCombat]: defineSetting("gm", {
+    placement: "gm",
+    gmOnly: true,
+    defaultValue: false,
+    refresh: "none"
+  }),
+  [SETTINGS.gmCloseAfterCombat]: defineSetting("gm", {
+    placement: "gm",
+    gmOnly: true,
+    defaultValue: false,
+    refresh: "none"
+  }),
+  [SETTINGS.gmAutoAdvance]: defineSetting("gm", {
+    placement: "gm",
+    gmOnly: true,
+    defaultValue: false
+  }),
+  [SETTINGS.gmIncludePlayerNpcs]: defineSetting("gm", {
+    placement: "gm",
+    gmOnly: true,
+    defaultValue: false,
+    refresh: "reopen"
+  })
 });
 
 export const getSettingDefinitions = () => SETTING_DEFINITIONS;
+export const getGmSettingGroups = () => ({
+  gm: definitionsBy(getSettingDefinitions(), definition => definition.gmOnly)
+});
 
 const definitionsBy = (definitions, predicate) =>
   Object.entries(definitions)

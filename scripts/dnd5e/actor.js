@@ -18,7 +18,8 @@ export const dnd5eActor = {
   skillProficiency: (actor, id) =>
     proficiencyMultiplier(actor.system.skills?.[id]?.prof),
   skillData: (actor, id) => actor.system.skills?.[id] ?? {},
-  isActorSupported: actor => actor?.type === "character",
+  isActorSupported: (actor, { gm = false } = {}) =>
+    actor?.type === "character" || (gm && actor?.type === "npc"),
   deathData: actorDeathData,
   classSummary(actor, { formatLevel }) {
     const classes = actor.items

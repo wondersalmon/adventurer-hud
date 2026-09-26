@@ -44,7 +44,9 @@ export function createCombatSpellRenderer({
       : items;
     const levels = new Map();
 
-    for (const item of filtered) {
+    for (const item of new Map(
+      filtered.map(item => [item.id ?? item, item])
+    ).values()) {
       const level = adapter.spellLevel(item);
       const spells = levels.get(level) ?? [];
       spells.push(item);
@@ -65,7 +67,7 @@ export function createCombatSpellRenderer({
                 <div class="ws-spell-slot-pools">${spellSlots(level)}</div>
               </div>
               <div class="ws-combat-item-grid">
-                ${spells.map(combatItemButton).join("")}
+                ${spells.map(item => combatItemButton(item)).join("")}
               </div>
             </section>
           `

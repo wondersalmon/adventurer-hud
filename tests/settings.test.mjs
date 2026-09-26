@@ -53,7 +53,7 @@ test("main and additional settings use task-based groups", async () => {
   assert.equal(SETTING_DEFINITIONS[SETTINGS.language].placement, "basic");
   assert.equal(menus.get("configure")?.restricted, false);
   assert.equal(menus.has("reset"), false);
-  assert.equal(menus.has("gm"), false);
+  assert.equal(menus.get("gm")?.restricted, true);
   assert.equal(SETTING_DEFINITIONS[SETTINGS.fontSize].placement, "basic");
   assert.equal(
     SETTING_DEFINITIONS[SETTINGS.autoUpdateActor].placement,
@@ -133,7 +133,9 @@ test("reset restores configurable defaults", async () => {
   await resetSettings();
 
   assert.deepEqual(writes, [
-    ...Object.entries(getSettingDefaults("dnd5e")),
+    ...Object.entries(getSettingDefaults("dnd5e")).filter(
+      ([key]) => !getSettingDefinitions()[key].gmOnly
+    ),
     [SETTINGS.proficientSkillsOnly, true]
   ]);
   assert.equal(batches.length, 1);

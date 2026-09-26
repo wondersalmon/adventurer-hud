@@ -1,4 +1,5 @@
 import { openRollsHud } from "./rolls-hud.js";
+import { registerGmLifecycle } from "./hud/gm-lifecycle.js";
 import { MODULE_ID } from "./module-id.js";
 import { actorContextChanged } from "./runtime-helpers.js";
 import {
@@ -7,6 +8,7 @@ import {
 } from "./hud/settings-refresh.js";
 import {
   getSetting,
+  setSetting,
   localizeSettingsRows,
   moveSettingsMenusToBottom,
   registerSettings,
@@ -33,6 +35,7 @@ const toggleHud = () => {
 
 const scheduleActorRefresh = () => {
   if (!isDnd5e()) return;
+  if (globalThis.__adventurerHud?.preset === "gm") return;
   if (!getSetting(SETTINGS.autoUpdateActor) || !getOpenApp()?.rendered) {
     return;
   }
@@ -83,10 +86,36 @@ Hooks.once("init", () => {
       return true;
     }
   });
+  for (const [name, action] of [
+    ["gmPreviousTurn", "gmprevious"],
+    ["gmNextTurn", "gmnext"],
+    ["gmEndTurn", "endturn"]
+  ]) {
+    game.keybindings.register(MODULE_ID, name, {
+      name: `ADVENTURER_HUD.Keybindings.${name}.Name`,
+      hint: "ADVENTURER_HUD.Keybindings.GM.Hint",
+      editable: [],
+      restricted: true,
+      repeat: false,
+      onDown: () => {
+        const state = globalThis.__adventurerHud;
+        if (
+          !game.user?.isGM ||
+          state?.preset !== "gm" ||
+          !state.app?.rendered ||
+          !state.app.hudActions?.[action]
+        )
+          return false;
+        void state.app.hudActions[action]();
+        return true;
+      }
+    });
+  }
 });
 
 Hooks.once("ready", () => {
   if (!isDnd5e()) return;
+  registerGmLifecycle({ openHud: openRollsHud });
   const module = game.modules.get(MODULE_ID);
 
   Hooks.callAll("adventurerHudReady", module?.api);
@@ -102,15 +131,26 @@ Hooks.on("getSceneControlButtons", controls => {
     return;
   }
 
-  tokenControls.tools.adventurerHud = {
-    name: "adventurerHud",
-    title: "ADVENTURER_HUD.Controls.Open",
-    icon: "fa-solid fa-dice-d20",
+  const gm = Boolean(game.user?.isGM);
+  const name = gm ? "adventurerGmHud" : "adventurerHud";
+  tokenControls.tools[name] = {
+    name,
+    title: getOpenApp()?.rendered
+      ? gm
+        ? "ADVENTURER_HUD.GM.Controls.Hide"
+        : "ADVENTURER_HUD.Controls.Hide"
+      : gm
+        ? "ADVENTURER_HUD.GM.Controls.Show"
+        : "ADVENTURER_HUD.Controls.Show",
+    icon: gm ? "fa-solid fa-dragon" : "fa-solid fa-dice-d20",
     order: Object.keys(tokenControls.tools).length,
     button: true,
+    active: Boolean(getOpenApp()?.rendered),
     visible: true,
-    onChange: () => {
-      void toggleHud();
+    onChange: async () => {
+      if (gm && !getSetting(SETTINGS.gmEnabled))
+        await setSetting(SETTINGS.gmEnabled, true);
+      await toggleHud();
     }
   };
 });
@@ -129,6 +169,7 @@ Hooks.on("renderSettingsConfig", (app, html) => {
 
 const refreshControls = () =>
   void ui.controls?.render({ force: true, reset: true });
+Hooks.on("adventurerHudVisibilityChanged", refreshControls);
 
 const reopenHud = () => {
   clearTimeout(settingsRefreshTimer);

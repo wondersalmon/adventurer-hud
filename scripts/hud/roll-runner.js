@@ -3,6 +3,11 @@ import { createActionCooldown } from "./action-cooldown.js";
 const ROLL_ACTIONS = [
   "initiative",
   "endturn",
+  "gmprevious",
+  "gmnext",
+  "gmremove",
+  "gmremovedead",
+  "gmping",
   "ability",
   "skill",
   "tool",
@@ -20,6 +25,7 @@ export function createHudRollRunner({
   getApp,
   refreshHud,
   refreshScheduler,
+  disabledActions = ROLL_ACTIONS,
   canStartMutation = createActionCooldown()
 }) {
   let rollPending = false;
@@ -27,7 +33,7 @@ export function createHudRollRunner({
   const setRollControlsDisabled = disabled => {
     getApp()
       ?.element?.querySelectorAll(
-        ROLL_ACTIONS.map(action => `[data-action="${action}"]`).join(",")
+        disabledActions.map(action => `[data-action="${action}"]`).join(",")
       )
       .forEach(button => {
         button.disabled = disabled;

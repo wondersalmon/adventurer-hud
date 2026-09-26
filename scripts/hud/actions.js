@@ -1,6 +1,20 @@
 import { setForcedMode, setRegularView } from "./state.js";
-import { getSetting, openSettings, setSetting, SETTINGS } from "../settings.js";
+import {
+  getSetting,
+  openSettings,
+  openGmSettings,
+  setSetting,
+  SETTINGS
+} from "../settings.js";
 import { usableActivities } from "./quick-access.js";
+import {
+  deadCreatures,
+  createSceneCombat,
+  addGmCreatures,
+  addSceneCreatures,
+  moveToCreature,
+  removeDeadCreatures
+} from "./gm-scene.js";
 
 export function createHudActions({
   actor,
@@ -11,9 +25,14 @@ export function createHudActions({
   combatModeAvailable,
   currentMode,
   getCombatState,
+  gmController,
+  gmCombatantId,
+  openGmSelection,
+  onGmCombatChange,
   hudState,
   openHpDialog,
   performAndRefresh,
+  performSceneAction = performAndRefresh,
   refreshHud,
   savePanelState,
   resetWindow,
@@ -26,6 +45,70 @@ export function createHudActions({
   togglePin
 }) {
   const actions = {
+    gmstartcombat: async function () {
+      if (
+        !gmController?.isGM() ||
+        !gmController.getCombat() ||
+        gmController.getCombat().started
+      )
+        return;
+      return performSceneAction(async () => {
+        await gmController.getCombat().startCombat();
+        gmController.resumeFollow();
+        gmController.sync({ forceFollow: true });
+        await openGmSelection();
+      });
+    },
+    gmcreatecombat: async function () {
+      if (!gmController?.isGM()) return;
+      return performSceneAction(async () => {
+        const combat = gmController.getCombat() ?? (await createSceneCombat());
+        if (combat) gmController.chooseCombat(combat.id);
+        onGmCombatChange();
+      });
+    },
+    gmaddcreatures: async function (_event, target) {
+      if (!gmController?.isGM()) return;
+      return performSceneAction(async () => {
+        const combat = gmController.getCombat() ?? (await createSceneCombat());
+        if (!combat) return;
+        gmController.chooseCombat(combat.id);
+        if (target?.dataset.scope === "all") await addSceneCreatures(combat);
+        else await addGmCreatures(combat);
+        onGmCombatChange();
+      });
+    },
+    gmendcombat: async function () {
+      if (!gmController?.isGM() || !gmController.getCombat()?.started) return;
+      return performSceneAction(() => gmController.getCombat()?.endCombat());
+    },
+    gmrollinitiative: async function (_event, target) {
+      if (!gmController?.isGM()) return;
+      return performAndRefresh(async () => {
+        const combat = gmController.getCombat();
+        if (!combat) return;
+        const entries = gmController
+          .roster()
+          .filter(
+            entry =>
+              (target.dataset.scope === "all" || entry.id === gmCombatantId) &&
+              (target.dataset.reroll === "true" || entry.initiative == null)
+          );
+        if (entries.length)
+          await combat.rollInitiative(
+            entries.map(entry => entry.id),
+            { updateTurn: true }
+          );
+      });
+    },
+    gmspeeds() {
+      hudState.gmSpeedsExpanded = !hudState.gmSpeedsExpanded;
+      refreshHud();
+    },
+    gmlegendary() {
+      hudState.gmLegendaryExpanded = !hudState.gmLegendaryExpanded;
+      refreshHud();
+    },
     initiative: async function (event) {
       if (!canRollActor) {
         return ui.notifications.warn(t("Warnings.NoPermission"));
@@ -51,10 +134,76 @@ export function createHudActions({
 
     endturn: async function () {
       if (!getCombatState().canEndTurn) return;
-      return performAndRefresh(() => {
+      return performAndRefresh(async () => {
         const { combat, canEndTurn } = getCombatState();
         if (!canEndTurn) return;
-        return combat.nextTurn();
+        if (!gmController) return combat.nextTurn();
+        const next = await gmController.endTurn(gmCombatantId, () =>
+          combat.nextTurn()
+        );
+        if (next && next.id !== gmCombatantId) await openGmSelection();
+      });
+    },
+
+    gmsettings: () => openGmSettings(),
+    gmsheet: () => actor?.sheet?.render({ force: true }),
+    gmcenter: () => moveToCreature(gmController?.sync()),
+    gmping: () =>
+      performSceneAction(() =>
+        moveToCreature(gmController?.sync(), { ping: true })
+      ),
+    gmremove: () =>
+      performSceneAction(() =>
+        removeDeadCreatures(gmController?.getCombat(), [gmCombatantId])
+      ),
+    gmremovedead: async function () {
+      if (!gmController?.isGM()) return;
+      const combat = gmController.getCombat();
+      const ids = deadCreatures(combat).map(entry => entry.id);
+      if (!ids.length) return;
+      const confirmed = await foundry.applications.api.DialogV2.confirm({
+        window: { title: t("GM.RemoveDead") },
+        content: `<p>${foundry.utils.escapeHTML(t("GM.RemoveDeadConfirm"))} (${ids.length})</p>`
+      });
+      if (confirmed)
+        return performSceneAction(async () => {
+          const count = await removeDeadCreatures(combat, ids);
+          if (!count) ui.notifications.warn(t("GM.NoTokensRemoved"));
+        });
+    },
+    gmselect: async function (_event, target) {
+      if (!gmController?.isGM()) return;
+      if (await gmController.select(target.dataset.combatantId))
+        return openGmSelection();
+    },
+    gmfollow: async function () {
+      if (!gmController?.isGM()) return;
+      gmController.resumeFollow();
+      await setSetting(
+        SETTINGS.gmFollowTurn,
+        !getSetting(SETTINGS.gmFollowTurn)
+      );
+      if (getSetting(SETTINGS.gmFollowTurn)) {
+        gmController.sync({ forceFollow: true });
+        await openGmSelection();
+      } else onGmCombatChange();
+    },
+    gmprevious: async function () {
+      if (!gmController?.isGM() || !gmController.getCombat()?.started) return;
+      return performAndRefresh(async () => {
+        if (!gmController.isGM() || !gmController.getCombat()?.started) return;
+        await gmController.getCombat().previousTurn();
+        gmController.sync({ forceFollow: true });
+        await openGmSelection();
+      });
+    },
+    gmnext: async function () {
+      if (!gmController?.isGM() || !gmController.getCombat()?.started) return;
+      return performAndRefresh(async () => {
+        if (!gmController.isGM() || !gmController.getCombat()?.started) return;
+        await gmController.getCombat().nextTurn();
+        gmController.sync({ forceFollow: true });
+        await openGmSelection();
       });
     },
 
@@ -337,6 +486,15 @@ export function createHudActions({
   for (const [name, action] of Object.entries(actions)) {
     actions[name] = async function (...args) {
       try {
+        if (gmController && !gmController.isGM()) return;
+        if (gmController && actor && !name.startsWith("gm")) {
+          const selected = gmController.sync();
+          if (
+            selected?.id !== gmCombatantId ||
+            (selected.token.actor ?? selected.actor)?.uuid !== actor?.uuid
+          )
+            return;
+        }
         return await action.apply(this, args);
       } catch (error) {
         console.error(`Rolls HUD | ${name} action`, error);

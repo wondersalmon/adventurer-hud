@@ -52,6 +52,9 @@ export function createHudComponents(context) {
       .join("")}</div>`;
   }
 
+  const gmSaves = () =>
+    `<section class="ws-gm-saves"><h3>${t("GM.Saves")}</h3><div>${abilities.map(([id, short]) => `<button type="button" class="ws-button" data-action="ability" data-type="save" data-key="${escapeHTML(id)}" title="${escapeHTML(tf("RollLabels.SavingThrow", { ability: short }))}" ${canRollActor ? "" : "disabled"}><span>${escapeHTML(short)}</span><strong>${formatMod(adapter.abilityTotal(adapter.abilityData(actor, id), "save"))}</strong></button>`).join("")}</div></section>`;
+
   const abilitiesSection = (mode = "regular") => {
     const expanded =
       hudState[
@@ -282,7 +285,7 @@ export function createHudComponents(context) {
         <img
           class="ws-actor-portrait"
           data-open-actor-sheet
-          src="${escapeHTML(actor.img ?? "icons/svg/mystery-man.svg")}"
+          src="${escapeHTML(context.portrait ?? actor.img ?? "icons/svg/mystery-man.svg")}"
           alt="${escapeHTML(actor.name)}"
           title="${t("Actor.OpenSheet")}"
         >
@@ -390,6 +393,7 @@ export function createHudComponents(context) {
 
   return {
     abilitiesSection,
+    gmSaves,
     actorHeader,
     back,
     inspirationControl,

@@ -40,9 +40,13 @@ export function createCombatItemCardRenderer({
     item,
     { activityId = null, inFavorites = false } = {}
   ) => {
+    const usage = !activityId ? adapter.itemUsageTarget?.(actor, item) : null;
+    const usageItem = usage?.item ?? item;
+    const usageActivityId = usage?.activityId ?? activityId;
+    const detailsItem = usage?.detailsItem ?? item;
     const activities = usableActivities(adapter, item);
     const offersActivities =
-      visibility.activityPicker && !activityId && activities.length > 1;
+      visibility.activityPicker && !usageActivityId && activities.length > 1;
     const favorite = isFavorite(hudState.favoriteEntries, item.id, activityId);
     const role = adapter.itemRole(item);
     const isSpell = role === "spell";
@@ -68,26 +72,41 @@ export function createCombatItemCardRenderer({
       visibility.itemDetails &&
       isSpell &&
       adapter.hasItemProperty(item, "ritual");
-    const attackBonus = visibility.itemDetails
-      ? adapter.itemAttackBonus(item, activityId)
+    const showAttackDetails =
+      visibility.attackDetails ?? visibility.itemDetails;
+    const attackBonus = showAttackDetails
+      ? adapter.itemAttackBonus(detailsItem, activityId)
       : "";
     const damageFormula = visibility.itemDetails
       ? adapter.itemDamageFormula(actor, item, activityId)
       : "";
-    const saveDc =
-      visibility.itemDetails && isSpell
-        ? adapter.itemSaveDc?.(item, activityId)
-        : "";
-    const uses = adapter.itemUsesData(item, activityId);
-    const useState = itemAvailability(adapter, actor, item, activityId);
-    const unavailableLabel = useState.reason ? t(useState.reason) : "";
+    const saveDc = showAttackDetails
+      ? adapter.itemSaveDc?.(detailsItem, activityId)
+      : "";
+    const attackDetails = showAttackDetails
+      ? (adapter.itemAttackDetails?.(detailsItem, activityId) ?? [])
+      : [];
+    const uses =
+      adapter.itemResourceData?.(actor, usageItem, usageActivityId) ??
+      adapter.itemUsesData(usageItem, usageActivityId);
+    const useState = itemAvailability(
+      adapter,
+      actor,
+      usageItem,
+      usageActivityId
+    );
+    const unavailableReason =
+      useState.reason ?? (uses?.value === 0 ? "Quick.NoCharges" : null);
+    const unavailableLabel = unavailableReason ? t(unavailableReason) : "";
     const showsDetails = Boolean(
       showsRange ||
       activationBadge ||
+      attackDetails.length ||
       uses ||
       (!inFavorites && unavailableLabel) ||
-      (visibility.itemDetails &&
-        (concentration || ritual || attackBonus || damageFormula || saveDc))
+      attackBonus ||
+      saveDc ||
+      (visibility.itemDetails && (concentration || ritual || damageFormula))
     );
 
     return `
@@ -97,11 +116,11 @@ export function createCombatItemCardRenderer({
           <button
             type="button"
             class="ws-combat-item ws-button ${unavailableLabel ? "ws-item-depleted" : ""}"
-            data-action="${activityId ? "useactivity" : "useitem"}"
-            data-item-id="${escapeHTML(item.id)}"
+            data-action="${usageActivityId ? "useactivity" : "useitem"}"
+            data-item-id="${escapeHTML(usageItem.id)}"
             ${unavailableLabel ? `title="${escapeHTML(unavailableLabel)}"` : ""}
             ${useState.blocked ? 'disabled aria-disabled="true"' : ""}
-            ${activityId ? `data-activity-id="${escapeHTML(activityId)}"` : ""}
+            ${usageActivityId ? `data-activity-id="${escapeHTML(usageActivityId)}"` : ""}
           >
             <img src="${escapeHTML(item.img ?? "icons/svg/item-bag.svg")}" alt="">
 
@@ -113,7 +132,9 @@ export function createCombatItemCardRenderer({
                     <small class="ws-spell-meta">
                       ${activationBadge ? `<b class="ws-activation-badge" title="${t(activationBadge[1])}">${activationBadge[0]}</b>` : ""}
                       ${
-                        visibility.itemDetails && attackBonus
+                        showAttackDetails &&
+                        attackBonus &&
+                        attackDetails.length < 2
                           ? `
                             <span title="${t("Combat.AttackBonus")}">
                               <i class="fa-solid fa-bullseye"></i>
@@ -123,10 +144,11 @@ export function createCombatItemCardRenderer({
                           : ""
                       }
                       ${
-                        visibility.itemDetails && saveDc
+                        showAttackDetails && saveDc && attackDetails.length < 2
                           ? `<span title="${t("Combat.SaveDC")}"><i class="fa-solid fa-shield-heart"></i>${t("Combat.SaveDCShort")} ${escapeHTML(saveDc)}</span>`
                           : ""
                       }
+                      ${attackDetails.length > 1 ? attackDetails.map(detail => `<span title="${escapeHTML(detail.name)}">${escapeHTML(detail.name)}: ${detail.attack ? `<i class="fa-solid fa-bullseye"></i> ${escapeHTML(detail.attack)}` : ""}${detail.dc ? ` ${t("Combat.SaveDCShort")} ${escapeHTML(detail.dc)}` : ""}</span>`).join("") : ""}
                       ${
                         visibility.itemDetails && damageFormula
                           ? `

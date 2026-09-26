@@ -98,7 +98,20 @@ export function createItemPanelRenderer({
         category,
         icon,
         label,
-        indexed ? (indexed.get(category) ?? []) : combatItems(category)
+        (indexed
+          ? (indexed.get(category) ?? [])
+          : combatItems(category)
+        ).filter(
+          item =>
+            !visibility.gm ||
+            category === "spells" ||
+            (item.type !== "spell" &&
+              !adapter
+                .itemActivities(item)
+                .every(activity =>
+                  ["legendary", "lair"].includes(activity.activation?.type)
+                ))
+        )
       ])
       .filter(([, , , items]) => items.length > 0);
     if (visibility.combatSkills && skills.length) {
@@ -127,6 +140,11 @@ export function createItemPanelRenderer({
       return "";
     }
 
+    if (
+      visibility.gm &&
+      !categories.some(([key]) => key === hudState.combatCategory)
+    )
+      hudState.combatCategory = categories[0][0];
     const selectedCategory = categories.find(
       ([category]) => category === hudState.combatCategory
     );
@@ -155,20 +173,22 @@ export function createItemPanelRenderer({
           <div class="ws-combat-filters">
             ${primary.map(categoryButton).join("")}
             ${
-              actionTypes.length
-                ? `
+              visibility.gm
+                ? actionTypes.map(categoryButton).join("")
+                : actionTypes.length
+                  ? `
               <button type="button" class="ws-combat-filter ws-button ${selectedAction ? "ws-active" : ""}"
                 data-action="toggleactionmenu" aria-expanded="${hudState.actionMenuOpen}">
                 <i class="fa-solid ${selectedAction?.[1] ?? "fa-circle-play"}"></i>
                 <span>${selectedAction ? t(selectedAction[2]) : t("Combat.ActionTypes")}</span>
                 <small><i class="fa-solid fa-chevron-down"></i></small>
               </button>`
-                : ""
+                  : ""
             }
             ${featureCategory ? categoryButton(featureCategory) : ""}
             ${skillCategory ? categoryButton(skillCategory) : ""}
           </div>
-          ${hudState.actionMenuOpen && actionTypes.length ? `<div class="ws-action-menu">${actionTypes.map(categoryButton).join("")}</div>` : ""}
+          ${!visibility.gm && hudState.actionMenuOpen && actionTypes.length ? `<div class="ws-action-menu">${actionTypes.map(categoryButton).join("")}</div>` : ""}
 
           ${hudState.combatCategory && !isSkills ? searchControl() : ""}
           ${isSkills ? skillFilterHTML() : ""}
@@ -185,7 +205,7 @@ export function createItemPanelRenderer({
                   ? hudState.combatCategory === "spells"
                     ? spellGroups(items) ||
                       `<div class="ws-empty">${t("Combat.EmptyPrepared")}</div>`
-                    : `<div class="ws-combat-item-grid">${items.map(combatItemButton).join("")}</div>`
+                    : `<div class="ws-combat-item-grid">${items.map(item => combatItemButton(item)).join("")}</div>`
                   : `<div class="ws-empty">${t(hudState.searchQuery ? "Quick.NoResults" : "Combat.Empty")}</div>`
             }
           </div>`
@@ -195,8 +215,30 @@ export function createItemPanelRenderer({
       `;
   };
 
+  const gmSpecialActions = (onlyKind = null) =>
+    [
+      ["legendary", "GM.LegendaryActions", "legact"],
+      ["lair", "GM.LairActions", null]
+    ]
+      .filter(([kind]) => !onlyKind || kind === onlyKind)
+      .map(([kind, title, resourceKey]) => {
+        const entries = [...actor.items.values()].flatMap(item =>
+          adapter
+            .itemActivities(item)
+            .filter(activity => activity.activation?.type === kind)
+            .map(activity => ({ item, activity }))
+        );
+        if (!entries.length) return "";
+        const resource = resourceKey
+          ? adapter.npcResource(actor, resourceKey)
+          : null;
+        return `<section class="ws-gm-special"><h3><span>${t(title)}</span>${resource ? `<b>${resource.value}/${resource.max}</b>` : ""}</h3><div class="ws-combat-item-grid">${entries.map(({ item, activity }) => `<div class="ws-gm-special-row">${combatItemButton(item, { activityId: activity.id })}${kind === "legendary" ? `<span class="ws-gm-action-cost" title="${t("GM.ActionCost")}">${escapeHTML(activity.activation.value ?? 1)}</span>` : ""}</div>`).join("")}</div></section>`;
+      })
+      .join("");
+
   return {
     combatActions,
+    gmSpecialActions,
     combatItemButton,
     combatItems,
     favoriteSection,

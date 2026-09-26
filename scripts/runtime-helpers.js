@@ -20,11 +20,20 @@ export function getCurrentCombat(gameState) {
 
 export function findCombatant(
   combatants,
-  { actorId = null, tokenId = null, sceneId = null } = {}
+  { actorId = null, tokenId = null, sceneId = null, combatantId = null } = {}
 ) {
   const entries = combatants?.contents ?? [
     ...(combatants?.values?.() ?? combatants ?? [])
   ];
+  if (combatantId)
+    return (
+      entries.find(
+        combatant =>
+          combatant.id === combatantId &&
+          (!tokenId || combatant.tokenId === tokenId) &&
+          (!sceneId || combatant.sceneId === sceneId)
+      ) ?? null
+    );
 
   if (tokenId) {
     return (

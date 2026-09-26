@@ -8,6 +8,7 @@ import {
 } from "./settings-form.js";
 import {
   getAdvancedSettingGroups,
+  getGmSettingGroups,
   getSettingDefinitions,
   getSettingDefaults,
   SETTINGS
@@ -23,6 +24,7 @@ export {
 let SettingsApplication = null;
 let ResetSettingsApplication = null;
 let IntegrityApplication = null;
+let GmSettingsApplication = null;
 let pendingSettingKeys = null;
 const queueSettingsSave = createTaskQueue();
 
@@ -37,6 +39,7 @@ function saveChangedSettings(entries) {
     pendingSettingKeys = new Set();
     try {
       for (const [key, value] of entries) {
+        if (getSettingDefinitions()[key]?.gmOnly && !game.user?.isGM) continue;
         if (Object.is(getSetting(key), value)) continue;
         pendingSettingKeys.add(key);
         await setSetting(key, value);
@@ -139,6 +142,7 @@ function registerSettingsMenus() {
       actions: {
         reset: function (event) {
           event.preventDefault();
+          if (this.constructor.gmOnly && !game.user?.isGM) return;
           const confirmation = new ResetSettingsApplication();
           confirmation.settingsApp = this;
           return confirmation.render({ force: true });
@@ -150,19 +154,28 @@ function registerSettingsMenus() {
       form: { template: "modules/adventurer-hud/templates/settings.hbs" }
     };
 
+    async render(...args) {
+      if (this.constructor.gmOnly && !game.user?.isGM) return this;
+      return super.render(...args);
+    }
+
     async _prepareContext() {
+      const gmOnly = Boolean(this.constructor.gmOnly);
+      if (gmOnly && !game.user?.isGM) throw new Error("GM only");
       const { t } = await createModuleTranslator({
         language: getSetting(SETTINGS.language),
         i18n: game.i18n
       });
       if (this.options?.window) {
-        this.options.window.title = t("Settings.Advanced.Name");
+        this.options.window.title = t(
+          gmOnly ? "Settings.GM.Name" : "Settings.Advanced.Name"
+        );
       }
       return {
         saveLabel: t("Settings.Save"),
         resetLabel: t("Settings.Reset.Label"),
         groups: prepareSettingsGroups({
-          groups: getAdvancedSettingGroups(),
+          groups: gmOnly ? getGmSettingGroups() : getAdvancedSettingGroups(),
           readValue: getSetting,
           t
         })
@@ -170,11 +183,32 @@ function registerSettingsMenus() {
     }
 
     static async #onSubmit(_event, _form, formData) {
+      const gmOnly = Boolean(this?.constructor?.gmOnly);
+      if (gmOnly && !game.user?.isGM) return;
       await saveChangedSettings(
-        booleanSettingsEntries(getAdvancedSettingGroups(), formData.object)
+        booleanSettingsEntries(
+          gmOnly ? getGmSettingGroups() : getAdvancedSettingGroups(),
+          formData.object
+        )
       );
     }
   };
+
+  GmSettingsApplication = class extends SettingsApplication {
+    static gmOnly = true;
+    static DEFAULT_OPTIONS = {
+      id: "adventurer-hud-gm-settings",
+      window: { title: "ADVENTURER_HUD.Settings.GM.Name" }
+    };
+  };
+  game.settings.registerMenu(MODULE_ID, "gm", {
+    name: "ADVENTURER_HUD.Settings.GM.Name",
+    hint: "ADVENTURER_HUD.Settings.GM.Hint",
+    label: "ADVENTURER_HUD.Settings.GM.Label",
+    icon: "fa-solid fa-dragon",
+    type: GmSettingsApplication,
+    restricted: true
+  });
 
   game.settings.registerMenu(MODULE_ID, "configure", {
     name: "ADVENTURER_HUD.Settings.Advanced.Name",
@@ -229,7 +263,9 @@ function registerSettingsMenus() {
     }
 
     static async #onSubmit() {
-      await resetSettings();
+      await resetSettings({
+        gmOnly: Boolean(this?.settingsApp?.constructor?.gmOnly)
+      });
       const { t } = await createModuleTranslator({
         language: getSetting(SETTINGS.language),
         i18n: game.i18n
@@ -263,7 +299,7 @@ export function moveSettingsMenusToBottom(root) {
     return;
   }
 
-  for (const key of ["configure", "integrity"]) {
+  for (const key of ["configure", "gm", "integrity"]) {
     const settingId = `${MODULE_ID}.${key}`;
     const control = element.querySelector(
       `[data-key="${settingId}"], [data-setting-id="${settingId}"], [name="${settingId}"]`
@@ -310,6 +346,7 @@ export async function localizeSettingsRows(root) {
 
   for (const [key, section] of [
     ["configure", "Advanced"],
+    ["gm", "GM"],
     ["integrity", "Integrity"]
   ]) {
     const settingId = `${MODULE_ID}.${key}`;
@@ -339,17 +376,27 @@ export async function localizeSettingsRows(root) {
   }
 }
 
-export async function resetSettings() {
+export async function resetSettings({ gmOnly = false } = {}) {
+  if (gmOnly && !game.user?.isGM) return;
   await saveChangedSettings([
-    ...Object.entries(getSettingDefaults()),
-    [SETTINGS.proficientSkillsOnly, true]
+    ...Object.entries(getSettingDefaults()).filter(
+      ([key]) => Boolean(getSettingDefinitions()[key].gmOnly) === gmOnly
+    ),
+    ...(gmOnly ? [] : [[SETTINGS.proficientSkillsOnly, true]])
   ]);
 }
 
 export const getSetting = key => game.settings.get(MODULE_ID, key);
 
 export const setSetting = (key, value) =>
-  game.settings.set(MODULE_ID, key, value);
+  getSettingDefinitions()[key]?.gmOnly && !game.user?.isGM
+    ? Promise.resolve()
+    : game.settings.set(MODULE_ID, key, value);
+
+export function openGmSettings() {
+  if (!game.user?.isGM || !GmSettingsApplication) return;
+  return new GmSettingsApplication().render({ force: true });
+}
 
 export const getWindowGeometry = () =>
   getSetting(SETTINGS.windowGeometry) ?? {};

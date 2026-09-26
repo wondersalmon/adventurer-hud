@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.3.1
+
+### GM combat HUD
+
+- Added a dedicated GM HUD with its own Token Controls button and GM-only settings. GMs open the GM panel by default; players keep the character HUD.
+- Switch between monsters in initiative order, see token HP at a glance, or follow the current turn. Creature changes keep the same HUD window.
+- Use a compact vertical layout or resize to a wide, low window with separate columns. Turn controls stay visible at the bottom.
+- Roll attacks, spells and saving throws; see attack bonuses, save DCs, resistances, immunities and remaining resources. Additional speeds expand on click.
+- Use Legendary Resistance from its counter and expand legendary actions beside their remaining pool. Lair actions appear when the creature has them.
+- Clear action icons and a highlighted Start Combat button make encounter setup easier.
+- Create a combat, add the GM's NPCs or all tokens from the current scene, roll or reroll initiative for one creature or all, then start or end the encounter.
+- Move to or ping a token, end a turn, and remove defeated NPC tokens. Optional settings follow the next NPC, remove defeated creatures automatically, and open or close the panel with combat.
+- Added configurable Foundry keybindings for previous turn, next turn and End Turn. Assign shortcuts in Configure Controls.
+
+> **Screenshot placeholder 1:** Compact vertical GM HUD with token HP, legendary resources and expanded actions.
+
+> **Screenshot placeholder 2:** Wide, low GM HUD with the creature roster, action columns and persistent turn controls.
+
+### Fixes
+
+- Fixed stale resource counters after spending charges and duplicate NPC spells.
+
 ## 1.2.1
 
 - Replaced Resources with Features after Actions. Click a feature to use its D&D activity and configured resource consumption.

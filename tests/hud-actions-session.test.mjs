@@ -304,6 +304,7 @@ test("window session updates live settings and releases document hooks", async (
   const hookCallbacks = new Map();
   const removed = [];
   globalThis.Hooks = {
+    callAll() {},
     on(name, callback) {
       hookIds.push(name);
       hookCallbacks.set(name, callback);

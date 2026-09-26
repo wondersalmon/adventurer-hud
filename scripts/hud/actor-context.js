@@ -12,13 +12,19 @@ export function combatTurnState(combat, combatant, canAct) {
   };
 }
 
-export function createHudActorContext({ actor, token, getCombat }) {
+export function createHudActorContext({
+  actor,
+  token,
+  getCombat,
+  combatantId = null
+}) {
   const actorToken = tokenForActor(token ?? actor.token, actor);
   const tokenDocument = actorToken?.document ?? actorToken;
   const getCombatState = () => {
     const combat = getCombat();
     const combatant = findCombatant(combat?.combatants, {
       actorId: actor.id,
+      combatantId,
       tokenId: tokenDocument?.id,
       sceneId: tokenDocument?.parent?.id
     });

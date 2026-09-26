@@ -1,9 +1,14 @@
 # Adventurer HUD
 
+[Русская версия](README.ru.md)
+
 [![Foundry VTT 14](https://img.shields.io/badge/Foundry_VTT-14-2f855a?style=flat-square)](https://foundryvtt.com/)
 [![D&D 5e 5.3+](https://img.shields.io/badge/D%26D_5e-5.3%2B-2f855a?style=flat-square)](https://github.com/foundryvtt/dnd5e)
 
-Adventurer HUD is a compact character HUD for [D&D 5e](https://github.com/foundryvtt/dnd5e). It lets you perform common character actions without opening the character sheet and automatically switches between exploration and combat modes.
+Adventurer HUD is a compact HUD for [D&D 5e](https://github.com/foundryvtt/dnd5e). Players get character actions in exploration and combat; GMs get a dedicated panel for managing creatures and encounters.
+
+- [Player guide](docs/README.player.md) — character actions, spells, favorites and shortcuts.
+- [GM guide](docs/README.gm.md) — encounter setup, creature actions and turn controls.
 
 ![Adventurer HUD demonstration](docs/media/demo.gif)
 
@@ -25,9 +30,9 @@ For Foundry VTT 14:
 
 ## Usage
 
-Press `Shift+R` to open the HUD for the selected character (You can change the keyboard shortcut in the settings).
-Enable **Open on login** in the module settings to open it when entering the world or refreshing the page.
-You can also enable a button for opening the HUD in the Token Controls from the module settings.
+Press `Shift+R` to open or close the HUD. Players select their character's token; GMs open the GM panel by default. Change the shortcut in **Configure Controls**.
+
+Enable **Open on login** to open the HUD when entering the world. Enable the **Token Controls button** for a player HUD button or a dedicated GM button. The [player](docs/README.player.md) and [GM](docs/README.gm.md) guides explain each mode.
 
 ## AI disclosure
 

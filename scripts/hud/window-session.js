@@ -1,5 +1,6 @@
 import { flushWindowGeometry, SETTINGS } from "../settings.js";
 import { subscribeHudDocuments } from "./subscriptions.js";
+import { captureHudDomState, restoreHudDomState } from "./dom-state.js";
 
 export async function activateHudWindow({
   actor,
@@ -10,6 +11,8 @@ export async function activateHudWindow({
   onSearchInput,
   onToolsChange,
   onStatusChange,
+  onCombatChange,
+  onCombatSelection,
   readHp,
   readVisibility,
   syncPreferences,
@@ -18,8 +21,14 @@ export async function activateHudWindow({
   setPinned,
   state,
   storePosition,
-  visibility
+  visibility,
+  reuse = false,
+  fontSize = "medium",
+  content,
+  title
 }) {
+  app.disposeHudSession?.();
+  let disposed = false;
   let effectsEnabled = Boolean(visualEffectsEnabled);
   let hpFeedbackTimer = null;
   let flashTimer = null;
@@ -71,22 +80,43 @@ export async function activateHudWindow({
     refreshHud();
   };
 
-  await app.render({ force: true });
+  if (reuse) {
+    const domState = captureHudDomState(app.element);
+    app.element.querySelector(".ws-shell").innerHTML =
+      content.querySelector(".ws-shell").innerHTML;
+    app.element.querySelector(".window-title").textContent = title;
+    restoreHudDomState(app.element, domState);
+  } else await app.render({ force: true });
+  for (const name of Array.from(app.element.classList)) {
+    if (name.startsWith("ws-font-")) app.element.classList.remove(name);
+  }
+  app.element.classList.add(`ws-font-${String(fontSize).toLowerCase()}`);
   state.app = app;
   syncEffects();
 
-  app.element.addEventListener("input", event => {
+  const onInput = event => {
     if (event.target?.matches?.('[data-action="searchitems"]')) {
       onSearchInput(event.target.value);
     }
-  });
+  };
+  app.element.addEventListener("input", onInput);
+  const onChange = event => {
+    if (event.target?.matches?.("[data-gm-combat-select]"))
+      void onCombatSelection?.(event.target.value);
+  };
+  app.element.addEventListener("change", onChange);
 
-  app.element.addEventListener("dblclick", event => {
+  const onDoubleClick = event => {
     if (!event.target?.closest?.("[data-open-actor-sheet]")) return;
-    void actor.sheet?.render({ force: true });
-  });
+    void actor?.sheet?.render({ force: true });
+  };
+  app.element.addEventListener("dblclick", onDoubleClick);
 
-  app.addEventListener("position", () => storePosition(app.position));
+  if (!reuse)
+    app.addEventListener("position", () =>
+      app.storeHudPosition?.(app.position)
+    );
+  app.storeHudPosition = storePosition;
 
   const flash = className => {
     if (!effectsEnabled || turnGlowTimer) return;
@@ -177,25 +207,36 @@ export async function activateHudWindow({
     },
     onToolsChange,
     onStatusChange,
+    onCombatChange,
     scheduleRefresh: refreshScheduler.schedule
   });
+  Hooks.callAll("adventurerHudVisibilityChanged");
 
-  app.addEventListener(
-    "close",
-    () => {
-      effectsEnabled = false;
-      void flushWindowGeometry();
-      refreshScheduler.cancel();
-      unsubscribeDocuments();
-      clearEffects();
-
-      if (state.app === app) {
-        state.app = null;
-        state.actor = null;
-        state.actorUuid = null;
-        state.tokenUuid = null;
-      }
-    },
-    { once: true }
-  );
+  app.disposeHudSession = () => {
+    if (disposed) return;
+    disposed = true;
+    effectsEnabled = false;
+    refreshScheduler.cancel();
+    unsubscribeDocuments();
+    clearEffects();
+    app.element?.removeEventListener("input", onInput);
+    app.element?.removeEventListener("change", onChange);
+    app.element?.removeEventListener("dblclick", onDoubleClick);
+  };
+  if (!reuse)
+    app.addEventListener(
+      "close",
+      () => {
+        app.disposeHudSession?.();
+        void flushWindowGeometry();
+        if (state.app === app) {
+          state.app = null;
+          state.actor = null;
+          state.actorUuid = null;
+          state.tokenUuid = null;
+          Hooks.callAll("adventurerHudVisibilityChanged");
+        }
+      },
+      { once: true }
+    );
 }

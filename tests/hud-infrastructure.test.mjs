@@ -1,3 +1,4 @@
+import { fragment } from "./helpers/rendering.mjs";
 import { restoreGlobalsAfterEach } from "./helpers/foundry.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -195,7 +196,7 @@ test("refresh scheduler coalesces updates and keeps the broadest region", () => 
 test("HUD refresh follows combat changes and shows a newly rolled initiative", () => {
   let mode = "regular";
   let initiative = null;
-  const shell = { innerHTML: "" };
+  const shell = fragment("");
   const title = { textContent: "" };
   const app = {
     rendered: true,
@@ -453,7 +454,7 @@ test("turn glow fires once each time the player's turn begins", () => {
 });
 
 test("regular subviews reset when switching to combat", () => {
-  const shell = { innerHTML: "" };
+  const shell = fragment("");
   const app = {
     rendered: true,
     element: {

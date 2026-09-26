@@ -8,6 +8,12 @@ import { createHudActions } from "./hud/actions.js";
 import { selectHudActor } from "./hud/actor-selection.js";
 import { createHudActorContext } from "./hud/actor-context.js";
 import { createLatestRefresh } from "./hud/async-refresh.js";
+import {
+  createGmCombatController,
+  renderGmCombatHeader,
+  renderGmRemovalButton,
+  renderGmTurnControls
+} from "./hud/gm-combat.js";
 import { createCombatRenderer } from "./hud/combat.js";
 import { createItemPanelRenderer } from "./hud/item-panels.js";
 import { createHpDialogController } from "./hud/hp-dialog.js";
@@ -74,40 +80,89 @@ async function openHud(actorOverride) {
     state.app ??= null;
     state.actor ??= null;
     state.position ??= null;
+    const gmActive = Boolean(game.user?.isGM && getSetting(SETTINGS.gmEnabled));
+    state.gm ??= {};
+    const gmController = gmActive
+      ? createGmCombatController({ memory: state.gm })
+      : null;
+    let previousGmFollow = gmActive ? getSetting(SETTINGS.gmFollowTurn) : false;
+    const gmCombatant = gmController?.sync({
+      selectedToken:
+        canvas.tokens.controlled.length === 1
+          ? canvas.tokens.controlled[0]
+          : null
+    });
+    if (!gmActive && state.preset === "gm") {
+      if (actorOverride?.type === "npc") actorOverride = null;
+      await state.app?.close();
+      state.preset = "player";
+    }
 
     // =========================================================
     // Actor
     // =========================================================
 
-    const selection = await selectHudActor({
-      actorOverride,
-      adapter,
-      DialogV2,
-      language,
-      onSelect: selectedActor => openRollsHud(selectedActor),
-      t,
-      tf
-    });
-    if (!selection) return;
+    const selection = gmActive
+      ? gmCombatant
+        ? {
+            actor: gmCombatant.token.actor ?? gmCombatant.actor,
+            token: gmCombatant.token
+          }
+        : null
+      : await selectHudActor({
+          actorOverride,
+          adapter,
+          DialogV2,
+          language,
+          onSelect: selectedActor => openRollsHud(selectedActor),
+          t,
+          tf
+        });
+    if (!selection) {
+      if (gmActive)
+        return await openEmptyGmHud({ state, gmController, DialogV2, t, tf });
+      return;
+    }
+    const reusedApp =
+      gmActive && state.preset === "gm" && state.app?.rendered
+        ? state.app
+        : null;
+    const session = {};
+    const isSessionCurrent = () => state.session === session;
     const actorContext = createHudActorContext({
       ...selection,
-      getCombat: () => getCurrentCombat(game)
+      combatantId: gmCombatant?.id,
+      getCombat: () =>
+        gmController ? gmController.getCombat() : getCurrentCombat(game)
     });
     const { actor, getCombatState } = actorContext;
-    if (state.app?.rendered) {
+    if (state.app?.rendered && !reusedApp) {
       await flushWindowGeometry();
       await state.app.close();
     }
 
+    state.session = session;
     state.actorUuid = actorContext.actorUuid;
     state.actor = actor;
     state.tokenUuid = actorContext.tokenUuid;
+    state.preset = gmActive ? "gm" : "player";
 
     const canRollActor = actor.isOwner;
     const canStartMutation = actorActionCooldown(actor);
     const fontSize = getSetting(SETTINGS.fontSize) || "medium";
 
-    const readVisibility = () => readHudVisibility();
+    const readVisibility = () => ({
+      ...readHudVisibility(),
+      ...(gmActive
+        ? {
+            modeNavigation: false,
+            favorites: false,
+            combatSkills: false,
+            gm: true,
+            attackDetails: getSetting(SETTINGS.gmShowAttackDetails)
+          }
+        : {})
+    });
     const visibility = readVisibility();
 
     const abilities = adapter.abilityDefinitions();
@@ -133,7 +188,10 @@ async function openHud(actorOverride) {
     let pinned = Boolean(getSetting(SETTINGS.pinWindow));
 
     const hudState = createHudState({
-      ...panelStateForActor(getSetting(SETTINGS.panelStates), actor.uuid),
+      ...panelStateForActor(
+        getSetting(SETTINGS.panelStates),
+        gmActive ? `gm:${actorContext.tokenUuid}` : actor.uuid
+      ),
       proficientSkillsOnly: getSetting(SETTINGS.proficientSkillsOnly),
       favoriteEntries: favoriteEntries(actor),
       statusDescriptions: await adapter.statusDescriptions(actor)
@@ -147,7 +205,7 @@ async function openHud(actorOverride) {
         .then(() =>
           setSetting(SETTINGS.panelStates, {
             ...(getSetting(SETTINGS.panelStates) ?? {}),
-            [actor.uuid]: snapshot
+            [gmActive ? `gm:${actorContext.tokenUuid}` : actor.uuid]: snapshot
           })
         );
       void panelStateWrite.catch(error => {
@@ -187,17 +245,27 @@ async function openHud(actorOverride) {
 
     const canRollDeathSave = () => {
       const { dead, failure, hp, stable, success } = deathData();
-      return hp <= 0 && !dead && !stable && failure < 3 && success < 3;
+      return (
+        actor.type === "character" &&
+        hp <= 0 &&
+        !dead &&
+        !stable &&
+        failure < 3 &&
+        success < 3
+      );
     };
 
-    const combatModeAvailable = () => adapter.isActorSupported(actor);
+    const combatModeAvailable = () =>
+      adapter.isActorSupported(actor, { gm: gmActive });
 
     const currentMode = () =>
-      resolveHudMode({
-        combatAvailable: combatModeAvailable(),
-        forcedMode: hudState.forcedMode,
-        isActiveCombatant: getCombatState().isActive
-      });
+      gmActive
+        ? "combat"
+        : resolveHudMode({
+            combatAvailable: combatModeAvailable(),
+            forcedMode: hudState.forcedMode,
+            isActiveCombatant: getCombatState().isActive
+          });
 
     // =========================================================
     // Tools
@@ -206,11 +274,12 @@ async function openHud(actorOverride) {
     const { toolState, refreshTools } = await createHudToolState({
       actor,
       adapter,
-      isRendered: () => app?.rendered,
+      isRendered: () => app?.rendered && isSessionCurrent(),
       scheduleRefresh: () => refreshScheduler.schedule()
     });
 
     const components = createHudComponents({
+      portrait: gmCombatant?.token?.texture?.src,
       abilities,
       actor,
       adapter,
@@ -257,9 +326,25 @@ async function openHud(actorOverride) {
       escapeHTML,
       formatMod,
       getCombatState,
+      gmCombatant,
+      gmHeader: gmActive
+        ? () =>
+            renderGmCombatHeader({
+              controller: gmController,
+              selectedId: gmCombatant.id,
+              showRemoval: false,
+              adapter,
+              escapeHTML,
+              t,
+              tf
+            })
+        : null,
       hudState,
       ...components,
       combatActions: itemPanels.combatActions,
+      gmSpecialActions: itemPanels.gmSpecialActions,
+      gmTurnControls: () => renderGmTurnControls(gmController.getCombat(), t),
+      gmRemovalButton: () => renderGmRemovalButton(gmController.roster(), t),
       favoriteSection: itemPanels.favoriteSection,
       t,
       visibility
@@ -335,6 +420,7 @@ async function openHud(actorOverride) {
       );
 
     const refreshHud = (region = null) => {
+      if (!isSessionCurrent()) return;
       hudState.favoriteEntries = favoriteEntries(actor);
       if (!visibility.modeNavigation || !combatModeAvailable()) {
         hudState.forcedMode = null;
@@ -357,9 +443,32 @@ async function openHud(actorOverride) {
     };
 
     const refreshScheduler = createRefreshScheduler(refreshHud);
+    let gmOpenRequest = null;
+    const reopenGmSelection = () =>
+      (gmOpenRequest ??= openRollsHud().finally(() => {
+        gmOpenRequest = null;
+      }));
+    const onGmCombatChange = ({ follow = true } = {}) => {
+      if (!gmController || !app?.rendered || !isSessionCurrent()) return;
+      if (!game.user?.isGM) {
+        void app.close();
+        return;
+      }
+      const next = gmController.sync({
+        follow: follow && canvas.tokens.controlled.length <= 1
+      });
+      if (
+        !next ||
+        next.id !== gmCombatant.id ||
+        (next.token.actor ?? next.actor) !== actor ||
+        next.token.uuid !== actorContext.tokenUuid
+      ) {
+        void reopenGmSelection();
+      } else refreshScheduler.schedule();
+    };
     const refreshStatuses = createLatestRefresh({
       load: () => adapter.statusDescriptions(actor),
-      isCurrent: () => app?.rendered,
+      isCurrent: () => app?.rendered && isSessionCurrent(),
       apply: descriptions => {
         hudState.statusDescriptions = descriptions;
         refreshScheduler.schedule();
@@ -371,6 +480,12 @@ async function openHud(actorOverride) {
     const { performRoll, performAndRefresh } = createHudRollRunner({
       canStartMutation,
       getApp: () => app,
+      refreshHud,
+      refreshScheduler
+    });
+    const { performAndRefresh: performSceneAction } = createHudRollRunner({
+      disabledActions: ["gmremove", "gmremovedead", "gmping"],
+      getApp: () => (isSessionCurrent() ? app : null),
       refreshHud,
       refreshScheduler
     });
@@ -402,9 +517,14 @@ async function openHud(actorOverride) {
       combatModeAvailable,
       currentMode,
       getCombatState,
+      gmController,
+      gmCombatantId: gmCombatant?.id,
+      openGmSelection: reopenGmSelection,
+      onGmCombatChange,
       hudState,
       openHpDialog,
       performAndRefresh,
+      performSceneAction,
       refreshHud,
       savePanelState,
       resetWindow: async () => {
@@ -436,7 +556,10 @@ async function openHud(actorOverride) {
     // DialogV2
     // =========================================================
 
-    const dialogWidth = Math.min(450, Math.max(320, window.innerWidth - 32));
+    const dialogWidth = Math.min(
+      gmActive ? 360 : 450,
+      Math.max(320, window.innerWidth - 32)
+    );
 
     const storedPosition = normalizeWindowGeometry(getWindowGeometry(), {
       defaultWidth: dialogWidth,
@@ -448,21 +571,43 @@ async function openHud(actorOverride) {
       DialogV2,
       document,
       getPinLabel: value => t(value ? "Window.Unpin" : "Window.Pin"),
-      isPinned: () => pinned
+      isPinned: () => state.app?.hudPinState?.() ?? pinned
     });
 
-    const app = new AdventurerHudDialog({
+    let app = reusedApp;
+    const actionRoutes = Object.fromEntries(
+      Object.keys(actions).map(key => [
+        key,
+        function (...args) {
+          return app.hudActions?.[key]?.apply(app, args);
+        }
+      ])
+    );
+    app ??= new AdventurerHudDialog({
       classes: ["ws-rolls-dialog", `ws-font-${String(fontSize).toLowerCase()}`],
 
       window: {
         title: dialogTitle(),
         resizable: true,
         controls: [
-          {
-            icon: "fa-solid fa-arrows-left-right",
-            label: t("Window.ToggleModeNavigation"),
-            action: "togglemodes"
-          },
+          ...(game.user?.isGM
+            ? [
+                {
+                  icon: "fa-solid fa-dragon",
+                  label: t("Settings.GM.Name"),
+                  action: "gmsettings"
+                }
+              ]
+            : []),
+          ...(!gmActive
+            ? [
+                {
+                  icon: "fa-solid fa-arrows-left-right",
+                  label: t("Window.ToggleModeNavigation"),
+                  action: "togglemodes"
+                }
+              ]
+            : []),
           {
             icon: "fa-solid fa-arrow-rotate-left",
             label: t("Window.ResetHint"),
@@ -484,7 +629,7 @@ async function openHud(actorOverride) {
 
       content,
 
-      actions,
+      actions: actionRoutes,
 
       buttons: [
         {
@@ -494,7 +639,13 @@ async function openHud(actorOverride) {
       ]
     });
 
+    app.hudActions = actions;
+    app.hudPinState = () => pinned;
     await activateHudWindow({
+      fontSize,
+      reuse: Boolean(reusedApp),
+      content,
+      title: dialogTitle(),
       actor,
       app,
       visualEffectsEnabled: getSetting(SETTINGS.showVisualEffects),
@@ -506,6 +657,14 @@ async function openHud(actorOverride) {
           modeNavigation: visibility.modeNavigation,
           proficientSkillsOnly: getSetting(SETTINGS.proficientSkillsOnly)
         });
+        if (gmController) {
+          const following = getSetting(SETTINGS.gmFollowTurn);
+          if (following && !previousGmFollow) {
+            gmController.resumeFollow();
+            onGmCombatChange();
+          }
+          previousGmFollow = following;
+        }
       },
       onSearchInput: query => updateSearch(query),
       readHp: () => {
@@ -520,6 +679,12 @@ async function openHud(actorOverride) {
       refreshScheduler,
       onToolsChange: refreshTools,
       onStatusChange: refreshStatuses,
+      onCombatChange: gmActive ? onGmCombatChange : null,
+      onCombatSelection: gmActive
+        ? async id => {
+            if (gmController.chooseCombat(id)) await openRollsHud();
+          }
+        : null,
       setPinned: value => {
         pinned = value;
       },
@@ -538,4 +703,126 @@ async function openHud(actorOverride) {
 
     ui.notifications.error(`Rolls HUD: ${error?.message ?? error}`);
   }
+}
+
+async function openEmptyGmHud({ state, gmController, DialogV2, t, tf }) {
+  if (!game.user?.isGM) return;
+  const reusedApp =
+    state.preset === "gm" && state.app?.rendered ? state.app : null;
+  if (state.app?.rendered && !reusedApp) await state.app.close();
+  const session = {};
+  state.session = session;
+  state.actor = state.actorUuid = state.tokenUuid = null;
+  state.preset = "gm";
+  const escapeHTML = value => foundry.utils.escapeHTML(String(value ?? ""));
+  const body = () =>
+    `<div class="ws-view ws-combat-view">${renderGmCombatHeader({ controller: gmController, selectedId: null, adapter: dnd5eAdapter, escapeHTML, t, tf })}</div>`;
+  const content = document.createElement("div");
+  content.innerHTML = `<div class="ws-shell">${body()}</div>`;
+  const width = Math.min(360, Math.max(320, window.innerWidth - 32));
+  let pinned = Boolean(getSetting(SETTINGS.pinWindow));
+  const refreshHud = () => {
+    if (app?.rendered && state.session === session)
+      app.element.querySelector(".ws-shell").innerHTML = body();
+  };
+  const refreshScheduler = createRefreshScheduler(refreshHud);
+  let opening = null;
+  const onCombatChange = () => {
+    if (!app?.rendered || state.session !== session) return;
+    if (!game.user?.isGM) {
+      void app.close();
+      return;
+    }
+    if (gmController.sync())
+      void (opening ??= openRollsHud().finally(() => {
+        opening = null;
+      }));
+    else refreshScheduler.schedule();
+  };
+  const { performAndRefresh } = createHudRollRunner({
+    getApp: () => app,
+    refreshHud,
+    refreshScheduler
+  });
+  const actions = createHudActions({
+    gmController,
+    canRollActor: false,
+    t,
+    onGmCombatChange: onCombatChange,
+    openGmSelection: () => openRollsHud(),
+    performAndRefresh,
+    togglePin: async () => {
+      pinned = !pinned;
+      await setSetting(SETTINGS.pinWindow, pinned);
+      app.updatePinControl();
+    }
+  });
+  const Hud = createHudApplicationClass({
+    DialogV2,
+    document,
+    getPinLabel: value => t(value ? "Window.Unpin" : "Window.Pin"),
+    isPinned: () => state.app?.hudPinState?.() ?? pinned
+  });
+  let app = reusedApp;
+  const actionRoutes = Object.fromEntries(
+    Object.keys(actions).map(key => [
+      key,
+      (...args) => app.hudActions?.[key]?.apply(app, args)
+    ])
+  );
+  app ??= new Hud({
+    classes: [
+      "ws-rolls-dialog",
+      `ws-font-${String(getSetting(SETTINGS.fontSize)).toLowerCase()}`
+    ],
+    window: {
+      title: t("GM.Title"),
+      resizable: true,
+      controls: [
+        {
+          icon: "fa-solid fa-dragon",
+          label: t("Settings.GM.Name"),
+          action: "gmsettings"
+        }
+      ]
+    },
+    position: {
+      width,
+      height: "auto",
+      ...normalizeWindowGeometry(getWindowGeometry(), {
+        defaultWidth: width,
+        viewportHeight: window.innerHeight,
+        viewportWidth: window.innerWidth
+      })
+    },
+    content,
+    actions: actionRoutes,
+    buttons: [{ action: "close", label: t("Window.Close") }]
+  });
+  app.hudActions = actions;
+  app.hudPinState = () => pinned;
+  await activateHudWindow({
+    fontSize: getSetting(SETTINGS.fontSize) || "medium",
+    reuse: Boolean(reusedApp),
+    content,
+    title: t("GM.Title"),
+    actor: null,
+    app,
+    state,
+    refreshHud,
+    refreshScheduler,
+    visualEffectsEnabled: getSetting(SETTINGS.showVisualEffects),
+    readVisibility: readHudVisibility,
+    visibility: readHudVisibility(),
+    setPinned: value => {
+      pinned = value;
+    },
+    storePosition: position =>
+      saveWindowGeometry(storedWindowGeometry(position)),
+    onSearchInput: () => {},
+    onCombatChange,
+    onCombatSelection: async id => {
+      if (gmController.chooseCombat(id)) await openRollsHud();
+    }
+  });
 }

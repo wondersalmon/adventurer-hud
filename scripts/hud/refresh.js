@@ -1,5 +1,6 @@
 import { renderHudMode } from "../render/index.js";
 import { setRegularView } from "./state.js";
+import { captureHudDomState, restoreHudDomState } from "./dom-state.js";
 
 const REFRESH_PRIORITY = Object.freeze({
   actions: 1,
@@ -64,6 +65,7 @@ export function refreshHudView({
   if (!app?.rendered) return;
   const shell = app.element.querySelector(".ws-shell");
   if (!shell) return;
+  const domState = captureHudDomState(shell);
 
   if (hudState.renderedMode && hudState.renderedMode !== mode) {
     setRegularView(hudState, "main");
@@ -83,11 +85,13 @@ export function refreshHudView({
       const next = template.content.firstElementChild;
       if (next) current.replaceWith(next);
       else current.remove();
+      restoreHudDomState(shell, domState);
       return;
     }
   }
 
   shell.innerHTML = renderHudMode(mode, renderers);
+  restoreHudDomState(shell, domState);
   hudState.renderedMode = mode;
   const windowTitle = app.element.querySelector(".window-title");
   if (windowTitle) windowTitle.textContent = title;

@@ -11,21 +11,25 @@ export function subscribeHudDocuments({
   onTurnStart,
   onToolsChange,
   onStatusChange,
+  onCombatChange,
   isCurrentCombatant,
   isPlayersTurn
 }) {
   let previousHp = readHp?.() ?? null;
   let wasPlayersTurn = Boolean(isPlayersTurn?.());
   const refreshCombat = () => {
+    onCombatChange?.({ follow: true });
     scheduleRefresh();
     const playersTurn = Boolean(isPlayersTurn?.());
     if (playersTurn && !wasPlayersTurn) onTurnStart?.();
     wasPlayersTurn = playersTurn;
   };
   const refreshActorEffect = effect => {
+    onCombatChange?.({ follow: false });
     if (
-      effect?.parent?.uuid === actor.uuid ||
-      effect?.parent?.parent?.uuid === actor.uuid
+      actor &&
+      (effect?.parent?.uuid === actor.uuid ||
+        effect?.parent?.parent?.uuid === actor.uuid)
     ) {
       scheduleRefresh();
       void onStatusChange?.();
@@ -33,7 +37,8 @@ export function subscribeHudDocuments({
   };
 
   const refreshActorItem = item => {
-    if (item?.parent?.uuid === actor.uuid) {
+    onCombatChange?.({ follow: false });
+    if (actor && item?.parent?.uuid === actor.uuid) {
       scheduleRefresh();
       void onStatusChange?.();
       if (item.type === "tool") void onToolsChange?.();
@@ -44,7 +49,8 @@ export function subscribeHudDocuments({
     [
       "updateActor",
       (updatedActor, changes) => {
-        if (updatedActor.uuid !== actor.uuid) return;
+        onCombatChange?.({ follow: false });
+        if (!actor || updatedActor.uuid !== actor.uuid) return;
         const nextHp = readHp?.() ?? null;
         const change = hpChange(previousHp, nextHp);
         if (change) onHpChange?.(change);
@@ -67,6 +73,12 @@ export function subscribeHudDocuments({
     ["createItem", refreshActorItem],
     ["updateItem", refreshActorItem],
     ["deleteItem", refreshActorItem],
+    ["dnd5e.postUseActivity", activity => refreshActorItem(activity?.item)],
+    ["dnd5e.postUseLinkedSpell", activity => refreshActorItem(activity?.item)],
+    [
+      "dnd5e.postActivityConsumption",
+      activity => refreshActorItem(activity?.item)
+    ],
     ["createCombat", refreshCombat],
     ["updateCombat", refreshCombat],
     ["deleteCombat", refreshCombat],
@@ -92,7 +104,15 @@ export function subscribeHudDocuments({
         }
       }
     ],
-    ["deleteCombatant", refreshCombat]
+    ["deleteCombatant", refreshCombat],
+    ...(onCombatChange
+      ? [
+          ["canvasReady", refreshCombat],
+          ["deleteToken", refreshCombat],
+          ["updateToken", () => onCombatChange({ follow: false })],
+          ["updateUser", () => onCombatChange({ follow: false })]
+        ]
+      : [])
   ];
 
   const hookIds = subscriptions.map(([hook, callback]) => [

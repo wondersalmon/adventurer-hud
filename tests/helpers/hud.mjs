@@ -7,12 +7,13 @@ import { installDom, installSettings } from "./foundry.mjs";
 let sequence = 0;
 
 export async function hudFixture({
+  isGM = false,
   values = {},
   owned = true,
   combat = false
 } = {}) {
   ++sequence;
-  const settings = installSettings({ values });
+  const settings = installSettings({ values, isGM });
   globalThis.fromUuid = async () => null;
   globalThis.CONFIG = { DND5E: { skills: {}, tools: {} }, statusEffects: [] };
   const { document } = installDom();
@@ -169,8 +170,13 @@ export async function hudFixture({
   actor.rollInitiative = (...args) => nativeCalls.push(["initiative", ...args]);
   const combatant = { id: "hero-turn", actorId: actor.id, initiative: null };
   game.modules = new Map([["adventurer-hud", {}]]);
-  game.keybindings = { register() {} };
-  game.user = { character: actor };
+  const keybindings = new Map();
+  game.keybindings = {
+    register(_module, key, config) {
+      keybindings.set(key, config);
+    }
+  };
+  game.user = { character: actor, isGM };
   game.actors = itemCollection([actor]);
   game.combat = combat
     ? { started: true, combatant, combatants: [combatant] }
@@ -178,13 +184,17 @@ export async function hudFixture({
   globalThis.canvas = { tokens: { controlled: [] } };
   globalThis.__adventurerHud = {};
   await import(`../../scripts/adventurer-hud.js?test=${sequence}`);
+  const readyUser = game.user;
+  game.user = null;
   hooks.callAll("init");
+  game.user = readyUser;
   return {
     ...settings,
     actor,
     nativeCalls,
     hooks,
     callbacks,
+    keybindings,
     flushFrames,
     api: game.modules.get("adventurer-hud").api
   };
