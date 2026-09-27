@@ -20,4 +20,4 @@ Click **HP** to enter damage, healing or temporary HP. The token button selects 
 
 If something breaks, open **Check integrity → Download error report** in the module settings. Do this before reloading: the file includes errors from this tab and version information to help troubleshoot.
 
-![Wide GM panel](../media/gm-w.png)
+![Wide GM panel](../media/gm-w.gif)
