@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import test from "node:test";
 
-const hasPowerShell =
-  spawnSync("pwsh", ["-NoProfile", "-Command", "exit 0"]).status === 0;
+const skipReleaseTests = !existsSync(new URL("../release.ps1", import.meta.url))
+  ? "Local release.ps1 is intentionally absent from the repository"
+  : spawnSync("pwsh", ["-NoProfile", "-Command", "exit 0"]).status !== 0
+    ? "PowerShell is unavailable"
+    : false;
 
 const runRelease = (
   failure,
@@ -60,7 +64,7 @@ const runRelease = (
 
 test(
   "release script pushes the current branch and exact tag atomically",
-  { skip: !hasPowerShell },
+  { skip: skipReleaseTests },
   () => {
     const { calls, output } = runRelease();
     assert.doesNotMatch(output, /ERROR:|=====|Nothing was pushed/);
@@ -85,7 +89,7 @@ test(
 
 test(
   "release script stops before tagging or pushing if the commit fails",
-  { skip: !hasPowerShell },
+  { skip: skipReleaseTests },
   () => {
     const { calls, output } = runRelease("commit");
     assert.match(output, /ERROR:Commit release failed/);
@@ -95,7 +99,7 @@ test(
 
 test(
   "release script rejects detached HEAD before changing versions",
-  { skip: !hasPowerShell },
+  { skip: skipReleaseTests },
   () => {
     const { calls, output } = runRelease("detached");
     assert.match(output, /ERROR:Release must run from a branch/);
@@ -103,15 +107,19 @@ test(
   }
 );
 
-test("release script reports a rejected push", { skip: !hasPowerShell }, () => {
-  const { output } = runRelease("push");
-  assert.match(output, /ERROR:Push release failed/);
-  assert.doesNotMatch(output, /Pushed release-branch/);
-});
+test(
+  "release script reports a rejected push",
+  { skip: skipReleaseTests },
+  () => {
+    const { output } = runRelease("push");
+    assert.match(output, /ERROR:Push release failed/);
+    assert.doesNotMatch(output, /Pushed release-branch/);
+  }
+);
 
 test(
   "test mode runs all checks and build without release mutations or confirmation",
-  { skip: !hasPowerShell },
+  { skip: skipReleaseTests },
   () => {
     const { calls, output } = runRelease(undefined, { testOnly: true });
     assert.doesNotMatch(output, /ERROR:/);
@@ -127,7 +135,7 @@ test(
 for (const failure of ["check", "test:ui", "build", "release:notes"]) {
   test(
     `test mode stops at ${failure} without release operations`,
-    { skip: !hasPowerShell },
+    { skip: skipReleaseTests },
     () => {
       const { calls, output } = runRelease(failure, { testOnly: true });
       assert.match(output, /ERROR:/);
@@ -139,7 +147,7 @@ for (const failure of ["check", "test:ui", "build", "release:notes"]) {
   );
   test(
     `release stops before confirmation and publishing when ${failure} fails`,
-    { skip: !hasPowerShell },
+    { skip: skipReleaseTests },
     () => {
       const { calls, output } = runRelease(failure);
       assert.match(output, /ERROR:/);
@@ -156,7 +164,7 @@ for (const failure of ["check", "test:ui", "build", "release:notes"]) {
 
 test(
   "release asks for confirmation after build and cancellation prevents publishing",
-  { skip: !hasPowerShell },
+  { skip: skipReleaseTests },
   () => {
     const { calls, output } = runRelease(undefined, { confirmation: "no" });
     assert.match(output, /Publishing cancelled/);
