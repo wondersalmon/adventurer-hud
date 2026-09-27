@@ -18,8 +18,43 @@ import {
   SETTINGS
 } from "../scripts/settings.js";
 
+for (const immediate of [false, true]) {
+  test(`window geometry writes preserve both modes with ${immediate ? "immediate" : "deferred"} saving`, async () => {
+    const { saveWindowGeometry, flushWindowGeometry, getWindowGeometry } =
+      await import("../scripts/settings.js");
+    const { writes } = installSettings();
+    const player = { left: 10, top: 20, width: 300, height: 500 };
+    const gm = { left: 30, top: 40, width: 1000, height: 400 };
+    saveWindowGeometry({ ...player, width: 280 });
+    saveWindowGeometry(gm, { gmActive: true });
+    await saveWindowGeometry(player, { immediate });
+    await flushWindowGeometry();
+    assert.deepEqual(getWindowGeometry(), player);
+    assert.deepEqual(getWindowGeometry(true), gm);
+    assert.equal(
+      writes.filter(([key]) => key === SETTINGS.windowGeometry).length,
+      1
+    );
+    assert.equal(
+      writes.filter(([key]) => key === SETTINGS.gmWindowGeometry).length,
+      1
+    );
+    const count = writes.length;
+    await flushWindowGeometry();
+    assert.equal(writes.length, count);
+  });
+}
+
 test("main and additional settings use task-based groups", async () => {
   const { registrations, menus } = installSettings();
+
+  for (const key of [SETTINGS.gmHideSearch, SETTINGS.gmActionTypesOnly]) {
+    assert.equal(registrations.get(key).default, true);
+    assert.equal(registrations.get(key).config, false);
+    assert.equal(SETTING_DEFINITIONS[key].gmOnly, true);
+    assert.equal(SETTING_DEFINITIONS[key].placement, "gm");
+    assert.equal(settingRefreshStrategy(key), "content");
+  }
 
   assert.equal(registrations.get(SETTINGS.showModeNavigation)?.default, false);
   assert.equal(registrations.get(SETTINGS.showModeNavigation)?.config, false);
@@ -33,6 +68,15 @@ test("main and additional settings use task-based groups", async () => {
   assert.equal(registrations.get(SETTINGS.panelStates)?.scope, "user");
   assert.equal(registrations.get(SETTINGS.pinWindow)?.config, false);
   assert.equal(registrations.get(SETTINGS.pinWindow)?.default, false);
+  assert.equal(registrations.get(SETTINGS.gmPinWindow)?.default, false);
+  assert.equal(registrations.get(SETTINGS.closeOnEscape)?.default, false);
+  assert.equal(
+    SETTING_DEFINITIONS[SETTINGS.closeOnEscape].placement,
+    "advanced"
+  );
+  assert.equal(settingRefreshStrategy(SETTINGS.closeOnEscape), "runtime");
+  assert.equal(registrations.has("lockWindowSize"), false);
+  assert.equal(registrations.has("gmLockWindowSize"), false);
   assert.equal(registrations.has("closeAfterRoll"), false);
   assert.equal(registrations.get(SETTINGS.showTokenControl)?.config, false);
   assert.equal(registrations.get(SETTINGS.showTokenControl)?.default, false);
@@ -78,6 +122,7 @@ test("main and additional settings use task-based groups", async () => {
       .map(([key]) => key),
     [
       SETTINGS.language,
+      SETTINGS.theme,
       SETTINGS.fontSize,
       SETTINGS.autoOpenHud,
       SETTINGS.autoUpdateActor
@@ -92,6 +137,7 @@ test("main and additional settings use task-based groups", async () => {
   assert.deepEqual(
     context.groups.map(group => group.label),
     [
+      "ADVENTURER_HUD.Settings.Groups.behavior",
       "ADVENTURER_HUD.Settings.Groups.quickAccess",
       "ADVENTURER_HUD.Settings.Groups.itemUse",
       "ADVENTURER_HUD.Settings.Groups.interface"
@@ -225,6 +271,8 @@ test("setting metadata drives defaults, placement, and refresh behavior", () => 
     new Set(Object.keys(SETTING_DEFAULTS))
   );
   assert.equal(settingRefreshStrategy(SETTINGS.pinWindow), "runtime");
+  assert.equal(settingRefreshStrategy(SETTINGS.debugWindowSize), "runtime");
+  assert.equal(SETTING_DEFINITIONS[SETTINGS.debugWindowSize].default, false);
   assert.equal(settingRefreshStrategy(SETTINGS.showVisualEffects), "runtime");
   assert.equal(settingRefreshStrategy(SETTINGS.fontSize), "reopen");
   assert.equal(

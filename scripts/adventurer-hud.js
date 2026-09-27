@@ -1,6 +1,7 @@
 import { openRollsHud } from "./rolls-hud.js";
 import { registerGmLifecycle } from "./hud/gm-lifecycle.js";
 import { MODULE_ID } from "./module-id.js";
+import { reportFailure } from "./diagnostics.js";
 import { actorContextChanged } from "./runtime-helpers.js";
 import {
   applyHudSettingChange,
@@ -119,7 +120,11 @@ Hooks.once("ready", () => {
   const module = game.modules.get(MODULE_ID);
 
   Hooks.callAll("adventurerHudReady", module?.api);
-  if (getSetting(SETTINGS.autoOpenHud) && !getOpenApp()?.rendered) {
+  if (
+    getSetting(SETTINGS.autoOpenHud) &&
+    !getSetting(SETTINGS.hudClosed) &&
+    !getOpenApp()?.rendered
+  ) {
     void openRollsHud(game.user.character ?? null);
   }
 });
@@ -163,7 +168,7 @@ Hooks.on("renderSettingsConfig", (app, html) => {
   const root = html ?? app.element;
   moveSettingsMenusToBottom(root);
   void localizeSettingsRows(root).catch(error => {
-    console.warn("Adventurer HUD | settings translation failed", error);
+    reportFailure("settings.localization", error, { level: "warn" });
   });
 });
 
@@ -171,12 +176,19 @@ const refreshControls = () =>
   void ui.controls?.render({ force: true, reset: true });
 Hooks.on("adventurerHudVisibilityChanged", refreshControls);
 
-const reopenHud = () => {
+const reopenHud = key => {
   clearTimeout(settingsRefreshTimer);
   settingsRefreshTimer = setTimeout(() => {
     settingsRefreshTimer = null;
     const state = globalThis.__adventurerHud;
-    if (state?.app?.rendered) void openRollsHud(state.actor ?? null);
+    if (!state?.app?.rendered) return;
+    if (
+      key === SETTINGS.gmEnabled &&
+      (state?.preset === "gm") ===
+        Boolean(game.user?.isGM && getSetting(SETTINGS.gmEnabled))
+    )
+      return;
+    void openRollsHud(state.actor ?? null);
   }, 50);
 };
 
@@ -187,7 +199,7 @@ Hooks.on("adventurerHudSettingChanged", (key, value) => {
     value,
     strategy: settingRefreshStrategy(key),
     refreshControls,
-    reopen: reopenHud
+    reopen: () => reopenHud(key)
   });
 });
 

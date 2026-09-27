@@ -1,11 +1,24 @@
-import { flushWindowGeometry, SETTINGS } from "../settings.js";
+import {
+  flushWindowGeometry,
+  getSetting,
+  setSetting,
+  SETTINGS
+} from "../settings.js";
 import { subscribeHudDocuments } from "./subscriptions.js";
 import { captureHudDomState, restoreHudDomState } from "./dom-state.js";
+import { reportFailure } from "../diagnostics.js";
+import { syncHudDimensions } from "./window-controls.js";
 
 export async function activateHudWindow({
   actor,
   app,
   visualEffectsEnabled = true,
+  showWindowSize = false,
+  gmActive = false,
+  pinned = false,
+  pinSetting = SETTINGS.pinWindow,
+  setCloseOnEscape,
+  windowSizeLabel = "",
   isCurrentCombatant,
   isPlayersTurn,
   onSearchInput,
@@ -13,6 +26,7 @@ export async function activateHudWindow({
   onStatusChange,
   onCombatChange,
   onCombatSelection,
+  onDispose,
   readHp,
   readVisibility,
   syncPreferences,
@@ -24,12 +38,14 @@ export async function activateHudWindow({
   visibility,
   reuse = false,
   fontSize = "medium",
+  theme = "auto",
   content,
   title
 }) {
   app.disposeHudSession?.();
   let disposed = false;
   let effectsEnabled = Boolean(visualEffectsEnabled);
+  let dimensionsEnabled = Boolean(showWindowSize);
   let hpFeedbackTimer = null;
   let flashTimer = null;
   let initiativeFeedbackTimer = null;
@@ -63,8 +79,19 @@ export async function activateHudWindow({
     }
   };
 
+  const syncTheme = value => {
+    app.element.classList.toggle("ws-theme-light", value === "light");
+    app.element.classList.toggle("ws-theme-dark", value === "dark");
+  };
+
   app.applySetting = (key, value) => {
-    if (key === SETTINGS.pinWindow) {
+    if (key === SETTINGS.closeOnEscape) setCloseOnEscape?.(Boolean(value));
+    if (key === SETTINGS.debugWindowSize) {
+      dimensionsEnabled = Boolean(value);
+      app.updateHudDimensions?.();
+    }
+    if (key === SETTINGS.theme) syncTheme(value);
+    if (key === pinSetting) {
       setPinned(Boolean(value));
       app.updatePinControl();
     }
@@ -92,8 +119,22 @@ export async function activateHudWindow({
   }
   app.element.classList.add(`ws-font-${String(fontSize).toLowerCase()}`);
   state.app = app;
+  if (getSetting(SETTINGS.hudClosed))
+    await setSetting(SETTINGS.hudClosed, false);
+  app.element.classList.toggle("ws-player-mode", !gmActive);
+  setPinned?.(pinned);
+  app.updatePinControl();
+  app.updateHudDimensions = () =>
+    syncHudDimensions({
+      element: app.element,
+      enabled: dimensionsEnabled,
+      label: windowSizeLabel
+    });
+  app.updateHudDimensions();
+  syncTheme(theme);
   syncEffects();
 
+  const sessionElement = app.element;
   const onInput = event => {
     if (event.target?.matches?.('[data-action="searchitems"]')) {
       onSearchInput(event.target.value);
@@ -108,14 +149,25 @@ export async function activateHudWindow({
 
   const onDoubleClick = event => {
     if (!event.target?.closest?.("[data-open-actor-sheet]")) return;
-    void actor?.sheet?.render({ force: true });
+    // Buttons already route mouse and keyboard activation through HUD actions.
+    if (event.target.closest('[data-action="gmsheet"]')) return;
+    void app.hudActions?.gmsheet?.();
   };
   app.element.addEventListener("dblclick", onDoubleClick);
+  const onContextMenu = event => {
+    const target = event.target?.closest?.("[data-reset-initiative-id]");
+    if (disposed || !app.rendered || !gmActive || !target) return;
+    event.preventDefault();
+    event.stopPropagation();
+    void app.hudActions?.gmresetcombatantinitiative?.(event, target);
+  };
+  app.element.addEventListener("contextmenu", onContextMenu);
 
   if (!reuse)
-    app.addEventListener("position", () =>
-      app.storeHudPosition?.(app.position)
-    );
+    app.addEventListener("position", () => {
+      app.storeHudPosition?.(app.position);
+      app.updateHudDimensions?.();
+    });
   app.storeHudPosition = storePosition;
 
   const flash = className => {
@@ -215,21 +267,29 @@ export async function activateHudWindow({
   app.disposeHudSession = () => {
     if (disposed) return;
     disposed = true;
+    app.updateHudDimensions = null;
+    onDispose?.();
     effectsEnabled = false;
     refreshScheduler.cancel();
     unsubscribeDocuments();
     clearEffects();
-    app.element?.removeEventListener("input", onInput);
-    app.element?.removeEventListener("change", onChange);
-    app.element?.removeEventListener("dblclick", onDoubleClick);
+    sessionElement.removeEventListener?.("input", onInput);
+    sessionElement.removeEventListener?.("change", onChange);
+    sessionElement.removeEventListener?.("dblclick", onDoubleClick);
+    sessionElement.removeEventListener?.("contextmenu", onContextMenu);
   };
   if (!reuse)
     app.addEventListener(
       "close",
       () => {
         app.disposeHudSession?.();
-        void flushWindowGeometry();
+        void flushWindowGeometry().catch(error =>
+          reportFailure("hud.geometry.flush", error, { level: "warn" })
+        );
         if (state.app === app) {
+          app.hudClosePersistence = setSetting(SETTINGS.hudClosed, true).catch(
+            error => reportFailure("hud.closed-state", error)
+          );
           state.app = null;
           state.actor = null;
           state.actorUuid = null;

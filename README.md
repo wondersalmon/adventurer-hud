@@ -7,10 +7,10 @@
 
 Adventurer HUD is a compact HUD for [D&D 5e](https://github.com/foundryvtt/dnd5e). Players get character actions in exploration and combat; GMs get a dedicated panel for managing creatures and encounters.
 
-- [Player guide](docs/README.player.md) — character actions, spells, favorites and shortcuts.
-- [GM guide](docs/README.gm.md) — encounter setup, creature actions and turn controls.
+- [Player guide](docs/player-guide.md) — character actions, spells, favorites and shortcuts.
+- [GM guide](docs/gm-guide.md) — encounter setup, creature actions and turn controls.
 
-![Adventurer HUD demonstration](docs/media/demo.gif)
+![Adventurer HUD demonstration](media/demo.gif)
 
 ## Installation
 
@@ -32,7 +32,7 @@ For Foundry VTT 14:
 
 Press `Shift+R` to open or close the HUD. Players select their character's token; GMs open the GM panel by default. Change the shortcut in **Configure Controls**.
 
-Enable **Open on login** to open the HUD when entering the world. Enable the **Token Controls button** for a player HUD button or a dedicated GM button. The [player](docs/README.player.md) and [GM](docs/README.gm.md) guides explain each mode.
+Enable **Open on login** to open the HUD when entering the world. Enable the **Token Controls button** for a player HUD button or a dedicated GM button. The [player](docs/player-guide.md) and [GM](docs/gm-guide.md) guides explain each mode.
 
 ## AI disclosure
 

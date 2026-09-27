@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.2
+
+- Added GM/player switching for GMs, light and dark themes, and optional window dimensions in the title bar.
+- Improved compact and wide layouts, player block order, and GM turn controls.
+- Added independent window sizes and pins for GM and player panels; Escape closing is optional.
+- Fixed controls staying disabled after rolls and preserved expanded tools, focus and scroll during updates.
+- Added downloadable diagnostics with clear feedback and reduced unnecessary HUD updates.
+- Split HUD code into smaller modules, added checked contracts and expanded test coverage.
+- Updated the player and GM guides; added a check-only release mode and confirmation before publishing.
+
 ## 1.3.1
 
 ### GM combat HUD

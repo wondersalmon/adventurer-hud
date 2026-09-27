@@ -7,7 +7,7 @@ export function createItemPanelRenderer({
   adapter,
   escapeHTML,
   hudState,
-  skills = [],
+  skills = /** @type {string[][]} */ ([]),
   skillsHTML,
   skillFilterHTML,
   spellFilterHTML,
@@ -79,14 +79,16 @@ export function createItemPanelRenderer({
   };
 
   const combatCategories = () => {
+    const actionTypesOnly = visibility.gm && visibility.actionTypesOnly;
+    const showActionTypes = actionTypesOnly || visibility.showActionTypes;
     const visible = [
-      ["weapons", "fa-swords", "Combat.Weapons", true],
-      ["spells", "fa-wand-magic-sparkles", "Combat.Spells", true],
-      ["action", "fa-circle-play", "Combat.Action", visibility.showActionTypes],
-      ["bonus", "fa-bolt", "Combat.BonusAction", visibility.showActionTypes],
-      ["reaction", "fa-shield", "Combat.Reaction", visibility.showActionTypes],
-      ["special", "fa-star", "Combat.Special", visibility.showActionTypes],
-      ["features", "fa-bolt-lightning", "Combat.Features", true]
+      ["weapons", "fa-swords", "Combat.Weapons", !actionTypesOnly],
+      ["spells", "fa-wand-magic-sparkles", "Combat.Spells", !actionTypesOnly],
+      ["action", "fa-circle-play", "Combat.Action", showActionTypes],
+      ["bonus", "fa-bolt", "Combat.BonusAction", showActionTypes],
+      ["reaction", "fa-shield", "Combat.Reaction", showActionTypes],
+      ["special", "fa-star", "Combat.Special", showActionTypes],
+      ["features", "fa-bolt-lightning", "Combat.Features", !actionTypesOnly]
     ].filter(([, , , enabled]) => enabled);
     if (!visible.length) return [];
     const indexed = adapter.combatItemsByCategory?.(
@@ -105,7 +107,7 @@ export function createItemPanelRenderer({
           item =>
             !visibility.gm ||
             category === "spells" ||
-            (item.type !== "spell" &&
+            ((item.type !== "spell" || actionTypesOnly) &&
               !adapter
                 .itemActivities(item)
                 .every(activity =>

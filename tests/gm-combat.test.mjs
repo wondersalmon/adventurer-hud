@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createGmCombatController,
-  gmRoster
+  gmRoster,
+  gmWindowTitle,
+  renderGmCombatHeader
 } from "../scripts/hud/gm-combat.js";
 import {
   SETTINGS,
@@ -19,6 +21,72 @@ import {
   restoreGlobalsAfterEach
 } from "./helpers/foundry.mjs";
 restoreGlobalsAfterEach();
+
+test("active initiative roster includes players in native turn order and marks them separately", () => {
+  installSettings({ isGM: true });
+  const npc = {
+    id: "npc",
+    name: "Monster",
+    actor: { type: "npc", name: "Monster" }
+  };
+  const pc = {
+    id: "pc",
+    name: "Hero",
+    actor: { type: "character", name: "Hero" }
+  };
+  const other = {
+    id: "other",
+    name: "Another monster",
+    actor: { type: "npc" }
+  };
+  const combat = { started: true, turns: [other, pc, npc], combatant: pc };
+  const html = renderGmCombatHeader({
+    controller: {
+      isGM: () => true,
+      getCombat: () => combat,
+      roster: () => [npc, other],
+      combats: () => [combat]
+    },
+    adapter: { combatStats: () => ({ hp: { value: 10, max: 20 } }) },
+    selectedId: npc.id,
+    escapeHTML: value => String(value),
+    t: key => key
+  });
+  assert.ok(
+    html.indexOf('data-combatant-id="other"') <
+      html.indexOf('data-combatant-id="pc"')
+  );
+  assert.ok(
+    html.indexOf('data-combatant-id="pc"') <
+      html.indexOf('data-combatant-id="npc"')
+  );
+  assert.match(html, /ws-gm-player-creature/);
+  assert.match(html, /ws-gm-player-marker/);
+  assert.match(html, /<div data-combatant-id="pc"[^>]*ws-active/);
+  assert.doesNotMatch(
+    html,
+    /<div data-combatant-id="pc"[^>]*data-action="gmselect"/
+  );
+});
+
+test("GM window title includes scene, round and selected creature", () => {
+  const t = key => key;
+  const tf = (key, { round }) => `${key} ${round}`;
+  const combat = {
+    scene: { name: "Forest" },
+    round: 3,
+    combatant: { name: "Goblin" }
+  };
+  assert.equal(
+    gmWindowTitle(combat, "Dragon", t, tf),
+    "Forest · GM.Round 3 · Dragon"
+  );
+  assert.equal(
+    gmWindowTitle(combat, null, t, tf),
+    "Forest · GM.Round 3 · Goblin"
+  );
+  assert.equal(gmWindowTitle(null, null, t, tf), "GM.NoCombat");
+});
 
 function combatFixture() {
   const npc = id => ({
@@ -289,7 +357,7 @@ test("real GM HUD switches between synthetic NPCs and releases old subscriptions
   assert.equal(app.element, originalElement);
   assert.equal(
     app.element.querySelector('[data-action="endturn"]').disabled,
-    true
+    false
   );
   assert.equal(f.callbacks.size, originalHooks);
   assert.equal(f.current.get("gmFollowTurn"), false);
@@ -329,7 +397,8 @@ test("real GM HUD switches between synthetic NPCs and releases old subscriptions
 test("GM HUD can start empty and opens a creature after combat is populated", async () => {
   const f = await hudFixture({ isGM: true, values: { gmEnabled: true } });
   await f.api.open();
-  assert.match(__adventurerHud.app.element.textContent, /GM.NoCombat/);
+  assert.match(__adventurerHud.app.options.window.title, /GM.NoCombat/);
+  assert.equal(__adventurerHud.app.element.querySelector(".ws-gm-turn"), null);
   assert.equal(__adventurerHud.actor, null);
   const emptyApp = __adventurerHud.app;
   canvas.scene = { id: "scene" };
@@ -338,6 +407,7 @@ test("GM HUD can start empty and opens a creature after combat is populated", as
     id: "npc",
     uuid: "Scene.scene.Token.npc",
     parent: canvas.scene,
+    texture: { src: 'tokens/selected-npc.webp?variant="blue"' },
     actor
   };
   const combatant = {
@@ -353,6 +423,7 @@ test("GM HUD can start empty and opens a creature after combat is populated", as
     id: "battle",
     scene: canvas.scene,
     combatants: itemCollection([combatant]),
+    started: true,
     turns: [combatant],
     combatant
   };
@@ -360,10 +431,30 @@ test("GM HUD can start empty and opens a creature after combat is populated", as
   game.combats = itemCollection([combat]);
   f.hooks.callAll("createCombat", combat);
   await waitFor(
-    () => __adventurerHud.actor === actor && __adventurerHud.app?.rendered
+    () =>
+      __adventurerHud.actor === actor &&
+      __adventurerHud.app?.rendered &&
+      __adventurerHud.app.element.querySelector(".ws-gm-identity")
   );
   assert.doesNotMatch(__adventurerHud.app.element.textContent, /GM.NoCombat/);
   assert.equal(__adventurerHud.app, emptyApp);
+  const portrait = emptyApp.element.querySelector(
+    ".ws-gm-identity .ws-gm-selected-portrait"
+  );
+  assert.equal(portrait.getAttribute("src"), token.texture.src);
+  assert.equal(
+    emptyApp.element.querySelectorAll('[data-action="gmendcombat"]').length,
+    1
+  );
+  assert.equal(
+    emptyApp.element.querySelector(
+      '.ws-gm-toolbar [data-action="gmendcombat"]'
+    ),
+    null
+  );
+  assert.ok(
+    emptyApp.element.querySelector('.ws-gm-tools [data-action="gmendcombat"]')
+  );
   await __adventurerHud.app.close();
   assert.equal(document.querySelectorAll(".ws-rolls-dialog").length, 0);
 });

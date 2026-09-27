@@ -3,6 +3,7 @@ import { openActorPicker } from "./actor-picker.js";
 
 export async function selectHudActor({
   actorOverride,
+  ignoreUnsupportedSelection = false,
   adapter,
   DialogV2,
   language,
@@ -16,7 +17,10 @@ export async function selectHudActor({
     return null;
   }
 
-  const selectedToken = selected[0] ?? null;
+  const selectedToken =
+    ignoreUnsupportedSelection && !adapter.isActorSupported(selected[0]?.actor)
+      ? null
+      : (selected[0] ?? null);
   const actor = actorOverride ?? selectedToken?.actor ?? null;
   const token = tokenForActor(selectedToken, actor);
 

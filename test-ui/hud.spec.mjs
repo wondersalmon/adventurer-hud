@@ -24,6 +24,42 @@ const t = key =>
     key
   ] || key;
 
+test("player portrait and name support keyboard activation without overflowing the header", async ({
+  page
+}) => {
+  const { actorHeader } = createHudComponents({
+    actor: { name: "A character with a rather long name", img: "" },
+    adapter: { classSummary: () => "Bard 8 / Fighter 2" },
+    escapeHTML,
+    t
+  });
+  await page.setContent(
+    `<style>${css}</style><div class="ws-rolls-dialog" style="width:320px">${actorHeader()}</div>`
+  );
+  await expect(page.locator('button[data-action="gmsheet"]')).toHaveCount(2);
+  await page.evaluate(() => {
+    window.sheetOpenCount = 0;
+    document.addEventListener("click", event => {
+      if (event.target.closest('[data-action="gmsheet"]'))
+        window.sheetOpenCount++;
+    });
+  });
+  await page.keyboard.press("Tab");
+  await expect(
+    page.locator(".ws-actor-sheet-button:not(.ws-actor-identity)")
+  ).toBeFocused();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Tab");
+  await expect(page.locator("button.ws-actor-identity")).toBeFocused();
+  await page.keyboard.press("Space");
+  expect(await page.evaluate(() => window.sheetOpenCount)).toBe(2);
+  expect(
+    await page
+      .locator(".ws-actor-header")
+      .evaluate(node => node.scrollWidth <= node.clientWidth)
+  ).toBe(true);
+});
+
 test("GM identity and bottom tools fit a narrow window with long action lists", async ({
   page
 }) => {
@@ -86,7 +122,11 @@ test("GM identity and bottom tools fit a narrow window with long action lists", 
     hudState: {},
     visibility: {},
     t,
-    getCombatState: () => ({ isTurn: true, canEndTurn: true }),
+    getCombatState: () => ({
+      combat: { started: true },
+      isTurn: true,
+      canEndTurn: true
+    }),
     gmHeader: () => "<section class='ws-gm-combat'>Creatures</section>",
     favoriteSection: () => "",
     combatActions: renderer.combatActions,
@@ -96,7 +136,7 @@ test("GM identity and bottom tools fit a narrow window with long action lists", 
   await page.setContent(
     `<style>${css}</style><div class="ws-rolls-dialog ws-font-extralarge" style="width:320px"><div class="window-content" style="height:380px;padding:0"><form><div class="dialog-content standard-form"><div class="ws-shell">${combatHTML()}</div></div></form></div></div>`
   );
-  await expect(page.locator('[data-action="gmsheet"]')).toHaveCount(1);
+  await expect(page.locator('button[data-action="gmsheet"]')).toHaveCount(1);
   await expect(page.locator(".ws-gm-secondary-speed")).not.toBeVisible();
   await page.locator(".ws-gm-secondary-speed").evaluate(node => {
     node.hidden = !node.hidden;
@@ -124,13 +164,11 @@ test("GM identity and bottom tools fit a narrow window with long action lists", 
     .evaluate(node => node.scrollWidth <= node.clientWidth + 1);
   expect(fits).toBe(true);
   const listBounds = await page.locator(".ws-combat-item-list").boundingBox();
-  const savesBounds = await page.locator(".ws-gm-special-column").boundingBox();
-  expect(savesBounds.y).toBeGreaterThanOrEqual(
-    listBounds.y + listBounds.height
-  );
+  const infoBounds = await page.locator(".ws-gm-info").boundingBox();
+  expect(listBounds.y).toBeGreaterThanOrEqual(infoBounds.y + infoBounds.height);
   expect(
     await page
-      .locator(".ws-combat-item-list")
+      .locator(".ws-gm-content")
       .evaluate(
         node =>
           node.scrollHeight > node.clientHeight &&
@@ -160,7 +198,7 @@ test("GM identity and bottom tools fit a narrow window with long action lists", 
     }))
   );
   expect(columns[1].left).toBeGreaterThan(columns[0].left);
-  expect(columns[2].left).toBeGreaterThan(columns[1].left);
+  expect(columns).toHaveLength(2);
   expect(
     await page
       .locator(".ws-gm-view")
@@ -196,7 +234,8 @@ test("GM toolbar fits a narrow HUD with wrapping portraits and HP above each tok
     name: "An encounter with a long name",
     started: true,
     round: 3,
-    combatant: list[0]
+    combatant: list[0],
+    turns: list
   };
   const html = renderGmCombatHeader({
     controller: {
@@ -485,4 +524,40 @@ test("unstarted combat has a prominent start button with a bounded red alert and
       node => getComputedStyle(node, "::after").animationName
     )
   ).toBe("none");
+});
+
+test("explicit HUD themes override host colors and keep light text readable", async ({
+  page
+}) => {
+  await page.setContent(
+    `<style>${css}</style><style>body { --color-text-primary: white; --color-text-secondary: #aaa; background: #111; }</style><section class="ws-rolls-dialog ws-theme-light"><header class="window-header">HUD</header><div class="window-content"><div class="ws-shell"><div class="ws-view"><button class="ws-button">Attack</button><input value="Search"><div class="ws-gm-tools">Next turn</div><span class="ws-spell-slots"><b>Spell</b></span><span class="ws-spell-slots ws-pact-slots"><b>Pact</b></span><span class="ws-health-condition ws-health-critical">Critical</span></div></div></div></section>`
+  );
+  const shell = page.locator(".ws-shell");
+  await expect(shell).toHaveCSS("color", "rgb(41, 39, 34)");
+  await expect(page.locator(".window-header")).toHaveCSS(
+    "background-color",
+    "rgb(245, 241, 232)"
+  );
+  await expect(page.locator("input")).toHaveCSS("color", "rgb(41, 39, 34)");
+  await expect(page.locator(".ws-gm-tools")).toHaveCSS(
+    "background-color",
+    "rgb(245, 241, 232)"
+  );
+  await expect(page.locator(".ws-spell-slots:not(.ws-pact-slots) b")).toHaveCSS(
+    "color",
+    "rgb(33, 103, 127)"
+  );
+  await expect(page.locator(".ws-pact-slots b")).toHaveCSS(
+    "color",
+    "rgb(118, 67, 158)"
+  );
+  await page.locator("section").evaluate(el => {
+    el.classList.remove("ws-theme-light");
+    el.classList.add("ws-theme-dark");
+  });
+  await expect(shell).toHaveCSS("color", "rgb(230, 230, 223)");
+  await expect(page.locator(".window-header")).toHaveCSS(
+    "background-color",
+    "rgb(25, 24, 31)"
+  );
 });

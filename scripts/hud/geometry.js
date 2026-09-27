@@ -1,6 +1,54 @@
+export function defaultGmWindowGeometry(viewport) {
+  const width = Math.min(
+    Math.max(270, Math.round(viewport.width * 0.78)),
+    Math.max(270, viewport.width - 32)
+  );
+  const height = Math.min(
+    Math.max(180, Math.round(viewport.height * 0.45)),
+    Math.max(180, viewport.height - 32)
+  );
+  return {
+    width,
+    height,
+    ...bottomWindowPosition({ width, height }, viewport)
+  };
+}
+
+export function bottomWindowPosition(rect, viewport) {
+  return {
+    left: Math.max(0, Math.round((viewport.width - rect.width) / 2)),
+    top: Math.max(0, viewport.height - rect.height - 16)
+  };
+}
+
+export function playerWindowPosition(rect, viewport) {
+  return {
+    left: 0,
+    top: Math.max(
+      0,
+      viewport.height -
+        rect.height -
+        Math.max(16, Math.round(viewport.height * 0.09))
+    )
+  };
+}
+
+export function defaultPlayerWindowGeometry(viewport) {
+  const width = Math.min(320, Math.max(270, viewport.width - 16));
+  const height = Math.min(
+    Math.max(350, Math.round(viewport.height * 0.52)),
+    Math.max(350, viewport.height - 32)
+  );
+  return {
+    width,
+    height,
+    ...playerWindowPosition({ width, height }, viewport)
+  };
+}
+
 export function normalizeWindowGeometry(
   saved,
-  { defaultWidth, viewportHeight, viewportWidth }
+  { defaultWidth, viewportHeight, viewportWidth, minimumHeight = 180 }
 ) {
   const left = Number(saved?.left);
   const top = Number(saved?.top);
@@ -17,7 +65,10 @@ export function normalizeWindowGeometry(
       )
     : defaultWidth;
   const height = Number.isFinite(savedHeight)
-    ? Math.min(Math.max(180, savedHeight), Math.max(180, viewportHeight - 16))
+    ? Math.min(
+        Math.max(minimumHeight, savedHeight),
+        Math.max(minimumHeight, viewportHeight - 16)
+      )
     : null;
 
   return {

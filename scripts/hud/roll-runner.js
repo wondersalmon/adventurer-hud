@@ -30,25 +30,31 @@ export function createHudRollRunner({
 }) {
   let rollPending = false;
 
-  const setRollControlsDisabled = disabled => {
+  const disableRollControls = () => {
+    const previous = new Map();
     getApp()
       ?.element?.querySelectorAll(
         disabledActions.map(action => `[data-action="${action}"]`).join(",")
       )
       .forEach(button => {
-        button.disabled = disabled;
+        previous.set(button, button.disabled);
+        button.disabled = true;
       });
+    return () => {
+      for (const [button, disabled] of previous) button.disabled = disabled;
+    };
   };
 
   const perform = async callback => {
     if (rollPending || !canStartMutation()) return;
     rollPending = true;
-    setRollControlsDisabled(true);
+    const restoreRollControls = disableRollControls();
 
     try {
       return await callback();
     } finally {
       rollPending = false;
+      restoreRollControls();
       refreshScheduler.cancel();
       if (getApp()?.rendered) refreshHud();
     }

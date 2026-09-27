@@ -5,6 +5,83 @@ import { dnd5eAdapter as adapter } from "../scripts/dnd5e/index.js";
 import { registerGmLifecycle } from "../scripts/hud/gm-lifecycle.js";
 import { hudFixture, waitFor } from "./helpers/hud.mjs";
 import { createHudActions } from "../scripts/hud/actions.js";
+
+test("native initiative reset works before and after start and rejects players", async () => {
+  let resets = 0;
+  let isGM = true;
+  const combat = { started: false, resetAll: async () => resets++ };
+  const actions = createHudActions({
+    gmController: { isGM: () => isGM, getCombat: () => combat },
+    performSceneAction: callback => callback()
+  });
+  await actions.gmresetinitiative();
+  assert.equal(resets, 1);
+  combat.started = true;
+  await actions.gmresetinitiative();
+  combat.started = false;
+  isGM = false;
+  await actions.gmresetinitiative();
+  assert.equal(resets, 2);
+});
+
+test("individual initiative reset updates only the addressed combatant and rejects players", async () => {
+  const updates = [];
+  const entry = {
+    initiative: 12,
+    update: async changes => updates.push(changes)
+  };
+  const combat = {
+    started: false,
+    combatants: itemCollection([{ id: "monster", ...entry }])
+  };
+  let isGM = true;
+  const actions = createHudActions({
+    gmController: { isGM: () => isGM, getCombat: () => combat },
+    performSceneAction: callback => callback()
+  });
+  const target = { dataset: { resetInitiativeId: "monster" } };
+  await actions.gmresetcombatantinitiative(null, target);
+  assert.deepEqual(updates, [{ initiative: null }]);
+  await actions.gmresetcombatantinitiative(null, {
+    dataset: { resetInitiativeId: "missing" }
+  });
+  combat.started = true;
+  await actions.gmresetcombatantinitiative(null, target);
+  combat.started = false;
+  isGM = false;
+  await actions.gmresetcombatantinitiative(null, target);
+  assert.equal(updates.length, 2);
+});
+
+test("GM end turn advances the native encounter when displayed NPC differs from the current turn", async () => {
+  let advances = 0;
+  const combat = {
+    started: true,
+    combatant: { id: "dead-npc" },
+    nextTurn: async () => {
+      advances++;
+      combat.combatant = { id: "player" };
+    }
+  };
+  const actions = createHudActions({
+    gmController: {
+      isGM: () => true,
+      getCombat: () => combat,
+      sync: () =>
+        assert.fail("actor action guard must not block encounter commands")
+    },
+    gmCombatantId: "displayed-npc",
+    getCombatState: () => ({ combat, canEndTurn: false }),
+    performSceneAction: callback => callback(),
+    onGmCombatChange: () => {}
+  });
+  await actions.endturn();
+  await actions.endturn();
+  assert.equal(advances, 2);
+  combat.started = false;
+  await actions.endturn();
+  assert.equal(advances, 2);
+});
 import {
   deadCreatures,
   createSceneCombat,
@@ -288,10 +365,11 @@ test("combat open and close preferences are independent and ignore unrelated com
         openHud: () => opens++
       });
       const combat = { id: "battle", scene: canvas.scene };
-      callbacks.get("combatStart")(combat);
+      assert.equal(callbacks.has("combatStart"), false);
+      callbacks.get("createCombat")(combat);
       assert.equal(opens, Number(open));
       state.app.rendered = true;
-      callbacks.get("combatStart")(combat);
+      callbacks.get("createCombat")(combat);
       assert.equal(opens, Number(open));
       callbacks.get("deleteCombat")({ id: "other" });
       assert.equal(closes, 0);
@@ -299,7 +377,7 @@ test("combat open and close preferences are independent and ignore unrelated com
       assert.equal(closes, Number(close));
       game.user.isGM = false;
       state.app.rendered = false;
-      callbacks.get("combatStart")(combat);
+      callbacks.get("createCombat")(combat);
       assert.equal(opens, Number(open));
     }
 });
@@ -361,7 +439,10 @@ test("GM Features follows native consumption and replacement of a synthetic Acto
     app.element.querySelectorAll('.ws-gm-saves [data-type="save"]').length,
     6
   );
-  assert.equal(app.element.querySelectorAll(".ws-gm-info img").length, 0);
+  assert.equal(
+    app.element.querySelectorAll(".ws-gm-selected-portrait").length,
+    1
+  );
   for (const action of ["gmprevious", "gmnext", "gmfollow"]) {
     assert.equal(
       app.element.querySelectorAll(`.ws-gm-tools [data-action="${action}"]`)

@@ -7,6 +7,10 @@ export const REGULAR_VIEWS = Object.freeze([
   "inventory"
 ]);
 
+/**
+ * @param {Partial<import('../../types/hud.js').HudState>} initial
+ * @returns {import('../../types/hud.js').HudState}
+ */
 export function createHudState(initial = {}) {
   return {
     abilitiesExpanded: true,
@@ -24,6 +28,7 @@ export function createHudState(initial = {}) {
     searchQuery: "",
     openActivityItemId: null,
     favoriteEntries: [],
+    statusDescriptions: new Map(),
     ...initial
   };
 }

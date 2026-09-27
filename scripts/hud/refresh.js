@@ -1,11 +1,22 @@
 import { renderHudMode } from "../render/index.js";
 import { setRegularView } from "./state.js";
 import { captureHudDomState, restoreHudDomState } from "./dom-state.js";
+import { reportFailure } from "../diagnostics.js";
 
 const REFRESH_PRIORITY = Object.freeze({
   actions: 1,
   full: 2
 });
+const renderedMarkup = new WeakMap();
+
+export function refreshHudShell(shell, body) {
+  if (!shell) return;
+  if (renderedMarkup.get(shell) === body) return;
+  const domState = captureHudDomState(shell);
+  shell.innerHTML = body;
+  renderedMarkup.set(shell, body);
+  restoreHudDomState(shell, domState);
+}
 
 export function createRefreshScheduler(
   refresh,
@@ -16,6 +27,13 @@ export function createRefreshScheduler(
 ) {
   let frame = null;
   let pending = null;
+  const runRefresh = region => {
+    try {
+      refresh(region === "full" ? null : region);
+    } catch (error) {
+      reportFailure("hud.refresh", error);
+    }
+  };
 
   const schedule = (region = "full") => {
     const requested = REFRESH_PRIORITY[region] ? region : "full";
@@ -28,7 +46,7 @@ export function createRefreshScheduler(
       frame = null;
       const next = pending;
       pending = null;
-      refresh(next === "full" ? null : next);
+      runRefresh(next);
     });
   };
 
@@ -40,7 +58,7 @@ export function createRefreshScheduler(
     if (!pending) return;
     const next = pending;
     pending = null;
-    refresh(next === "full" ? null : next);
+    runRefresh(next);
   };
 
   const cancel = () => {
@@ -81,17 +99,26 @@ export function refreshHudView({
     const current = shell.querySelector(".ws-combat-actions");
     if (current) {
       const template = document.createElement("template");
-      template.innerHTML = renderers.actions();
+      const markup = renderers.actions();
+      if (renderedMarkup.get(current) === markup) return;
+      template.innerHTML = markup;
       const next = template.content.firstElementChild;
-      if (next) current.replaceWith(next);
-      else current.remove();
+      if (next) {
+        current.replaceWith(next);
+        renderedMarkup.set(next, markup);
+      } else current.remove();
+      renderedMarkup.delete(shell);
       restoreHudDomState(shell, domState);
       return;
     }
   }
 
-  shell.innerHTML = renderHudMode(mode, renderers);
-  restoreHudDomState(shell, domState);
+  const markup = renderHudMode(mode, renderers);
+  if (renderedMarkup.get(shell) !== markup) {
+    shell.innerHTML = markup;
+    renderedMarkup.set(shell, markup);
+    restoreHudDomState(shell, domState);
+  }
   hudState.renderedMode = mode;
   const windowTitle = app.element.querySelector(".window-title");
   if (windowTitle) windowTitle.textContent = title;

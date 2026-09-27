@@ -1,4 +1,5 @@
 import { resolveHpChanges } from "./hp-input.js";
+import { reportFailure } from "../diagnostics.js";
 
 export function createHpDialogController({
   actor,
@@ -36,25 +37,30 @@ export function createHpDialogController({
           icon: "fa-solid fa-check",
           default: true,
           callback: async (_event, button) => {
-            const fields = button.form.elements;
-            const latestHp = adapter.combatStats(actor).hp;
-            const next = resolveHpChanges({
-              valueInput: fields.namedItem("value")?.value,
-              tempInput: fields.namedItem("temp")?.value,
-              value: Number(latestHp.value ?? 0),
-              temp: Number(latestHp.temp ?? 0),
-              max: Number(latestHp.max ?? 0)
-            });
-            if (!next) return;
-            const { value, temp, damage } = next;
-            if (
-              (damage !== undefined
-                ? damage !== 0
-                : value !== Number(latestHp.value ?? 0)) ||
-              temp !== Number(latestHp.temp ?? 0)
-            ) {
-              if (!canStartMutation()) return;
-              await adapter.updateHp(actor, next);
+            try {
+              const fields = button.form.elements;
+              const latestHp = adapter.combatStats(actor).hp;
+              const next = resolveHpChanges({
+                valueInput: fields.namedItem("value")?.value,
+                tempInput: fields.namedItem("temp")?.value,
+                value: Number(latestHp.value ?? 0),
+                temp: Number(latestHp.temp ?? 0),
+                max: Number(latestHp.max ?? 0)
+              });
+              if (!next) return;
+              const { value, temp, damage } = next;
+              if (
+                (damage !== undefined
+                  ? damage !== 0
+                  : value !== Number(latestHp.value ?? 0)) ||
+                temp !== Number(latestHp.temp ?? 0)
+              ) {
+                if (!canStartMutation()) return;
+                await adapter.updateHp(actor, next);
+              }
+            } catch (error) {
+              reportFailure("hud.hp.save", error, { t });
+              throw error;
             }
           }
         },

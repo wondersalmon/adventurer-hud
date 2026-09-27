@@ -4,7 +4,29 @@ import test from "node:test";
 import { createHudToolState } from "../scripts/hud/tool-state.js";
 import { createLatestRefresh } from "../scripts/hud/async-refresh.js";
 
-test("tool refresh keeps the latest result when requests finish out of order", async () => {
+test("async refresh does not lose requests arriving while its promise settles", async () => {
+  let loads = 0;
+  const applied = [];
+  const refresh = createLatestRefresh({
+    load: async () => ++loads,
+    isCurrent: () => true,
+    onError: error => {
+      throw error;
+    },
+    apply: value => {
+      applied.push(value);
+      if (value === 1)
+        queueMicrotask(() => {
+          void refresh();
+        });
+    }
+  });
+  await refresh();
+  assert.equal(loads, 2);
+  assert.deepEqual(applied, [1, 2]);
+});
+
+test("tool refresh coalesces bursts and applies only the fresh follow-up", async () => {
   const previousGame = globalThis.game;
   const previousFromUuid = globalThis.fromUuid;
   globalThis.game = { i18n: { localize: value => value } };
@@ -29,9 +51,14 @@ test("tool refresh keeps the latest result when requests finish out of order", a
     });
     const first = refreshTools();
     const second = refreshTools();
-    pending[1]([{ id: "latest", isMusic: true }]);
-    await second;
+    for (let index = 0; index < 10; index++) refreshTools();
+    assert.equal(loads, 2);
+    assert.equal(first, second);
     pending[0]([{ id: "stale", isMusic: false }]);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(loads, 3);
+    assert.equal(refreshes, 0);
+    pending[1]([{ id: "latest", isMusic: true }]);
     await first;
 
     assert.deepEqual(

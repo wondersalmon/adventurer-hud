@@ -1,7 +1,8 @@
 import { ZipArchive } from "archiver";
 import { createWriteStream } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { verifyReleaseDocumentation } from "./release-documentation.mjs";
 
 const root = process.cwd();
 const dist = path.join(root, "dist");
@@ -31,11 +32,14 @@ await writeFile(
 
 const output = createWriteStream(path.join(dist, "adventurer-hud.zip"));
 const archive = new ZipArchive({ zlib: { level: 9 } });
+const entries = new Set();
+archive.on("entry", entry => entries.add(entry.name));
 
 const complete = new Promise((resolve, reject) => {
   output.on("close", resolve);
   output.on("error", reject);
   archive.on("error", reject);
+  archive.on("warning", reject);
 });
 
 archive.pipe(output);
@@ -45,11 +49,29 @@ for (const directory of ["lang", "scripts", "styles", "templates"]) {
   archive.directory(path.join(root, directory), directory);
 }
 
+archive.glob(
+  "*-guide*.md",
+  { cwd: path.join(root, "docs") },
+  { prefix: "docs" }
+);
+archive.directory(path.join(root, "media"), "media");
+
 for (const file of ["README.md", "README.ru.md", "CHANGELOG.md", "LICENSE"]) {
   archive.file(path.join(root, file), { name: file });
 }
 
 await archive.finalize();
 await complete;
+
+const guides = (await readdir(path.join(root, "docs")))
+  .filter(file => /-guide.*\.md$/.test(file))
+  .map(file => `docs/${file}`);
+const documents = await Promise.all(
+  ["README.md", "README.ru.md", ...guides].map(async file => [
+    file,
+    await readFile(path.join(root, file), "utf8")
+  ])
+);
+verifyReleaseDocumentation(entries, documents);
 
 console.log(`Built Adventurer HUD v${packageJson.version}.`);

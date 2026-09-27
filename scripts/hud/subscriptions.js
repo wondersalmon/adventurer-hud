@@ -1,5 +1,20 @@
 import { hpChange } from "./health-feedback.js";
 
+// Foundry updates can contain nested objects, flattened keys or deletion keys.
+export function changesPath(changes, path) {
+  if (changes == null) return true;
+  return Object.entries(changes).some(([key, value]) => {
+    const normalized = key.replace(/(^|\.)-=/g, "$1");
+    if (normalized === path || normalized.startsWith(`${path}.`)) return true;
+    return (
+      path.startsWith(`${normalized}.`) &&
+      (value == null ||
+        typeof value !== "object" ||
+        changesPath(value, path.slice(normalized.length + 1)))
+    );
+  });
+}
+
 export function subscribeHudDocuments({
   actor,
   hooks,
@@ -36,11 +51,20 @@ export function subscribeHudDocuments({
     }
   };
 
-  const refreshActorItem = item => {
+  const refreshActorItem = (item, changes, structural = false) => {
     onCombatChange?.({ follow: false });
     if (actor && item?.parent?.uuid === actor.uuid) {
       scheduleRefresh();
-      void onStatusChange?.();
+      if (
+        structural ||
+        [
+          "effects",
+          "system.equipped",
+          "system.attunement",
+          "system.attuned"
+        ].some(path => changesPath(changes, path))
+      )
+        void onStatusChange?.();
       if (item.type === "tool") void onToolsChange?.();
     }
   };
@@ -55,14 +79,14 @@ export function subscribeHudDocuments({
         const change = hpChange(previousHp, nextHp);
         if (change) onHpChange?.(change);
         previousHp = nextHp;
-        void onStatusChange?.();
-        scheduleRefresh();
         if (
-          changes?.system?.tools ||
-          Object.keys(changes ?? {}).some(
-            key => key === "system.tools" || key.startsWith("system.tools.")
+          ["effects", "statuses", "system.attributes.exhaustion"].some(path =>
+            changesPath(changes, path)
           )
-        ) {
+        )
+          void onStatusChange?.();
+        scheduleRefresh();
+        if (changesPath(changes, "system.tools")) {
           void onToolsChange?.();
         }
       }
@@ -70,14 +94,17 @@ export function subscribeHudDocuments({
     ["createActiveEffect", refreshActorEffect],
     ["updateActiveEffect", refreshActorEffect],
     ["deleteActiveEffect", refreshActorEffect],
-    ["createItem", refreshActorItem],
+    ["createItem", item => refreshActorItem(item, {}, true)],
     ["updateItem", refreshActorItem],
-    ["deleteItem", refreshActorItem],
-    ["dnd5e.postUseActivity", activity => refreshActorItem(activity?.item)],
-    ["dnd5e.postUseLinkedSpell", activity => refreshActorItem(activity?.item)],
+    ["deleteItem", item => refreshActorItem(item, {}, true)],
+    ["dnd5e.postUseActivity", activity => refreshActorItem(activity?.item, {})],
+    [
+      "dnd5e.postUseLinkedSpell",
+      activity => refreshActorItem(activity?.item, {})
+    ],
     [
       "dnd5e.postActivityConsumption",
-      activity => refreshActorItem(activity?.item)
+      activity => refreshActorItem(activity?.item, {})
     ],
     ["createCombat", refreshCombat],
     ["updateCombat", refreshCombat],

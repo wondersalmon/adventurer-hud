@@ -2,6 +2,26 @@
   min-width: 270px;
 }
 
+.ws-rolls-dialog.ws-player-mode {
+  min-height: 350px;
+}
+
+.ws-rolls-dialog.ws-pinned :is(.window-resize-handle, .resize-handle) {
+  display: none;
+  pointer-events: none;
+}
+
+.ws-rolls-dialog.ws-pinned .window-header {
+  cursor: default;
+}
+
+.ws-rolls-dialog .ws-window-size {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 11px;
+  margin-inline: 4px;
+}
+
 .ws-rolls-dialog.ws-unconscious .window-header,
 .ws-rolls-dialog.ws-unconscious
   .ws-view
@@ -238,7 +258,18 @@
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 10px;
+  gap: 5px;
+}
+
+.ws-rolls-dialog .ws-actor-quick-controls {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.ws-rolls-dialog .ws-actor-quick-controls > button {
+  min-width: 30px;
+  padding: 4px;
 }
 
 .ws-rolls-dialog .ws-actor-portrait {
@@ -255,11 +286,24 @@
 
 .ws-rolls-dialog .ws-actor-identity {
   min-width: 0;
-  flex: 1 1 100px;
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
   gap: 2px;
   cursor: pointer;
+}
+
+.ws-rolls-dialog .ws-actor-sheet-button {
+  width: auto;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
 }
 
 .ws-rolls-dialog .ws-actor-portrait:hover {
@@ -271,8 +315,11 @@
 }
 
 .ws-rolls-dialog .ws-rest-controls {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, calc(65px * var(--ws-type-scale))), 1fr)
+  );
   gap: 5px;
 }
 
@@ -295,6 +342,22 @@
 
 .ws-rolls-dialog .ws-inspiration {
   flex: 0 0 42px;
+}
+
+.ws-rolls-dialog .ws-player-content,
+.ws-rolls-dialog .ws-player-basics {
+  display: grid;
+  gap: 11px;
+  min-width: 0;
+  align-content: start;
+}
+
+.ws-rolls-dialog .ws-player-favorites {
+  min-width: 0;
+}
+
+.ws-rolls-dialog .ws-player-favorites:empty {
+  display: none;
 }
 
 .ws-rolls-dialog .ws-inspiration span {
@@ -352,18 +415,20 @@
 }
 
 .ws-rolls-dialog .ws-actor-identity strong {
+  max-width: 100%;
   overflow: hidden;
   color: var(--text);
-  font-size: calc(12px * var(--ws-type-scale));
+  font-size: calc(10px * var(--ws-type-scale));
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .ws-rolls-dialog .ws-actor-identity span {
   width: 100%;
+  text-align: center;
   overflow: hidden;
   color: var(--muted);
-  font-size: calc(9px * var(--ws-type-scale));
+  font-size: calc(7.5px * var(--ws-type-scale));
   font-weight: 700;
   letter-spacing: 0.06em;
   text-overflow: ellipsis;
@@ -422,4 +487,108 @@
   color: var(--muted);
   font-size: calc(9px * var(--ws-type-scale));
   opacity: 0.8;
+}
+
+/* Explicit HUD palettes also set the native color scheme for form controls. */
+.ws-rolls-dialog.ws-theme-light {
+  color-scheme: light;
+
+  --color-text-primary: #292722;
+  --color-text-secondary: #625d53;
+  --background: #f5f1e8;
+  --color-cool-5: #f5f1e8;
+
+  color: var(--color-text-primary);
+  background: var(--background);
+  border: 1px solid #8b8274;
+}
+
+.ws-rolls-dialog.ws-theme-dark {
+  color-scheme: dark;
+
+  --color-text-primary: #e6e6df;
+  --color-text-secondary: #b5b1a8;
+  --background: #19181f;
+  --color-cool-5: #19181f;
+
+  color: var(--color-text-primary);
+  background: var(--background);
+}
+
+.ws-rolls-dialog:is(.ws-theme-light, .ws-theme-dark) .window-header,
+.ws-rolls-dialog:is(.ws-theme-light, .ws-theme-dark) .window-content {
+  color: var(--color-text-primary);
+  background: var(--background);
+}
+
+.ws-rolls-dialog:is(.ws-theme-light, .ws-theme-dark) :is(input, select) {
+  color: var(--color-text-primary);
+  background: var(--background);
+}
+
+.ws-rolls-dialog.ws-theme-light .ws-shell {
+  --line: #857b6e;
+  --surface: #e9e4da;
+  --hover: #ddd6c8;
+  --subtle: #e1dace;
+  --accent: #79551c;
+  --success: #386329;
+  --warning: #795b0a;
+  --danger: #a13b34;
+}
+
+.ws-rolls-dialog.ws-theme-light .window-header {
+  border-bottom: 1px solid #9c9385;
+}
+
+.ws-rolls-dialog.ws-theme-light .ws-nav {
+  border-color: var(--line) !important;
+  background: var(--surface) !important;
+}
+
+.ws-rolls-dialog.ws-theme-light .window-header :is(button, .window-title) {
+  color: #292722 !important;
+
+  --button-text-color: #292722;
+
+  text-shadow: none;
+}
+
+.ws-rolls-dialog.ws-theme-light .window-header button {
+  border: 1px solid #9c9385;
+  background: #e9e4da;
+}
+
+.ws-rolls-dialog.ws-theme-light .controls-dropdown {
+  color: #292722 !important;
+  background: #f5f1e8 !important;
+  border: 1px solid #9c9385;
+}
+
+.ws-rolls-dialog.ws-theme-light .controls-dropdown :is(button, .control) {
+  color: #292722 !important;
+
+  --button-text-color: #292722;
+
+  text-shadow: none;
+}
+
+.ws-rolls-dialog.ws-theme-light .ws-health-condition {
+  color: #a13b34;
+}
+
+.ws-rolls-dialog.ws-theme-light .ws-health-condition.ws-health-critical {
+  color: #82241e;
+}
+
+.ws-rolls-dialog.ws-theme-light .ws-spell-slots {
+  --ws-slot-color: #21677f;
+}
+
+.ws-rolls-dialog.ws-theme-light .ws-pact-slots {
+  --ws-slot-color: #76439e;
+}
+
+.ws-rolls-dialog.ws-theme-light .ws-health-label small {
+  color: #21677f;
 }

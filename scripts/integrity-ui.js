@@ -2,6 +2,11 @@ import { checkIntegrity, repairSavedData } from "./integrity.js";
 import { createModuleTranslator } from "./localization.js";
 import { MODULE_ID } from "./module-id.js";
 import { SETTINGS, getSettingDefinitions } from "./settings-schema.js";
+import {
+  diagnosticReport,
+  exportDiagnosticReport,
+  reportFailure
+} from "./diagnostics.js";
 
 export function createIntegrityApplication() {
   const { ApplicationV2, HandlebarsApplicationMixin } =
@@ -18,6 +23,21 @@ export function createIntegrityApplication() {
       },
       position: { width: 520, height: "auto" },
       actions: {
+        export: async function () {
+          try {
+            const { filename, eventCount } = await exportDiagnosticReport({
+              integrity: this.report ?? null
+            });
+            const key = eventCount
+              ? "Diagnostics.DownloadRequested"
+              : "Diagnostics.DownloadRequestedEmpty";
+            const message =
+              this.t?.(key) ?? game.i18n.localize(`ADVENTURER_HUD.${key}`);
+            ui.notifications.info(`${message} ${filename}`);
+          } catch (error) {
+            reportFailure("diagnostics.export", error, { t: this.t });
+          }
+        },
         check: async function () {
           return this.runCheck();
         },
@@ -25,13 +45,14 @@ export function createIntegrityApplication() {
           if (this.busy || !this.report?.issues.some(issue => issue.repairable))
             return;
           this.busy = true;
+          this.failure = false;
           await this.render({ force: true });
           try {
             this.repaired = await repairSavedData();
             this.report = await checkIntegrity();
           } catch (error) {
             this.failure = true;
-            console.error("Adventurer HUD | repair failed", error);
+            reportFailure("integrity.repair", error, { t: this.t });
           } finally {
             this.busy = false;
             await this.render({ force: true });
@@ -56,7 +77,7 @@ export function createIntegrityApplication() {
         this.report = await checkIntegrity();
       } catch (error) {
         this.failure = true;
-        console.error("Adventurer HUD | integrity check failed", error);
+        reportFailure("integrity.check", error, { t: this.t });
       } finally {
         this.busy = false;
         await this.render({ force: true });
@@ -68,11 +89,16 @@ export function createIntegrityApplication() {
         language: game.settings.get(MODULE_ID, SETTINGS.language),
         i18n: game.i18n
       });
+      this.t = t;
       if (this.options?.window)
         this.options.window.title = t("Integrity.Title");
       const issues = this.report?.issues ?? [];
       return {
         intro: t("Integrity.Intro"),
+        diagnosticsHint: tf("Diagnostics.Hint", {
+          count: diagnosticReport().events.length
+        }),
+        exportLabel: t("Diagnostics.Export"),
         checkLabel: t(this.report ? "Integrity.CheckAgain" : "Integrity.Check"),
         repairLabel: t("Integrity.Repair"),
         closeLabel: t("Settings.Cancel"),
@@ -102,6 +128,7 @@ export function createIntegrityApplication() {
               : [
                     SETTINGS.panelStates,
                     SETTINGS.windowGeometry,
+                    SETTINGS.gmWindowGeometry,
                     SETTINGS.proficientSkillsOnly
                   ].includes(issue.detail)
                 ? t(`Integrity.${issue.detail}`)

@@ -142,7 +142,7 @@ test("pin control is inserted before Foundry controls and updates in place", () 
   assert.equal(control.title, "Unpin window");
 });
 
-test("pinned HUD ignores Escape but still permits explicit close", async () => {
+test("HUD ignores Escape by default and the preference is independent of pinning", async () => {
   class DialogV2 {
     async close(options) {
       this.closedWith = options;
@@ -151,11 +151,13 @@ test("pinned HUD ignores Escape but still permits explicit close", async () => {
   }
 
   let pinned = true;
+  let closeOnEscape = false;
   const HudApplication = createHudApplicationClass({
     DialogV2,
     document: {},
     getPinLabel: value => (value ? "Unpin" : "Pin"),
-    isPinned: () => pinned
+    isPinned: () => pinned,
+    allowCloseOnEscape: () => closeOnEscape
   });
   const app = new HudApplication();
 
@@ -163,6 +165,8 @@ test("pinned HUD ignores Escape but still permits explicit close", async () => {
   assert.equal(app.closedWith, undefined);
 
   pinned = false;
+  assert.equal(await app.close({ closeKey: true }), app);
+  closeOnEscape = true;
   assert.equal(await app.close({ closeKey: true }), "closed");
   assert.deepEqual(app.closedWith, { closeKey: true });
 });

@@ -64,6 +64,35 @@ test("roll runner refreshes after a rejected native action", async () => {
   assert.equal(refreshed, 1);
 });
 
+for (const outcome of ["success", "cancelled", "failure"]) {
+  test(`roll controls recover after ${outcome} when unchanged markup skips rendering`, async () => {
+    const buttons = [{ disabled: false }, { disabled: true }];
+    const runner = createHudRollRunner({
+      getApp: () => ({
+        rendered: true,
+        element: { querySelectorAll: () => buttons }
+      }),
+      refreshHud() {},
+      refreshScheduler: { cancel() {} },
+      canStartMutation: () => true
+    });
+    const perform = () =>
+      runner.performRoll(async () => {
+        assert.equal(buttons[0].disabled, true);
+        assert.equal(buttons[1].disabled, true);
+        if (outcome === "failure") throw new Error("native failure");
+        return outcome === "cancelled" ? null : "done";
+      });
+    if (outcome === "failure") await assert.rejects(perform, /native failure/);
+    else await perform();
+    assert.equal(buttons[0].disabled, false);
+    assert.equal(buttons[1].disabled, true);
+    await runner.performRoll(() => "next roll");
+    assert.equal(buttons[0].disabled, false);
+    assert.equal(buttons[1].disabled, true);
+  });
+}
+
 test("cooldown blocks sequential actions of different types until the configured interval, including after failure", async () => {
   const { createActionCooldown, ACTION_COOLDOWN_MS } =
     await import("../scripts/hud/action-cooldown.js");

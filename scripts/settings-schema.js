@@ -1,10 +1,16 @@
 export const SETTINGS = Object.freeze({
   autoOpenHud: "autoOpenHud",
+  hudClosed: "hudClosed",
   autoUpdateActor: "autoUpdateActor",
   pinWindow: "pinWindow",
+  gmPinWindow: "gmPinWindow",
+  closeOnEscape: "closeOnEscape",
+  gmWindowGeometry: "gmWindowGeometry",
   showTokenControl: "showTokenControl",
   fontSize: "fontSize",
   language: "language",
+  theme: "theme",
+  debugWindowSize: "debugWindowSize",
   showVisualEffects: "showVisualEffects",
   showItemDetails: "showItemDetails",
   showActionTypes: "showActionTypes",
@@ -18,6 +24,8 @@ export const SETTINGS = Object.freeze({
   gmAutoAdvance: "gmAutoAdvance",
   gmIncludePlayerNpcs: "gmIncludePlayerNpcs",
   gmShowAttackDetails: "gmShowAttackDetails",
+  gmHideSearch: "gmHideSearch",
+  gmActionTypesOnly: "gmActionTypesOnly",
   gmHighlightDead: "gmHighlightDead",
   gmAutoRemoveDead: "gmAutoRemoveDead",
   gmOpenOnCombat: "gmOpenOnCombat",
@@ -70,6 +78,17 @@ export const SETTING_DEFINITIONS = Object.freeze({
     refresh: "reopen",
     type: String
   }),
+  [SETTINGS.theme]: defineSetting("appearance", {
+    placement: "basic",
+    choices: {
+      auto: "ADVENTURER_HUD.Settings.theme.Auto",
+      light: "ADVENTURER_HUD.Settings.theme.Light",
+      dark: "ADVENTURER_HUD.Settings.theme.Dark"
+    },
+    defaultValue: "auto",
+    refresh: "runtime",
+    type: String
+  }),
   [SETTINGS.fontSize]: defineSetting("appearance", {
     choices: FONT_SIZE_CHOICES,
     defaultValue: "medium",
@@ -80,9 +99,27 @@ export const SETTING_DEFINITIONS = Object.freeze({
   [SETTINGS.showVisualEffects]: defineSetting("interface", {
     refresh: "runtime"
   }),
+  [SETTINGS.debugWindowSize]: defineSetting("interface", {
+    defaultValue: false,
+    refresh: "runtime"
+  }),
   [SETTINGS.pinWindow]: defineSetting("interface", {
     defaultValue: false,
     placement: "internal",
+    refresh: "runtime"
+  }),
+  [SETTINGS.hudClosed]: defineSetting("interface", {
+    defaultValue: false,
+    placement: "internal",
+    refresh: "none"
+  }),
+  [SETTINGS.gmPinWindow]: defineSetting("interface", {
+    defaultValue: false,
+    placement: "internal",
+    refresh: "runtime"
+  }),
+  [SETTINGS.closeOnEscape]: defineSetting("behavior", {
+    defaultValue: false,
     refresh: "runtime"
   }),
   [SETTINGS.showTokenControl]: defineSetting("interface", {
@@ -119,6 +156,14 @@ export const SETTING_DEFINITIONS = Object.freeze({
     gmOnly: true
   }),
   [SETTINGS.gmShowAttackDetails]: defineSetting("gm", {
+    placement: "gm",
+    gmOnly: true
+  }),
+  [SETTINGS.gmHideSearch]: defineSetting("gm", {
+    placement: "gm",
+    gmOnly: true
+  }),
+  [SETTINGS.gmActionTypesOnly]: defineSetting("gm", {
     placement: "gm",
     gmOnly: true
   }),

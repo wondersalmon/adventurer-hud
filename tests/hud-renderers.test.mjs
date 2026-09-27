@@ -10,6 +10,60 @@ import {
 
 import { createCombatRenderer } from "../scripts/hud/combat.js";
 import { createItemPanelRenderer } from "../scripts/hud/item-panels.js";
+
+test("GM action-only tabs include ordinary spells and keep legendary activities separate", () => {
+  const weapon = { id: "sword", name: "Sword", type: "weapon" };
+  const spell = { id: "spell", name: "Fireball", type: "spell" };
+  const feature = { id: "feature", name: "Feature", type: "feat" };
+  const legendary = { id: "legendary", name: "Legendary", type: "feat" };
+  const f = itemRendererFixture({
+    items: [weapon, spell, feature, legendary],
+    hudState: { combatCategory: "spells", searchQuery: "does not match" },
+    visibility: {
+      gm: true,
+      actionTypesOnly: true,
+      showActionTypes: false,
+      search: false
+    },
+    adapter: {
+      itemActivities: item => [
+        { activation: { type: item === legendary ? "legendary" : "action" } }
+      ],
+      combatItems: (_actor, category) =>
+        ({
+          weapons: [weapon],
+          spells: [spell],
+          features: [feature],
+          action: [weapon, spell, feature, legendary]
+        })[category] ?? []
+    }
+  });
+  const root = fragment(f.renderer.combatActions());
+  assert.deepEqual(
+    [...root.querySelectorAll('[data-action="combatfilter"]')].map(
+      button => button.dataset.category
+    ),
+    ["action"]
+  );
+  assert.equal(f.hudState.combatCategory, "action");
+  for (const item of [weapon, spell, feature])
+    assert.ok(root.querySelector(`[data-item-id="${item.id}"]`));
+  assert.equal(root.querySelector('[data-item-id="legendary"]'), null);
+  assert.equal(root.querySelector('[data-action="searchitems"]'), null);
+  f.visibility.actionTypesOnly = false;
+  f.visibility.showActionTypes = true;
+  const restored = fragment(f.renderer.combatActions());
+  for (const category of ["weapons", "spells", "features"])
+    assert.ok(restored.querySelector(`[data-category="${category}"]`));
+  assert.equal(restored.querySelector('[data-item-id="spell"]'), null);
+  f.visibility.gm = false;
+  f.visibility.actionTypesOnly = true;
+  assert.ok(
+    fragment(f.renderer.combatActions()).querySelector(
+      '[data-category="weapons"]'
+    )
+  );
+});
 import { createHpDialogController } from "../scripts/hud/hp-dialog.js";
 import { createHudComponents } from "../scripts/hud/components.js";
 import { renderDeathSaveControl } from "../scripts/hud/death-save-control.js";
@@ -398,7 +452,7 @@ test("regular spell navigation follows the live item list", () => {
   assert.equal(renderer.availableViews().spells, false);
 });
 
-test("combat places statuses above HP and features in the action filters", () => {
+test("combat places abilities below stats and statuses and features in the action filters", () => {
   const previousGame = globalThis.game;
   const previousConfig = globalThis.CONFIG;
   globalThis.game = {
@@ -451,11 +505,11 @@ test("combat places statuses above HP and features in the action filters", () =>
 
     const html = renderer.combatHTML();
     assert.doesNotMatch(html, /data-action="endturn"/);
-    assert.ok(html.indexOf("Header") < html.indexOf("ws-combat-statuses"));
+    assert.ok(html.indexOf("Header") < html.indexOf("Abilities"));
     assert.ok(
-      html.indexOf("ws-combat-statuses") < html.indexOf("ws-combat-stats")
+      html.indexOf("ws-combat-stats") < html.indexOf("ws-combat-statuses")
     );
-    assert.ok(html.indexOf("ws-combat-stats") < html.indexOf("Abilities"));
+    assert.ok(html.indexOf("Abilities") > html.indexOf("ws-combat-stats"));
     assert.match(
       html,
       /Combat.ProficiencyBonusShort<\/span>\s*<strong>3<\/strong>/
@@ -536,7 +590,7 @@ test("exploration places the shared HP bar below the actor header", () => {
   let initiative = "";
   const renderer = createRegularRenderer({
     abilitiesSection: () => "",
-    actorHeader: () => "ACTOR_HEADER",
+    actorHeader: extra => `ACTOR_HEADER${extra}`,
     back: () => "",
     combatInitiative: () => initiative,
     combatItemButton: () => "",

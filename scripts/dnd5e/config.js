@@ -1,5 +1,6 @@
 import { skillIcons } from "./constants.js";
 import { proficiencyMultiplier } from "./actor-data.js";
+import { reportFailure } from "../diagnostics.js";
 export const dnd5eConfig = {
   skillDefinitions({ localize }) {
     return Object.entries(CONFIG.DND5E.skills ?? {})
@@ -87,7 +88,7 @@ export const dnd5eConfig = {
           })
         );
       } catch (error) {
-        console.warn("Adventurer HUD | status description", error);
+        reportFailure("dnd5e.status.description", error, { level: "warn" });
       }
     }
     return result;

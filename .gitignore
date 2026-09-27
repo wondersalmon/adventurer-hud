@@ -10,3 +10,4 @@ Thumbs.db
 docs/dev/*
 test-results/
 playwright-report/
+AGENTS.MD

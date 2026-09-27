@@ -1,4 +1,7 @@
-import { restoreGlobalsAfterEach } from "./helpers/foundry.mjs";
+import {
+  installSettings,
+  restoreGlobalsAfterEach
+} from "./helpers/foundry.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -299,6 +302,7 @@ test("combat category button opens and closes its item list", () => {
 });
 
 test("window session updates live settings and releases document hooks", async () => {
+  installSettings();
   const previousHooks = globalThis.Hooks;
   const hookIds = [];
   const hookCallbacks = new Map();
@@ -321,9 +325,12 @@ test("window session updates live settings and releases document hooks", async (
     const elementClasses = new Set();
     const app = {
       element: {
+        querySelector: () => null,
         style: { setProperty() {} },
         classList: {
           add: name => elementClasses.add(name),
+          toggle: (name, enabled) =>
+            enabled ? elementClasses.add(name) : elementClasses.delete(name),
           remove: (...names) =>
             names.forEach(name => elementClasses.delete(name))
         },
@@ -343,6 +350,7 @@ test("window session updates live settings and releases document hooks", async (
       uuid: "Actor.hero",
       sheet: { render: () => sheetOpens++ }
     };
+    app.hudActions = { gmsheet: () => actor.sheet.render() };
     const state = { app: null, actor, actorUuid: actor.uuid };
     const visibility = { itemDetails: true };
     let pinned = false;
@@ -373,7 +381,10 @@ test("window session updates live settings and releases document hooks", async (
 
     assert.equal(state.app, app);
     elementListeners.get("dblclick")({
-      target: { closest: () => ({}) }
+      target: {
+        closest: selector =>
+          selector === "[data-open-actor-sheet]" ? {} : null
+      }
     });
     elementListeners.get("dblclick")({
       target: { closest: () => null }

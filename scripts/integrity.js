@@ -67,18 +67,23 @@ export function inspectSavedData(values) {
     }
     suggest(SETTINGS.panelStates, cleaned);
   }
-  const geometry = values[SETTINGS.windowGeometry];
-  if (!isRecord(geometry)) suggest(SETTINGS.windowGeometry, {});
-  else {
-    const next = { ...geometry };
-    for (const key of ["left", "top", "width", "height"]) {
-      if (!Object.hasOwn(next, key)) continue;
-      if (typeof next[key] !== "number" || !Number.isFinite(next[key]))
-        delete next[key];
-      else if (key === "width") next[key] = Math.max(270, next[key]);
-      else if (key === "height") next[key] = Math.max(180, next[key]);
+  for (const geometryKey of [
+    SETTINGS.windowGeometry,
+    SETTINGS.gmWindowGeometry
+  ]) {
+    const geometry = values[geometryKey];
+    if (!isRecord(geometry)) suggest(geometryKey, {});
+    else {
+      const next = { ...geometry };
+      for (const key of ["left", "top", "width", "height"]) {
+        if (!Object.hasOwn(next, key)) continue;
+        if (typeof next[key] !== "number" || !Number.isFinite(next[key]))
+          delete next[key];
+        else if (key === "width") next[key] = Math.max(270, next[key]);
+        else if (key === "height") next[key] = Math.max(180, next[key]);
+      }
+      suggest(geometryKey, next);
     }
-    suggest(SETTINGS.windowGeometry, next);
   }
   return issues;
 }
@@ -88,7 +93,8 @@ function readSavedData() {
     ...Object.keys(getSettingDefinitions()),
     SETTINGS.proficientSkillsOnly,
     SETTINGS.panelStates,
-    SETTINGS.windowGeometry
+    SETTINGS.windowGeometry,
+    SETTINGS.gmWindowGeometry
   ];
   const values = {};
   const issues = [];

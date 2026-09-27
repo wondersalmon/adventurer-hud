@@ -1,4 +1,5 @@
 import { MODULE_ID } from "./module-id.js";
+import { reportFailure } from "./diagnostics.js";
 
 const catalogsByFetcher = new WeakMap();
 
@@ -33,7 +34,7 @@ async function loadLocale(fetchCatalog, language) {
   try {
     return await loadCatalog(fetchCatalog, language);
   } catch (error) {
-    console.warn("Adventurer HUD | translation load failed", error);
+    reportFailure("localization.load", error, { level: "warn" });
     return {};
   }
 }

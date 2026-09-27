@@ -16,7 +16,6 @@ export function createRegularRenderer(context) {
     inventoryItems,
     legend,
     modeNavigation,
-    restControls,
     searchControl,
     searchItems,
     shortcutHint,
@@ -80,18 +79,20 @@ export function createRegularRenderer(context) {
     const nav = (view, icon, label) =>
       `<button type="button" class="ws-nav ws-button" data-action="view" data-view="${view}"><span class="ws-nav-main"><i class="fa-solid ${icon}"></i>${t(label)}</span><i class="fa-solid fa-chevron-right ws-arrow"></i></button>`;
     return `<div id="ws-main" class="ws-view">
-      ${actorHeader()}
-      <div class="ws-regular-health">${healthPanel()}</div>
-      ${restControls(`${combatInitiative()}${inspirationControl()}`)}
+      ${actorHeader(`<div class="ws-actor-quick-controls">${combatInitiative()}${inspirationControl()}</div>`)}
       ${modeNavigation("regular")}
-      ${favoriteSection()}
-      ${abilitiesSection()}
-      <div class="ws-divider"></div>
+      <div class="ws-player-content">
+        <section class="ws-player-basics">
+          <div class="ws-regular-health">${healthPanel()}</div>
+          ${abilitiesSection()}
       <div class="ws-nav-grid">
         ${nav("skills", "fa-list-check", "Labels.Skills")}
         ${nav("tools", "fa-screwdriver-wrench", "Labels.Tools")}
         ${hasSpells ? nav("spells", "fa-wand-magic-sparkles", "Combat.Spells") : ""}
         ${nav("inventory", "fa-box-open", "Inventory.Title")}
+      </div>
+        </section>
+        <div class="ws-player-favorites">${favoriteSection()}</div>
       </div>
       ${shortcutHint()}
     </div>`;

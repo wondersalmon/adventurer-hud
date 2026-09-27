@@ -4,6 +4,8 @@
   {{#if repaired}}<p>{{repaired}}</p>{{/if}}
   <ul>{{#each issues}}<li>{{message}} — {{action}}</li>{{/each}}</ul>
   {{#if manualHint}}<p class="hint">{{manualHint}}</p>{{/if}}
+  <p class="hint">{{diagnosticsHint}}</p>
+  <button type="button" data-action="export">{{exportLabel}}</button>
   <footer class="form-footer">
     {{#if busy}}<button
         type="button"

@@ -152,8 +152,15 @@ test("rejected native item operations report an error and leave the HUD usable",
   const app = __adventurerHud.app;
   await app.options.actions.useitem({}, { dataset: { itemId: "sword" } });
   assert.deepEqual(fixture.notifications, [
-    ["error", "Rolls HUD: native failure"]
+    ["error", "Adventurer HUD: operation failed: native failure"]
   ]);
+  assert.ok(
+    diagnosticReport().events.some(
+      entry =>
+        entry.scope === "hud.action.useitem" &&
+        entry.message === "native failure"
+    )
+  );
   assert.equal(app.rendered, true);
   assert.equal(
     app.element.querySelector('[data-action="togglepin"]').disabled,
@@ -213,7 +220,7 @@ test("native favorite writes serialize rapid changes and recover after a failed 
     [".Item.wand", ".Item.sword"]
   );
   assert.deepEqual(fixture.notifications, [
-    ["error", "Rolls HUD: save failed"]
+    ["error", "Adventurer HUD: operation failed: save failed"]
   ]);
   await __adventurerHud.app.close();
 });
@@ -262,3 +269,43 @@ test("character actions share a cooldown across rolls, description sharing and H
   assert.equal(shared, 1);
   await __adventurerHud.app.close();
 });
+
+test("GM header switches both presets, including an empty encounter and a selected NPC", async () => {
+  const f = await hudFixture({ isGM: true });
+  await f.api.open();
+  let app = __adventurerHud.app;
+  assert.equal(__adventurerHud.preset, "gm");
+  assert.ok(app.options.window.controls.some(c => c.action === "togglepreset"));
+  canvas.tokens.controlled = [{ actor: { type: "npc" } }];
+  await app.options.actions.togglepreset();
+  await waitFor(
+    () => __adventurerHud.preset === "player" && __adventurerHud.app?.rendered
+  );
+  app = __adventurerHud.app;
+  assert.equal(__adventurerHud.actor, f.actor);
+  assert.ok(app.options.window.controls.some(c => c.action === "togglepreset"));
+  await app.options.actions.togglepreset();
+  await waitFor(
+    () => __adventurerHud.preset === "gm" && __adventurerHud.app?.rendered
+  );
+  await __adventurerHud.app.close();
+});
+
+test("HUD theme applies immediately, restores Foundry colors and persists on reopening", async () => {
+  const f = await hudFixture({ values: { theme: "light" } });
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  assert.ok(app.element.classList.contains("ws-theme-light"));
+  await game.settings.set("adventurer-hud", "theme", "dark");
+  assert.ok(app.element.classList.contains("ws-theme-dark"));
+  assert.equal(app.element.classList.contains("ws-theme-light"), false);
+  assert.equal(__adventurerHud.app, app);
+  await game.settings.set("adventurer-hud", "theme", "auto");
+  assert.equal(app.element.classList.contains("ws-theme-dark"), false);
+  await game.settings.set("adventurer-hud", "theme", "light");
+  await app.close();
+  await f.api.open(f.actor);
+  assert.ok(__adventurerHud.app.element.classList.contains("ws-theme-light"));
+  await __adventurerHud.app.close();
+});
+import { diagnosticReport } from "../scripts/diagnostics.js";

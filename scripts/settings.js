@@ -2,6 +2,7 @@ import { createIntegrityApplication } from "./integrity-ui.js";
 import { MODULE_ID } from "./module-id.js";
 import { createTaskQueue } from "./task-queue.js";
 import { createModuleTranslator } from "./localization.js";
+import { reportFailure } from "./diagnostics.js";
 import {
   booleanSettingsEntries,
   prepareSettingsGroups
@@ -45,6 +46,9 @@ function saveChangedSettings(entries) {
         await setSetting(key, value);
         changes.set(key, value);
       }
+    } catch (error) {
+      reportFailure("settings.save", error);
+      throw error;
     } finally {
       pendingSettingKeys = null;
       if (changes.size) {
@@ -73,14 +77,16 @@ export function registerSettings() {
     });
   }
 
-  game.settings.register(MODULE_ID, SETTINGS.windowGeometry, {
-    name: "Adventurer HUD window geometry",
-    hint: "",
-    scope: "client",
-    config: false,
-    type: Object,
-    default: {}
-  });
+  for (const key of [SETTINGS.windowGeometry, SETTINGS.gmWindowGeometry]) {
+    game.settings.register(MODULE_ID, key, {
+      name: "Adventurer HUD window geometry",
+      hint: "",
+      scope: "client",
+      config: false,
+      type: Object,
+      default: {}
+    });
+  }
 
   game.settings.register(MODULE_ID, SETTINGS.panelStates, {
     name: "Adventurer HUD panel states",
@@ -398,14 +404,19 @@ export function openGmSettings() {
   return new GmSettingsApplication().render({ force: true });
 }
 
-export const getWindowGeometry = () =>
-  getSetting(SETTINGS.windowGeometry) ?? {};
+export const getWindowGeometry = (gmActive = false) =>
+  getSetting(gmActive ? SETTINGS.gmWindowGeometry : SETTINGS.windowGeometry) ??
+  {};
 
 let geometryTimer = null;
-let pendingGeometry = null;
+const pendingGeometry = new Map();
 
-export function saveWindowGeometry(geometry, { immediate = false } = {}) {
-  pendingGeometry = geometry;
+export function saveWindowGeometry(
+  geometry,
+  { immediate = false, gmActive = false } = {}
+) {
+  const key = gmActive ? SETTINGS.gmWindowGeometry : SETTINGS.windowGeometry;
+  pendingGeometry.set(key, geometry);
 
   if (geometryTimer) {
     clearTimeout(geometryTimer);
@@ -413,21 +424,19 @@ export function saveWindowGeometry(geometry, { immediate = false } = {}) {
   }
 
   if (immediate) {
-    const value = pendingGeometry;
-    pendingGeometry = null;
-    return setSetting(SETTINGS.windowGeometry, value);
+    return flushWindowGeometry();
   }
 
   geometryTimer = setTimeout(() => {
     geometryTimer = null;
-    const value = pendingGeometry;
-    pendingGeometry = null;
-    void setSetting(SETTINGS.windowGeometry, value);
+    void flushWindowGeometry().catch(error =>
+      reportFailure("hud.geometry.save", error, { level: "warn" })
+    );
   }, 150);
 }
 
 export async function flushWindowGeometry() {
-  if (!pendingGeometry) {
+  if (!pendingGeometry.size) {
     return;
   }
 
@@ -436,7 +445,7 @@ export async function flushWindowGeometry() {
     geometryTimer = null;
   }
 
-  const value = pendingGeometry;
-  pendingGeometry = null;
-  await setSetting(SETTINGS.windowGeometry, value);
+  const entries = Array.from(pendingGeometry);
+  pendingGeometry.clear();
+  await Promise.all(entries.map(([key, value]) => setSetting(key, value)));
 }

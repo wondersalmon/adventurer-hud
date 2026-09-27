@@ -6,7 +6,16 @@
 
 .ws-rolls-dialog .ws-ability-cards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(
+      min(
+        100%,
+        max(calc(75px * var(--ws-type-scale)), calc((100% - 10px) / 3))
+      ),
+      1fr
+    )
+  );
   gap: 5px;
 }
 
@@ -30,6 +39,7 @@
 }
 
 .ws-rolls-dialog .ws-ability-roll.ws-button {
+  height: auto;
   min-width: 0;
   min-height: 24px;
   padding: 2px 3px;
@@ -40,6 +50,11 @@
   background: transparent !important;
   font-size: calc(8.5px * var(--ws-type-scale));
   text-transform: uppercase;
+}
+
+.ws-rolls-dialog .ws-ability-roll > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .ws-rolls-dialog .ws-ability-roll.ws-button:hover {
@@ -53,6 +68,7 @@
 }
 
 .ws-rolls-dialog .ws-ability-roll strong {
+  flex-shrink: 0;
   margin-left: auto;
   font-size: calc(10px * var(--ws-type-scale));
 }
@@ -84,7 +100,7 @@
 /* Navigation */
 .ws-rolls-dialog .ws-nav-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 320px));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
   justify-content: start;
   gap: 6px;
 }
@@ -126,7 +142,8 @@
 
 .ws-rolls-dialog .ws-nav {
   width: 100%;
-  height: 36px;
+  height: auto;
+  min-height: 36px;
   padding: 0 12px;
   display: flex;
   align-items: center;
@@ -140,6 +157,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .ws-rolls-dialog .ws-nav-main {
@@ -170,7 +189,7 @@
 
 .ws-rolls-dialog .ws-entry-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 420px));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   justify-content: start;
   gap: 5px;
 }

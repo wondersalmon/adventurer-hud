@@ -1,4 +1,5 @@
 import { createLatestRefresh } from "./async-refresh.js";
+import { reportFailure } from "../diagnostics.js";
 
 export async function createHudToolState({
   actor,
@@ -27,7 +28,7 @@ export async function createHudToolState({
       scheduleRefresh();
     },
     onError: error => {
-      console.warn("Adventurer HUD | tool refresh failed", error);
+      reportFailure("hud.tools.refresh", error, { level: "warn" });
     }
   });
 

@@ -1,3 +1,4 @@
+import { reportFailure } from "../diagnostics.js";
 import { getSetting, SETTINGS } from "../settings.js";
 import { deadCreatures, removeDeadCreatures } from "./gm-scene.js";
 
@@ -25,7 +26,7 @@ export function registerGmLifecycle({
       void state.app?.close();
     }
   };
-  hooks.on("combatStart", combat => {
+  hooks.on("createCombat", combat => {
     if (!enabled() || !inScene(combat) || !getSetting(SETTINGS.gmOpenOnCombat))
       return;
     const state = getState();
@@ -65,8 +66,7 @@ export function registerGmLifecycle({
     try {
       await removeDeadCreatures(combat, ids);
     } catch (error) {
-      console.error("Adventurer HUD | removing defeated creatures", error);
-      ui.notifications.error(error.message);
+      reportFailure("gm.remove-defeated", error);
     }
   };
   for (const hook of [

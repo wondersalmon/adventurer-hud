@@ -282,22 +282,22 @@ export function createHudComponents(context) {
 
     return `
       <div class="ws-actor-header">
-        <img
+        <button type="button" class="ws-actor-sheet-button ws-button" data-action="gmsheet" aria-label="${t("Actor.OpenSheet")}"><img
           class="ws-actor-portrait"
           data-open-actor-sheet
           src="${escapeHTML(context.portrait ?? actor.img ?? "icons/svg/mystery-man.svg")}"
           alt="${escapeHTML(actor.name)}"
           title="${t("Actor.OpenSheet")}"
-        >
+        ></button>
 
-        <div class="ws-actor-identity" data-open-actor-sheet title="${t("Actor.OpenSheet")}">
+        <button type="button" class="ws-actor-identity ws-actor-sheet-button ws-button" data-action="gmsheet" data-open-actor-sheet title="${t("Actor.OpenSheet")}">
           <strong>${escapeHTML(actor.name)}</strong>
           ${
             summary
               ? `<span title="${escapeHTML(summary)}">${escapeHTML(summary)}</span>`
               : ""
           }
-        </div>
+        </button>
 
         ${extra}
       </div>
@@ -378,7 +378,7 @@ export function createHudComponents(context) {
             class="fa-solid fa-chevron-left"
           ></i>
 
-          ${t("Labels.Rolls")}
+          ${t("Labels.Back")}
         </span>
 
         <span class="ws-nav-context">
