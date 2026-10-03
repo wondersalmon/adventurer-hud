@@ -1,4 +1,4 @@
-import { getSetting, SETTINGS } from "../settings.js";
+import { getSetting, SETTINGS } from "../settings-access.js";
 
 export function readHudVisibility() {
   return {
@@ -6,8 +6,10 @@ export function readHudVisibility() {
     showActionTypes: getSetting(SETTINGS.showActionTypes),
     combatSkills: getSetting(SETTINGS.showCombatSkills),
     modeNavigation: getSetting(SETTINGS.showModeNavigation),
+    shortcuts: getSetting(SETTINGS.showShortcuts),
     search: getSetting(SETTINGS.showSearch),
     activityPicker: getSetting(SETTINGS.showActivityPicker),
-    favorites: getSetting(SETTINGS.showFavorites)
+    favorites: getSetting(SETTINGS.showFavorites),
+    companions: getSetting(SETTINGS.showCompanions)
   };
 }

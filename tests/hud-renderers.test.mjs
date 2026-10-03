@@ -1,4 +1,8 @@
-import { installDom, restoreGlobalsAfterEach } from "./helpers/foundry.mjs";
+import {
+  installSettings,
+  installDom,
+  restoreGlobalsAfterEach
+} from "./helpers/foundry.mjs";
 import assert from "node:assert/strict";
 import { combatTurnState } from "../scripts/hud/actor-context.js";
 import test from "node:test";
@@ -9,7 +13,7 @@ import {
 } from "./helpers/rendering.mjs";
 
 import { createCombatRenderer } from "../scripts/hud/combat.js";
-import { createItemPanelRenderer } from "../scripts/hud/item-panels.js";
+import { createItemPanelRenderer } from "../scripts/hud/items/item-panels.js";
 
 test("GM action-only tabs include ordinary spells and keep legendary activities separate", () => {
   const weapon = { id: "sword", name: "Sword", type: "weapon" };
@@ -43,7 +47,7 @@ test("GM action-only tabs include ordinary spells and keep legendary activities 
     [...root.querySelectorAll('[data-action="combatfilter"]')].map(
       button => button.dataset.category
     ),
-    ["action"]
+    ["action", "features"]
   );
   assert.equal(f.hudState.combatCategory, "action");
   for (const item of [weapon, spell, feature])
@@ -381,6 +385,51 @@ test("HP dialog uses its default button for Enter and edits both HP fields", asy
       }
     });
     assert.deepEqual(updates[1], { damage: 3, temp: 4 });
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test("disposing HP during its native render closes the late dialog and prevents duplicate opens", async () => {
+  const originalDocument = globalThis.document;
+  globalThis.document = { createElement: () => ({ innerHTML: "" }) };
+  let finishRender,
+    dialog,
+    instances = 0,
+    closes = 0;
+  try {
+    const controller = createHpDialogController({
+      actor: { name: "Hero" },
+      adapter: { combatStats: () => ({ hp: {} }) },
+      DialogV2: class {
+        constructor() {
+          instances++;
+          dialog = this;
+        }
+        render() {
+          return new Promise(resolve => {
+            finishRender = () => {
+              this.rendered = true;
+              resolve(this);
+            };
+          });
+        }
+        close() {
+          this.rendered = false;
+          closes++;
+        }
+      },
+      t: key => key
+    });
+    const pending = controller.openHpDialog();
+    controller.openHpDialog();
+    assert.equal(instances, 1);
+    controller.dispose();
+    finishRender();
+    await pending;
+    assert.equal(dialog.rendered, false);
+    assert.equal(closes, 1);
+    assert.equal(controller.openHpDialog(), undefined);
   } finally {
     globalThis.document = originalDocument;
   }
@@ -770,4 +819,109 @@ test("condition tooltips include localized summaries and safe brief custom descr
     "Custom\nSpecial & safe."
   );
   assert.equal(root.querySelector("[onerror]"), null);
+});
+
+test("GM keeps weapons without activities and still separates legendary-only items", () => {
+  const weapon = { id: "bite", name: "Bite", type: "weapon" };
+  const legendary = { id: "legend", name: "Legend", type: "feat" };
+  const { renderer } = itemRendererFixture({
+    items: [weapon, legendary],
+    visibility: { gm: true, actionTypesOnly: false },
+    adapter: {
+      combatItems: (_actor, category) =>
+        category === "weapons" ? [weapon, legendary] : [],
+      itemActivities: item =>
+        item === legendary ? [{ activation: { type: "legendary" } }] : []
+    }
+  });
+  const root = fragment(renderer.combatActions());
+  assert.equal(
+    root.querySelector('[data-category="weapons"] small').textContent,
+    "1"
+  );
+  assert.ok(root.querySelector('[data-item-id="bite"]'));
+  assert.equal(root.querySelector('[data-item-id="legend"]'), null);
+});
+
+test("GM legendary abilities remain visible without a resource pool and respect collapse with a pool", () => {
+  installSettings();
+  const actor = { name: "NPC", type: "npc", effects: [], statuses: new Set() };
+  let resource = null;
+  const hudState = { gmLegendaryExpanded: false };
+  const renderer = createCombatRenderer({
+    actor,
+    adapter: {
+      combatStats: () => ({ ac: 10, hp: { value: 10, max: 10 } }),
+      npcResource: (_actor, key) => (key === "legact" ? resource : null),
+      npcTraits: () => [],
+      npcMovement: () => ({ primary: "30 ft", secondary: "" })
+    },
+    escapeHTML,
+    formatMod: String,
+    hudState,
+    t: key => key,
+    visibility: { gm: true },
+    gmHeader: () => "",
+    getCombatState: () => ({ combat: { started: true }, isTurn: false }),
+    combatActions: () => "",
+    gmSpecialActions: kind =>
+      kind === "legendary"
+        ? '<button data-test="legendary">Legendary ability</button>'
+        : ""
+  });
+  assert.ok(
+    fragment(renderer.combatHTML()).querySelector('[data-test="legendary"]')
+  );
+  resource = { max: 3, value: 0 };
+  assert.equal(
+    fragment(renderer.combatHTML()).querySelector('[data-test="legendary"]'),
+    null
+  );
+  hudState.gmLegendaryExpanded = true;
+  assert.ok(
+    fragment(renderer.combatHTML()).querySelector(
+      '.ws-gm-legendary-list [data-test="legendary"]'
+    )
+  );
+});
+
+test("GM unfiltered actions include missing activities and special abilities once without category tabs", () => {
+  const items = [
+    { id: "multi", name: "Multiattack", type: "feat" },
+    { id: "legend", name: "Legendary ability", type: "feat" },
+    { id: "spell", name: "Spell", type: "spell" },
+    {
+      id: "cache",
+      name: "Cached spell",
+      type: "spell",
+      flags: { dnd5e: { cachedFor: "cast" } }
+    },
+    { id: "loot", name: "Treasure", type: "loot" }
+  ];
+  const { renderer, visibility } = itemRendererFixture({
+    items,
+    visibility: { gm: true, filterActions: false, actionTypesOnly: true },
+    adapter: {
+      itemActivities: item =>
+        item.id === "legend" ? [{ activation: { type: "legendary" } }] : []
+    }
+  });
+  const root = fragment(renderer.combatActions());
+  assert.equal(root.querySelectorAll('[data-action="combatfilter"]').length, 0);
+  for (const id of ["multi", "legend", "spell"]) {
+    assert.equal(
+      root.querySelectorAll(
+        `[data-action="${id === "multi" ? "openitem" : "useitem"}"][data-item-id="${id}"]`
+      ).length,
+      1
+    );
+  }
+  assert.equal(root.querySelector('[data-item-id="cache"]'), null);
+  assert.equal(root.querySelector('[data-item-id="loot"]'), null);
+  visibility.search = true;
+  visibility.filterActions = true;
+  assert.equal(
+    fragment(renderer.combatActions()).querySelector('[data-item-id="multi"]'),
+    null
+  );
 });

@@ -1,5 +1,5 @@
-import { openRollsHud } from "./rolls-hud.js";
-import { registerGmLifecycle } from "./hud/gm-lifecycle.js";
+import { openRollsHud } from "./hud-loader.js";
+import { registerGmLifecycle } from "./hud/gm/gm-lifecycle.js";
 import { MODULE_ID } from "./module-id.js";
 import { reportFailure } from "./diagnostics.js";
 import { actorContextChanged } from "./runtime-helpers.js";
@@ -44,6 +44,7 @@ const scheduleActorRefresh = () => {
   clearTimeout(selectionTimer);
   selectionTimer = setTimeout(() => {
     selectionTimer = null;
+    if (!getOpenApp()?.rendered) return;
 
     const selected = canvas.tokens.controlled;
     if (selected.length > 1) {
@@ -53,6 +54,12 @@ const scheduleActorRefresh = () => {
     const actor = selected[0]?.actor ?? game.user.character;
     const tokenUuid = selected[0]?.document?.uuid ?? selected[0]?.uuid ?? null;
     const current = globalThis.__adventurerHud ?? {};
+    if (
+      tokenUuid &&
+      tokenUuid === current.app?.getFamiliarVisionOwnerTokenUuid?.()
+    )
+      return;
+    if (actor?.type === "npc") return;
 
     if (
       actor &&

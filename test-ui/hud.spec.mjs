@@ -1,10 +1,17 @@
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
-import { createCombatSpellRenderer } from "../scripts/hud/combat-spells.js";
+import { createCombatSpellRenderer } from "../scripts/hud/items/combat-spells.js";
 import { createCombatStatusRenderer } from "../scripts/hud/combat-statuses.js";
-import { renderGmCombatHeader } from "../scripts/hud/gm-combat.js";
+import { renderGmCombatHeader } from "../scripts/hud/gm/gm-combat.js";
 import { createCombatRenderer } from "../scripts/hud/combat.js";
 import { createHudComponents } from "../scripts/hud/components.js";
+import { bindItemDescriptionInteractions } from "../scripts/hud/items/item-interactions.js";
+import { renderInventorySummary } from "../scripts/hud/items/inventory-summary.js";
+import { synchronizeHudTheme, watchHudTheme } from "../scripts/hud/theme.js";
+import {
+  captureHudDomState,
+  restoreHudDomState
+} from "../scripts/hud/window/dom-state.js";
 import {
   escapeHTML,
   itemRendererFixture
@@ -23,6 +30,78 @@ const t = key =>
   ({ "Combat.SpellSlotsShort": "Spell", "Combat.PactSlotsShort": "Pact" })[
     key
   ] || key;
+
+test("inventory weight and gold stay readable with large amounts in both themes", async ({
+  page
+}) => {
+  const labels = {
+    "Inventory.Weight": "Вес / лимит",
+    "Inventory.Gold": "Золото",
+    "Inventory.GoldUnit": "зм"
+  };
+  const format = new Intl.NumberFormat("ru", { maximumFractionDigits: 2 });
+  const html = renderInventorySummary({
+    data: {
+      weight: 123456.7,
+      maxWeight: 987654.3,
+      units: "кг",
+      gold: 1234567890123
+    },
+    t: key => labels[key],
+    escapeHTML,
+    formatNumber: value => format.format(value)
+  });
+  for (const width of [270, 320, 450]) {
+    for (const theme of ["light", "dark"]) {
+      await page.setContent(
+        `<style>${css}</style><section class="ws-rolls-dialog ws-theme-${theme} ws-font-extralarge" style="width:${width}px"><div class="ws-shell"><div class="ws-view">${html}</div></div></section>`
+      );
+      for (const stat of await page.locator(".ws-inventory-stat").all()) {
+        expect(
+          await stat.evaluate(node => node.scrollWidth <= node.clientWidth + 1)
+        ).toBe(true);
+        const strong = await stat.locator("strong").boundingBox();
+        const box = await stat.boundingBox();
+        expect(strong.x + strong.width).toBeLessThanOrEqual(
+          box.x + box.width + 1
+        );
+      }
+      await expect(page.locator(".ws-inventory-weight")).toContainText("кг");
+      await expect(page.locator(".ws-inventory-gold")).toContainText("зм");
+    }
+  }
+});
+
+test("refresh restores the exact repeated button for keyboard activation", async ({
+  page
+}) => {
+  await page.addScriptTag({
+    content: `${captureHudDomState.toString()}\n${restoreHudDomState.toString()}`
+  });
+  for (const attribute of [
+    "data-proficient",
+    "data-prepared",
+    "data-view",
+    "data-scope",
+    "data-reroll",
+    "data-reset-initiative-id",
+    "data-companion-uuid",
+    "data-companion-direction",
+    "data-companion-filter"
+  ]) {
+    await page.setContent(
+      `<main><button data-action="same" ${attribute}="first">First</button><button data-action="same" ${attribute}="second">Second</button></main>`
+    );
+    await page.locator("button").nth(1).focus();
+    await page.evaluate(() => {
+      const root = document.querySelector("main");
+      const state = captureHudDomState(root);
+      root.innerHTML = root.innerHTML;
+      restoreHudDomState(root, state);
+    });
+    await expect(page.locator("button").nth(1)).toBeFocused();
+  }
+});
 
 test("player portrait and name support keyboard activation without overflowing the header", async ({
   page
@@ -214,7 +293,7 @@ test("GM identity and bottom tools fit a narrow window with long action lists", 
   const roster = await page.locator(".ws-gm-combat").boundingBox();
   expect(roster.y).toBeCloseTo(body.y, 0);
   expect(roster.x + roster.width).toBeLessThanOrEqual(body.x);
-  await page.screenshot({ path: "test-results/gm-wide-short.png" });
+  await page.screenshot({ path: "dev/test-results/gm-wide-short.png" });
 });
 
 test("GM toolbar fits a narrow HUD with wrapping portraits and HP above each token", async ({
@@ -489,6 +568,129 @@ test("favorites fit a narrow window without drag handles", async ({ page }) => {
   expect(fits).toBe(true);
 });
 
+test("item description gestures preserve left-click modifiers and work on depleted cards", async ({
+  page
+}) => {
+  const { renderer } = itemRendererFixture({
+    items: [{ id: "a", name: "Sword", type: "feat" }],
+    hudState: {
+      favoriteEntries: [{ itemId: "a", activityId: null }],
+      favoritesExpanded: true
+    },
+    visibility: { favorites: true }
+  });
+  await page.setContent(
+    `<style>${css}</style><div class="ws-rolls-dialog" style="width:320px">${renderer.favoriteSection()}</div>`
+  );
+  await page.addScriptTag({
+    content: bindItemDescriptionInteractions.toString()
+  });
+  await page.evaluate(() => {
+    window.gestures = [];
+    const element = document.querySelector(".ws-rolls-dialog");
+    window.unbindDescriptions = bindItemDescriptionInteractions({
+      element,
+      isActive: () => true,
+      openItem: (event, target) =>
+        window.gestures.push([
+          "description",
+          target.dataset.itemId,
+          Boolean(event.shiftKey)
+        ])
+    });
+    element.addEventListener("click", event =>
+      window.gestures.push([
+        "roll",
+        event.shiftKey,
+        event.altKey,
+        event.ctrlKey
+      ])
+    );
+  });
+  const item = page.locator(".ws-combat-item");
+  await item.click({ modifiers: ["Shift"] });
+  await item.click({ modifiers: ["Alt"] });
+  await item.click({ modifiers: ["Control"] });
+  await item.click({ button: "right" });
+  await item.click({ button: "right", modifiers: ["Shift"] });
+  await item.focus();
+  await page.keyboard.press("Shift+F10");
+  expect(await page.evaluate(() => window.gestures.length)).toBe(5);
+  await item.evaluate(node => {
+    node.disabled = true;
+  });
+  const bounds = await item.boundingBox();
+  await page.mouse.click(
+    bounds.x + bounds.width / 2,
+    bounds.y + bounds.height / 2,
+    { button: "right" }
+  );
+  expect(await page.evaluate(() => window.gestures)).toEqual([
+    ["roll", true, false, false],
+    ["roll", false, true, false],
+    ["roll", false, false, true],
+    ["description", "a", false],
+    ["description", "a", true],
+    ["description", "a", false]
+  ]);
+  await page.evaluate(() => window.unbindDescriptions());
+  await page.mouse.click(
+    bounds.x + bounds.width / 2,
+    bounds.y + bounds.height / 2,
+    { button: "right" }
+  );
+  expect(await page.evaluate(() => window.gestures.length)).toBe(6);
+});
+
+test("favorite cards reclaim both side columns and removal controls fit in editing", async ({
+  page
+}) => {
+  const { renderer, hudState } = itemRendererFixture({
+    items: [
+      { id: "a", name: "Shortbow", type: "feat" },
+      { id: "b", name: "Flurry of Blows", type: "feat" }
+    ],
+    hudState: {
+      favoriteEntries: [
+        { itemId: "a", activityId: null },
+        { itemId: "b", activityId: null }
+      ],
+      favoritesExpanded: true
+    },
+    adapter: { itemUsesData: () => ({ value: 2, max: 2 }) },
+    visibility: { favorites: true }
+  });
+  for (const width of [270, 320, 600]) {
+    hudState.favoriteEdit = false;
+    await page.setContent(
+      `<style>${css}</style><div class="ws-rolls-dialog ws-font-extralarge" style="width:${width}px">${renderer.favoriteSection()}</div>`
+    );
+    await expect(
+      page.locator('[data-action="removefavorite"], .ws-item-description')
+    ).toHaveCount(0);
+    const compact = await page.locator(".ws-combat-item").first().boundingBox();
+    const card = await page
+      .locator(".ws-combat-item-card")
+      .first()
+      .boundingBox();
+    expect(compact.width).toBeCloseTo(card.width, 0);
+    hudState.favoriteEdit = true;
+    await page.locator(".ws-rolls-dialog").evaluate((node, html) => {
+      node.innerHTML = html;
+    }, renderer.favoriteSection());
+    await expect(page.locator('[data-action="removefavorite"]')).toHaveCount(2);
+    const editing = await page.locator(".ws-combat-item").first().boundingBox();
+    expect(compact.width - editing.width).toBeGreaterThanOrEqual(35);
+    expect(
+      await page
+        .locator(".ws-combat-item-card")
+        .evaluateAll(nodes =>
+          nodes.every(node => node.scrollWidth <= node.clientWidth)
+        )
+    ).toBe(true);
+  }
+});
+
 test("unstarted combat has a prominent start button with a bounded red alert and reduced-motion support", async ({
   page
 }) => {
@@ -524,6 +726,103 @@ test("unstarted combat has a prominent start button with a bounded red alert and
       node => getComputedStyle(node, "::after").animationName
     )
   ).toBe("none");
+});
+
+test("automatic themes match manual palettes, follow native theme changes and stop observing on disposal", async ({
+  page
+}) => {
+  await page.setContent(
+    `<style>${css}</style><style>.theme-dark { color-scheme: dark; --color-text-primary: #ddd; background: #101217; }.theme-light { color-scheme: light; --color-text-primary: #111; background: #fff; }</style><main class="theme-dark"><section class="ws-rolls-dialog"><header class="window-header">HUD</header><div class="window-content"><div class="ws-shell"><div class="ws-view"><button class="ws-button">Attack</button><input value="Search"></div></div></div></section></main>`
+  );
+  await page.addScriptTag({
+    content: `${synchronizeHudTheme.toString()}\n${watchHudTheme.toString()}`
+  });
+  await page.addStyleTag({
+    content: "* { transition: none !important; animation: none !important; }"
+  });
+  await page.evaluate(() => {
+    window.selectedTheme = "auto";
+    const element = document.querySelector("section");
+    synchronizeHudTheme(element, window.selectedTheme);
+    window.unwatchTheme = watchHudTheme(element, () => window.selectedTheme);
+  });
+  const palette = () =>
+    page
+      .locator(
+        "section, .window-header, .window-content, .ws-shell, button, input"
+      )
+      .evaluateAll(nodes =>
+        nodes.map(node => {
+          const style = getComputedStyle(node);
+          return [
+            style.color,
+            style.backgroundColor,
+            style.borderColor,
+            style.colorScheme
+          ];
+        })
+      );
+  await expect(page.locator("section")).toHaveAttribute(
+    "data-ws-auto-theme",
+    "dark"
+  );
+  const dark = await palette();
+  await page.evaluate(() => {
+    window.selectedTheme = "dark";
+    synchronizeHudTheme(document.querySelector("section"), "dark");
+  });
+  expect(await palette()).toEqual(dark);
+  await page.evaluate(() => {
+    document.querySelector("main").className = "theme-light";
+  });
+  await expect(page.locator("section")).toHaveClass(/ws-theme-dark/);
+  expect(await palette()).toEqual(dark);
+  await page.evaluate(() => {
+    window.selectedTheme = "auto";
+    synchronizeHudTheme(document.querySelector("section"), "auto");
+  });
+  await expect(page.locator("section")).toHaveAttribute(
+    "data-ws-auto-theme",
+    "light"
+  );
+  const light = await palette();
+  await page.evaluate(() => {
+    window.selectedTheme = "light";
+    synchronizeHudTheme(document.querySelector("section"), "light");
+  });
+  expect(await palette()).toEqual(light);
+  await page.evaluate(() => {
+    window.selectedTheme = "auto";
+    synchronizeHudTheme(document.querySelector("section"), "auto");
+    document.querySelector("main").className = "theme-dark";
+  });
+  await expect(page.locator("section")).toHaveAttribute(
+    "data-ws-auto-theme",
+    "dark"
+  );
+  expect(await palette()).toEqual(dark);
+  await page
+    .locator("section")
+    .evaluate(element => element.classList.add("theme-light"));
+  await expect(page.locator("section")).toHaveAttribute(
+    "data-ws-auto-theme",
+    "light"
+  );
+  await page
+    .locator("section")
+    .evaluate(element => element.classList.remove("theme-light"));
+  await expect(page.locator("section")).toHaveAttribute(
+    "data-ws-auto-theme",
+    "dark"
+  );
+  await page.evaluate(() => {
+    window.unwatchTheme();
+    document.querySelector("main").className = "theme-light";
+  });
+  await expect(page.locator("section")).toHaveAttribute(
+    "data-ws-auto-theme",
+    "dark"
+  );
 });
 
 test("explicit HUD themes override host colors and keep light text readable", async ({

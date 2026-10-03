@@ -7,7 +7,7 @@
 
 Adventurer HUD is a compact HUD for [D&D 5e](https://github.com/foundryvtt/dnd5e). Players get character actions in exploration and combat; GMs get a dedicated panel for managing creatures and encounters.
 
-- [Player guide](docs/player-guide.md) — character actions, spells, favorites and shortcuts.
+- [Player guide](docs/player-guide.md) — character actions, companions, spells, favorites and shortcuts.
 - [GM guide](docs/gm-guide.md) — encounter setup, creature actions and turn controls.
 
 ![Adventurer HUD demonstration](media/demo.gif)
@@ -36,4 +36,4 @@ Enable **Open on login** to open the HUD when entering the world. Enable the **T
 
 ## AI disclosure
 
-AI tools were used during development and review.
+AI tools were used during development and code review.

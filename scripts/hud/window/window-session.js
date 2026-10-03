@@ -1,24 +1,27 @@
-import {
-  flushWindowGeometry,
-  getSetting,
-  setSetting,
-  SETTINGS
-} from "../settings.js";
-import { subscribeHudDocuments } from "./subscriptions.js";
+import { flushWindowGeometry } from "../../window-geometry.js";
+import { getSetting, setSetting, SETTINGS } from "../../settings-access.js";
+import { subscribeHudDocuments } from "../subscriptions.js";
 import { captureHudDomState, restoreHudDomState } from "./dom-state.js";
-import { reportFailure } from "../diagnostics.js";
-import { syncHudDimensions } from "./window-controls.js";
+import {
+  reportFailure,
+  recordDiagnostic,
+  subscribeDiagnostics,
+  diagnosticsRecording
+} from "../../diagnostics.js";
+import { bindItemDescriptionInteractions } from "../items/item-interactions.js";
+import { synchronizeHudTheme, watchHudTheme } from "../theme.js";
+import { createItemPreview } from "../items/item-preview.js";
 
 export async function activateHudWindow({
   actor,
+  adapter,
+  t = key => key,
   app,
   visualEffectsEnabled = true,
-  showWindowSize = false,
   gmActive = false,
   pinned = false,
   pinSetting = SETTINGS.pinWindow,
   setCloseOnEscape,
-  windowSizeLabel = "",
   isCurrentCombatant,
   isPlayersTurn,
   onSearchInput,
@@ -44,8 +47,8 @@ export async function activateHudWindow({
 }) {
   app.disposeHudSession?.();
   let disposed = false;
+  let itemPreview = null;
   let effectsEnabled = Boolean(visualEffectsEnabled);
-  let dimensionsEnabled = Boolean(showWindowSize);
   let hpFeedbackTimer = null;
   let flashTimer = null;
   let initiativeFeedbackTimer = null;
@@ -80,16 +83,12 @@ export async function activateHudWindow({
   };
 
   const syncTheme = value => {
-    app.element.classList.toggle("ws-theme-light", value === "light");
-    app.element.classList.toggle("ws-theme-dark", value === "dark");
+    synchronizeHudTheme(app.element, value);
   };
 
   app.applySetting = (key, value) => {
+    if (key === SETTINGS.showItemDescriptions && !value) itemPreview?.close();
     if (key === SETTINGS.closeOnEscape) setCloseOnEscape?.(Boolean(value));
-    if (key === SETTINGS.debugWindowSize) {
-      dimensionsEnabled = Boolean(value);
-      app.updateHudDimensions?.();
-    }
     if (key === SETTINGS.theme) syncTheme(value);
     if (key === pinSetting) {
       setPinned(Boolean(value));
@@ -124,17 +123,46 @@ export async function activateHudWindow({
   app.element.classList.toggle("ws-player-mode", !gmActive);
   setPinned?.(pinned);
   app.updatePinControl();
-  app.updateHudDimensions = () =>
-    syncHudDimensions({
-      element: app.element,
-      enabled: dimensionsEnabled,
-      label: windowSizeLabel
-    });
-  app.updateHudDimensions();
   syncTheme(theme);
+  const unwatchTheme = watchHudTheme(app.element, () =>
+    getSetting(SETTINGS.theme)
+  );
   syncEffects();
 
   const sessionElement = app.element;
+  const showRecording = () => {
+    if (disposed) return;
+    const previous = sessionElement?.querySelector(
+      "[data-diagnostic-recording]"
+    );
+    if (!diagnosticsRecording()) {
+      previous?.remove();
+      return;
+    }
+    if (previous) return;
+    const badge = document.createElement("span");
+    badge.dataset.diagnosticRecording = "true";
+    badge.className = "ws-diagnostic-recording";
+    badge.setAttribute("role", "status");
+    badge.textContent = t("Diagnostics.Recording");
+    (sessionElement?.querySelector(".window-header") ?? sessionElement)?.append(
+      badge
+    );
+  };
+  const unwatchDiagnostics = subscribeDiagnostics(showRecording);
+  showRecording();
+  recordDiagnostic("hud.session.ready", { listeners: 5 }, { detailed: true });
+  if (actor && adapter?.itemDescription)
+    itemPreview = createItemPreview({
+      element: sessionElement,
+      getItem: id => actor.items.get(id),
+      enrich: item => adapter.itemDescription(item),
+      enabled: () => getSetting(SETTINGS.showItemDescriptions),
+      isActive: () => !disposed && app.rendered,
+      t,
+      onError: error =>
+        reportFailure("hud.item.description", error, { level: "warn" })
+    });
   const onInput = event => {
     if (event.target?.matches?.('[data-action="searchitems"]')) {
       onSearchInput(event.target.value);
@@ -154,6 +182,11 @@ export async function activateHudWindow({
     void app.hudActions?.gmsheet?.();
   };
   app.element.addEventListener("dblclick", onDoubleClick);
+  const unbindItemDescriptions = bindItemDescriptionInteractions({
+    element: sessionElement,
+    isActive: () => !disposed && app.rendered,
+    openItem: (event, target) => app.hudActions?.openitem?.(event, target)
+  });
   const onContextMenu = event => {
     const target = event.target?.closest?.("[data-reset-initiative-id]");
     if (disposed || !app.rendered || !gmActive || !target) return;
@@ -166,7 +199,6 @@ export async function activateHudWindow({
   if (!reuse)
     app.addEventListener("position", () => {
       app.storeHudPosition?.(app.position);
-      app.updateHudDimensions?.();
     });
   app.storeHudPosition = storePosition;
 
@@ -267,7 +299,14 @@ export async function activateHudWindow({
   app.disposeHudSession = () => {
     if (disposed) return;
     disposed = true;
-    app.updateHudDimensions = null;
+    unwatchTheme();
+    unwatchDiagnostics();
+    sessionElement.querySelector("[data-diagnostic-recording]")?.remove();
+    recordDiagnostic(
+      "hud.session.dispose",
+      { listeners: 0, timers: 0 },
+      { detailed: true }
+    );
     onDispose?.();
     effectsEnabled = false;
     refreshScheduler.cancel();
@@ -277,6 +316,8 @@ export async function activateHudWindow({
     sessionElement.removeEventListener?.("change", onChange);
     sessionElement.removeEventListener?.("dblclick", onDoubleClick);
     sessionElement.removeEventListener?.("contextmenu", onContextMenu);
+    unbindItemDescriptions();
+    itemPreview?.dispose();
   };
   if (!reuse)
     app.addEventListener(
@@ -294,6 +335,7 @@ export async function activateHudWindow({
           state.actor = null;
           state.actorUuid = null;
           state.tokenUuid = null;
+          state.companionNavigation = null;
           Hooks.callAll("adventurerHudVisibilityChanged");
         }
       },

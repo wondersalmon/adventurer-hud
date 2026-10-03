@@ -8,14 +8,18 @@ export function createRegularRenderer(context) {
     combatInitiative,
     combatItemButton,
     combatItems,
+    companionNavigation,
+    companionSection,
     favoriteSection,
     healthPanel,
     hudState,
     inspirationControl,
     inventoryCategories,
     inventoryItems,
+    inventorySummary,
     legend,
     modeNavigation,
+    restControls,
     searchControl,
     searchItems,
     shortcutHint,
@@ -42,6 +46,8 @@ export function createRegularRenderer(context) {
       ${back(t("Inventory.Title"), "fa-box-open")}
 
       <div class="ws-divider"></div>
+
+      ${inventorySummary?.() ?? ""}
 
       ${searchControl()}
 
@@ -81,10 +87,13 @@ export function createRegularRenderer(context) {
     return `<div id="ws-main" class="ws-view">
       ${actorHeader(`<div class="ws-actor-quick-controls">${combatInitiative()}${inspirationControl()}</div>`)}
       ${modeNavigation("regular")}
+      ${companionNavigation?.() ?? ""}
       <div class="ws-player-content">
         <section class="ws-player-basics">
           <div class="ws-regular-health">${healthPanel()}</div>
+          ${restControls?.() ?? ""}
           ${abilitiesSection()}
+          ${companionSection?.() ?? ""}
       <div class="ws-nav-grid">
         ${nav("skills", "fa-list-check", "Labels.Skills")}
         ${nav("tools", "fa-screwdriver-wrench", "Labels.Tools")}

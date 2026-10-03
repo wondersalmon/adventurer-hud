@@ -1,3 +1,4 @@
+import { beginDiagnostic, recordDiagnostic } from "../diagnostics.js";
 import { createActionCooldown } from "./action-cooldown.js";
 
 const ROLL_ACTIONS = [
@@ -46,12 +47,28 @@ export function createHudRollRunner({
   };
 
   const perform = async callback => {
-    if (rollPending || !canStartMutation()) return;
+    if (rollPending || !canStartMutation()) {
+      recordDiagnostic(
+        "hud.mutation",
+        {},
+        {
+          outcome: "rejected",
+          reason: rollPending ? "operation-pending" : "session-or-cooldown"
+        }
+      );
+      return;
+    }
+    const trace = beginDiagnostic("hud.mutation", {}, { detailed: true });
     rollPending = true;
     const restoreRollControls = disableRollControls();
 
     try {
-      return await callback();
+      const result = await callback();
+      trace.finish("completed");
+      return result;
+    } catch (error) {
+      trace.finish("error", "native-error");
+      throw error;
     } finally {
       rollPending = false;
       restoreRollControls();

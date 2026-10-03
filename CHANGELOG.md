@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.4.1
+
+- **Companions:** a compact, collapsible list of owned creatures and characters, with **On scene** and **All** filters. Open their actions in the same window, switch between companions and return to your character by name. Sheets, HP, effects and turn highlights are available alongside individual and group initiative rolls. The group roll button disappears once all have rolled; companion preferences have their own settings submenu.
+- **Companions on the map:** place an absent creature from its prototype token when permitted, or ping an existing token. Optional camera and token-vision follow preserves the exact character token when returning, including outside the companion's vision.
+- **Familiar senses:** a green eye button adds the familiar's configured sight while your character stays selected and keeps their actions. Camera movement for shared senses can be disabled independently of token selection. Sharing follows the Find Familiar (2024) duration: until your next turn, or six seconds of game time outside combat.
+
+![Companions panel](media/summons-panel.png)
+
+- **Creature actions:** Epic Actions, Villain Actions and other activity activation types appear in their GM action groups. The player menu combines nonstandard types, including minutes and hours, under Special. Features shows activated abilities by default, with a saved switch between active and passive traits; hover or keyboard focus previews descriptions, with pinning for longer reading.
+- **Diagnostics:** record a problem for up to ten minutes, mark the failure and preview or download a bounded report with anonymous context, HUD dimensions, action outcomes and reasons for unavailable controls. No automatic uploads; error text is opt-in.
+- **Fixes:** preserve native initiative advantage/disadvantage, show consistent Cast-source details and restore custom action categories after reopening.
+- **Other improvements:** player character inspection, simpler GM settings and initiative controls, Troubleshooting tools, wider favorites and inventory weight/gold. Fixed rest controls, themes, visibility, keyboard focus and HP editing after switching creatures; removed automatic NPC deletion. Updated both player and GM guides.
+
 ## 1.3.2
 
 - Added GM/player switching for GMs, light and dark themes, and optional window dimensions in the title bar.

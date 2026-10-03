@@ -7,12 +7,21 @@ import { createHudState } from "../scripts/hud/state.js";
 import {
   createGmCombatController,
   renderGmCombatHeader
-} from "../scripts/hud/gm-combat.js";
+} from "../scripts/hud/gm/gm-combat.js";
 import { readHudVisibility } from "../scripts/hud/visibility.js";
 import { dnd5eAdapter } from "../scripts/dnd5e/index.js";
 import { createModuleTranslator } from "../scripts/localization.js";
+import {
+  renderCompanionList,
+  renderFamiliarVision,
+  renderCompanionNavigation,
+  renderCompanionSection
+} from "../scripts/hud/companions/companion-panel.js";
 
-export async function layoutFixture(language = "ru") {
+export async function layoutFixture(
+  language = "ru",
+  { documentation = false } = {}
+) {
   const manifest = JSON.parse(
     await readFile(new URL("../module.json", import.meta.url), "utf8")
   );
@@ -37,6 +46,8 @@ export async function layoutFixture(language = "ru") {
   actor.img = portrait;
   actor.system.details.level = 12;
   actor.system.attributes.hp = { value: 128, max: 245, temp: 18 };
+  actor.system.attributes.encumbrance = { value: 87.5, max: 180 };
+  actor.system.currency = { gp: 1234, pp: 10, ep: 0, sp: 3, cp: 5 };
   actor.system.attributes.movement = {
     walk: 30,
     fly: 60,
@@ -113,7 +124,9 @@ export async function layoutFixture(language = "ru") {
     ][index],
     img: portrait
   }));
-  actor.statuses = new Set(CONFIG.statusEffects.map(s => s.id));
+  actor.statuses = new Set(
+    documentation ? [] : CONFIG.statusEffects.map(s => s.id)
+  );
   const items = Array.from({ length: 27 }, (_, index) => {
     const type = index < 8 ? "weapon" : index < 20 ? "spell" : "feat";
     const activity = {
@@ -175,6 +188,8 @@ export async function layoutFixture(language = "ru") {
     isMusic: index >= 6
   }));
   const { t, tf } = await createModuleTranslator({ language, i18n: game.i18n });
+  CONFIG.Token = { documentClass: { canUserCreate: () => true } };
+  canvas.tokens.placeTokens = async () => [];
   const bodies = {};
   for (const scenario of [
     "player-main",
@@ -183,6 +198,13 @@ export async function layoutFixture(language = "ru") {
     "player-tools",
     "player-spells",
     "player-inventory",
+    "player-companions",
+    "player-companions-vision",
+    "player-companions-all",
+    "player-companions-all-vision",
+    "player-companions-combat",
+    "companion-actions",
+    "companion-exploration",
     "gm-features",
     "gm-actions",
     "gm-spells",
@@ -191,11 +213,16 @@ export async function layoutFixture(language = "ru") {
     "gm-defeated"
   ]) {
     const gm = scenario.startsWith("gm");
-    actor.type = gm ? "npc" : "character";
-    actor.name = gm
-      ? "Древний костяной дракон — хранитель потерянного храма"
-      : "Александриэль — хранительница северной границы";
+    const companion = scenario.startsWith("companion-");
+    actor.type = gm || companion ? "npc" : "character";
+    actor.name = companion
+      ? "Сова — фамильяр Александриэль"
+      : gm
+        ? "Древний костяной дракон — хранитель потерянного храма"
+        : "Александриэль — хранительница северной границы";
     canvas.scene = { id: "scene" };
+    CONFIG.Token = { documentClass: { canUserCreate: () => true } };
+    canvas.tokens.placeTokens = async () => [];
     const entries = Array.from({ length: 12 }, (_, index) => ({
       id: "npc" + index,
       actorId: actor.id,
@@ -212,6 +239,7 @@ export async function layoutFixture(language = "ru") {
         actor
       }
     }));
+    canvas.scene.tokens = itemCollection(entries.map(entry => entry.token));
     const combat = {
       id: "battle",
       name: "Оборона древнего храма — финальная схватка",
@@ -231,6 +259,7 @@ export async function layoutFixture(language = "ru") {
       scenario === "gm-defeated" ? entries[0] : controller?.sync();
     const visibility = {
       ...readHudVisibility(),
+      ...(companion ? { favorites: false } : {}),
       ...(gm
         ? {
             modeNavigation: false,
@@ -244,7 +273,11 @@ export async function layoutFixture(language = "ru") {
         : {})
     };
     const state = createHudState({
-      currentView: scenario.replace("player-", ""),
+      companionsExpanded: scenario.startsWith("player-companions"),
+      currentView:
+        companion || scenario.startsWith("player-companions")
+          ? "main"
+          : scenario.replace("player-", ""),
       combatCategory: scenario.endsWith("spells") ? "spells" : "features",
       combatAbilitiesExpanded: true,
       gmSpeedsExpanded: true,
@@ -287,6 +320,131 @@ export async function layoutFixture(language = "ru") {
       continue;
     }
     const presentation = createHudPresentation({
+      companion,
+      companions:
+        companion || scenario.startsWith("player-companions")
+          ? {
+              navigationHTML: () =>
+                renderFamiliarVision({
+                  active: scenario.endsWith("-vision")
+                    ? { name: "Сова — фамильяр Александриэль" }
+                    : null,
+                  ownerName: actor.name,
+                  t,
+                  tf,
+                  escapeHTML: foundry.utils.escapeHTML
+                }) +
+                renderCompanionNavigation({
+                  companion,
+                  ownerName: "Александриэль — хранительница северной границы",
+                  tf,
+                  escapeHTML: foundry.utils.escapeHTML,
+                  t,
+                  currentUuid: "Actor.owl",
+                  entries: [
+                    {
+                      uuid: "Scene.scene.Token.wolf",
+                      actor: {
+                        ...actor,
+                        name: "Лютый волк — призыв хранительницы северной границы"
+                      },
+                      token: entries[1].token,
+                      tokenOptions: []
+                    },
+                    {
+                      uuid: "Actor.mephit",
+                      actor: { ...actor, name: "Мефит — спутник вне сцены" },
+                      token: null,
+                      tokenOptions: []
+                    }
+                  ]
+                }),
+              sectionHTML: () =>
+                renderCompanionSection({
+                  visible: !companion,
+                  expanded: state.companionsExpanded,
+                  count: 3,
+                  t,
+                  body: renderCompanionList({
+                    owner: actor,
+                    visionUuid: scenario.endsWith("-vision")
+                      ? "Actor.owl"
+                      : null,
+                    filter: scenario.includes("-all") ? "all" : "scene",
+                    adapter: dnd5eAdapter,
+                    t,
+                    escapeHTML: foundry.utils.escapeHTML,
+                    entries: [
+                      {
+                        uuid: "Actor.owl",
+                        kind: "familiar",
+                        name: "Сова",
+                        actor: {
+                          ...actor,
+                          name: "Сова",
+                          effects: [
+                            {
+                              name: "Благословение",
+                              img: "icons/svg/aura.svg",
+                              statuses: new Set()
+                            },
+                            {
+                              name: "Отравлен",
+                              img: "icons/svg/poison.svg",
+                              statuses: new Set(["poisoned"])
+                            }
+                          ],
+                          system: {
+                            ...actor.system,
+                            attributes: {
+                              ...actor.system.attributes,
+                              ac: { value: 11 },
+                              hp: { value: 1, max: 1, temp: 0 }
+                            }
+                          }
+                        },
+                        token: entries[0].token,
+                        tokenOptions: [],
+                        reason: null
+                      },
+                      {
+                        uuid: "Scene.scene.Token.wolf",
+                        kind: "summon",
+                        name: "Лютый волк — призыв хранительницы северной границы",
+                        actor: {
+                          ...actor,
+                          name: "Лютый волк — призыв хранительницы северной границы",
+                          system: {
+                            ...actor.system,
+                            attributes: {
+                              ...actor.system.attributes,
+                              ac: { value: 14 },
+                              hp: { value: 22, max: 37, temp: 0 }
+                            }
+                          }
+                        },
+                        token: entries[1].token,
+                        tokenOptions: [],
+                        reason: null
+                      },
+                      {
+                        uuid: "Actor.mephit",
+                        kind: "companion",
+                        actor: {
+                          ...actor,
+                          id: "mephit",
+                          uuid: "Actor.mephit",
+                          name: "Мефит — спутник вне сцены"
+                        },
+                        token: null,
+                        tokenOptions: [],
+                        reason: null
+                      }
+                    ]
+                  })
+                })
+            }
+          : null,
       actorContext: createHudActorContext({
         actor,
         token: entries[0].token,
@@ -308,7 +466,10 @@ export async function layoutFixture(language = "ru") {
       tf
     });
     bodies[scenario] = (
-      gm || scenario === "player-combat"
+      gm ||
+      scenario === "companion-actions" ||
+      scenario === "player-combat" ||
+      scenario === "player-companions-combat"
         ? presentation.combatHTML()
         : presentation.normalHTML()
     ).replace("ws-view ws-hidden", "ws-view");

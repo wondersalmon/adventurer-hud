@@ -1,4 +1,8 @@
-import { findCombatant, tokenForActor } from "../runtime-helpers.js";
+import {
+  findCombatant,
+  tokenForActor,
+  ownerTokenForActor
+} from "../runtime-helpers.js";
 
 export function combatTurnState(combat, combatant, canAct) {
   const isActive = Boolean(combat?.started && combatant);
@@ -12,22 +16,30 @@ export function combatTurnState(combat, combatant, canAct) {
   };
 }
 
+/** @param {{actor: any, token?: any, getCombat: () => any, combatantId?: string | null, requireToken?: boolean, ownerTokenUuid?: string | null}} options */
 export function createHudActorContext({
   actor,
   token,
   getCombat,
-  combatantId = null
+  combatantId = null,
+  requireToken = false,
+  ownerTokenUuid = null
 }) {
   const actorToken = tokenForActor(token ?? actor.token, actor);
   const tokenDocument = actorToken?.document ?? actorToken;
+  const ownerToken = ownerTokenForActor(token ?? actor.token, actor);
+  const ownerDocument = ownerToken?.document ?? ownerToken;
   const getCombatState = () => {
     const combat = getCombat();
-    const combatant = findCombatant(combat?.combatants, {
-      actorId: actor.id,
-      combatantId,
-      tokenId: tokenDocument?.id,
-      sceneId: tokenDocument?.parent?.id
-    });
+    const combatant =
+      (requireToken && !tokenDocument) || (ownerTokenUuid && !ownerDocument)
+        ? null
+        : findCombatant(combat?.combatants, {
+            actorId: actor.id,
+            combatantId,
+            tokenId: ownerDocument?.id,
+            sceneId: ownerDocument?.parent?.id
+          });
     return combatTurnState(combat, combatant, actor.isOwner);
   };
   return {
@@ -35,6 +47,7 @@ export function createHudActorContext({
     token: actorToken,
     actorUuid: actor.uuid,
     tokenUuid: tokenDocument?.uuid ?? null,
+    ownerTokenUuid: ownerDocument?.uuid ?? ownerTokenUuid,
     getCombatState,
     isCurrentCombatant: combatant => {
       const { combat, combatant: current } = getCombatState();

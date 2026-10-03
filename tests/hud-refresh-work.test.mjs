@@ -8,7 +8,7 @@ import { refreshHudShell } from "../scripts/hud/refresh.js";
 import {
   captureHudDomState,
   restoreHudDomState
-} from "../scripts/hud/dom-state.js";
+} from "../scripts/hud/window/dom-state.js";
 import { installDom, restoreGlobalsAfterEach } from "./helpers/foundry.mjs";
 
 restoreGlobalsAfterEach();

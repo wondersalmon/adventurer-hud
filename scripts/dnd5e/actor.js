@@ -56,6 +56,30 @@ export const dnd5eActor = {
       proficiencyBonus: actor.system.attributes.prof ?? "—"
     };
   },
+  inventorySummary(actor) {
+    const encumbrance = actor.system.attributes?.encumbrance ?? {};
+    const number = value => {
+      if (value == null || value === "") return null;
+      const result = Number(value);
+      return Number.isFinite(result) && result >= 0 ? result : null;
+    };
+    const unitSystem = game.settings.get("dnd5e", "metricWeightUnits")
+      ? "metric"
+      : "imperial";
+    const config = CONFIG.DND5E.encumbrance?.baseUnits;
+    const units =
+      (config?.[actor.type] ?? config?.default)?.[unitSystem] ??
+      (unitSystem === "metric" ? "kg" : "lb");
+    return {
+      weight: number(encumbrance.value),
+      maxWeight:
+        encumbrance.max === Infinity ? Infinity : number(encumbrance.max),
+      units: game.i18n.localize(
+        CONFIG.DND5E.weightUnits?.[units]?.abbreviation ?? units
+      ),
+      gold: number(actor.system.currency?.gp) ?? 0
+    };
+  },
   async updateHp(actor, { value, temp, damage }) {
     if (damage !== undefined) {
       if (temp !== Number(actor.system.attributes.hp.temp ?? 0))

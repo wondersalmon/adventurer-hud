@@ -8,8 +8,123 @@ import {
 import { hudFixture, waitFor } from "./helpers/hud.mjs";
 import { itemCollection } from "./helpers/rendering.mjs";
 import { SETTINGS } from "../scripts/settings.js";
+import { diagnosticReport } from "../scripts/diagnostics.js";
 
 restoreGlobalsAfterEach();
+
+test("item previews use the displayed Actor and respond to live settings without reopening", async t => {
+  const f = await hudFixture();
+  f.actor.items.set("trait", {
+    id: "trait",
+    name: "Passive trait",
+    type: "feat",
+    system: { description: { value: "<p>Actor description</p>" } }
+  });
+  f.actor.system.favorites = [{ type: "item", id: ".Item.trait" }];
+  foundry.applications.ux = {
+    TextEditor: { implementation: { enrichHTML: async text => text } }
+  };
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  const sessionElement = app.element;
+  const create = document.createElement.bind(document);
+  t.mock.method(document, "createElement", tag => {
+    const node = create(tag);
+    node.getBoundingClientRect = () => ({ height: 90 });
+    return node;
+  });
+  const card = app.element.querySelector('[data-description-item-id="trait"]');
+  card.getBoundingClientRect = () => ({ left: 20, right: 80, top: 40 });
+  const show = () => {
+    const event = new document.defaultView.Event("keydown", {
+      bubbles: true,
+      cancelable: true
+    });
+    Object.assign(event, { key: "F2" });
+    card.querySelector("button").dispatchEvent(event);
+  };
+  show();
+  await waitFor(() => app.element.querySelector(".ws-item-preview"));
+  assert.equal(
+    app.element.querySelector(".ws-item-preview-body").textContent,
+    "Actor description"
+  );
+  const originalActions = app.hudActions;
+  await game.settings.set(
+    "adventurer-hud",
+    SETTINGS.showItemDescriptions,
+    false
+  );
+  await waitFor(() => !app.element.querySelector(".ws-item-preview"));
+  assert.equal(app.hudActions, originalActions);
+  show();
+  await waitFor(() => app.element.querySelector(".ws-item-preview"));
+  await app.close();
+  assert.equal(sessionElement.querySelector(".ws-item-preview"), null);
+  show();
+  await Promise.resolve();
+  assert.equal(sessionElement.querySelector(".ws-item-preview"), null);
+  assert.deepEqual(f.notifications, []);
+});
+
+test("item context gestures route descriptions and clean up when the session closes", async () => {
+  const f = await hudFixture();
+  const calls = [];
+  f.actor.items.set("item", {
+    id: "item",
+    name: "Item",
+    type: "feat",
+    system: {},
+    sheet: { render: () => calls.push("sheet") },
+    displayCard: () => calls.push("chat")
+  });
+  f.actor.system.favorites = [{ type: "item", id: ".Item.item" }];
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  const child = app.element.querySelector(
+    ".ws-favorites .ws-combat-item strong"
+  );
+  const gesture = (type, options = {}) => {
+    const event = new document.defaultView.Event(type, {
+      bubbles: true,
+      cancelable: true
+    });
+    Object.assign(event, options);
+    child.dispatchEvent(event);
+    return event;
+  };
+  assert.equal(
+    gesture("contextmenu", { button: 2, shiftKey: false }).defaultPrevented,
+    true
+  );
+  assert.equal(
+    gesture("contextmenu", { button: 2, shiftKey: true }).defaultPrevented,
+    true
+  );
+  await Promise.resolve();
+  assert.deepEqual(calls, ["sheet", "chat"]);
+  assert.equal(
+    gesture("contextmenu", { button: 0, shiftKey: true }).defaultPrevented,
+    false
+  );
+  assert.deepEqual(calls, ["sheet", "chat"]);
+  assert.equal(
+    gesture("keydown", { key: "F10", shiftKey: true }).defaultPrevented,
+    false
+  );
+  assert.deepEqual(calls, ["sheet", "chat"]);
+  assert.equal(
+    gesture("keydown", { key: "ContextMenu" }).defaultPrevented,
+    true
+  );
+  assert.deepEqual(calls, ["sheet", "chat", "sheet"]);
+  assert.equal(gesture("keydown", { key: "Enter" }).defaultPrevented, false);
+  await app.close();
+  gesture("contextmenu", { button: 2, shiftKey: false });
+  gesture("keydown", { key: "ContextMenu" });
+  assert.deepEqual(calls, ["sheet", "chat", "sheet"]);
+  assert.deepEqual(f.notifications, []);
+});
 
 for (const isGM of [false, true]) {
   test(`closed ${isGM ? "GM" : "player"} HUD stays closed at page startup and manual opening clears the preference`, async () => {
@@ -300,39 +415,6 @@ for (const isGM of [false, true]) {
     assert.equal(__adventurerHud.app.options.window.resizable, false);
     await __adventurerHud.app.close();
   });
-  test(`window dimensions toggle live and follow position updates in ${isGM ? "empty GM" : "player"} mode`, async () => {
-    const f = await hudFixture({ isGM });
-    await f.api.open(isGM ? undefined : f.actor);
-    const app = __adventurerHud.app;
-    const title = app.element.querySelector(".window-title");
-    title.textContent = "HUD";
-    let width = 450.3,
-      height = 640.4;
-    app.element.getBoundingClientRect = () => ({ width, height });
-    assert.equal(app.element.querySelector(".ws-window-size"), null);
-    const shell = app.element.querySelector(".ws-shell");
-    const body = shell.firstElementChild;
-    app.applySetting(SETTINGS.debugWindowSize, true);
-    assert.equal(
-      app.element.querySelector(".ws-window-size").textContent,
-      "450 × 640 px"
-    );
-    width = 270;
-    height = 220;
-    app.listeners.get("position")();
-    assert.equal(
-      app.element.querySelector(".ws-window-size").textContent,
-      "270 × 220 px"
-    );
-    app._onRender({}, {});
-    assert.equal(app.element.querySelectorAll(".ws-window-size").length, 1);
-    assert.equal(title.textContent, "HUD");
-    assert.equal(shell.firstElementChild, body);
-    app.applySetting(SETTINGS.debugWindowSize, false);
-    assert.equal(app.element.querySelector(".ws-window-size"), null);
-    await app.close();
-    assert.equal(app.updateHudDimensions, null);
-  });
 }
 
 test("player mode restores small saved windows at the requested 350px minimum", async () => {
@@ -553,7 +635,7 @@ test("one GM window keeps menus, pin state and subscriptions across empty and po
   const app = __adventurerHud.app;
   const controls = app.options.window.controls.map(c => c.action);
   assert.ok(controls.includes("settings"));
-  assert.ok(controls.includes("resetwindow"));
+  assert.equal(controls.includes("resetwindow"), false);
   await app.options.actions.togglepin();
   const hookCount = f.callbacks.size;
   const actor = {
@@ -622,3 +704,21 @@ test("one GM window keeps menus, pin state and subscriptions across empty and po
   await app.close();
   assert.ok(f.callbacks.size < hookCount);
 });
+
+for (const isGM of [false, true]) {
+  test(`diagnostic reports collect resized HUD dimensions without a header badge in ${isGM ? "GM" : "player"} mode`, async () => {
+    const f = await hudFixture({ isGM, values: { debugWindowSize: true } });
+    await f.api.open(isGM ? undefined : f.actor);
+    const app = __adventurerHud.app;
+    app.setPosition({ width: 500, height: 650 });
+    const first = diagnosticReport().context.panel;
+    assert.equal(first.width, 500);
+    assert.equal(first.height, 650);
+    app.setPosition({ width: 300, height: 450 });
+    const resized = diagnosticReport().context.panel;
+    assert.equal(resized.width, 300);
+    assert.equal(resized.height, 450);
+    assert.equal(app.element.querySelector(".ws-window-size"), null);
+    await app.close();
+  });
+}

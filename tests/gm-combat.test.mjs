@@ -5,7 +5,7 @@ import {
   gmRoster,
   gmWindowTitle,
   renderGmCombatHeader
-} from "../scripts/hud/gm-combat.js";
+} from "../scripts/hud/gm/gm-combat.js";
 import {
   SETTINGS,
   getSettingDefinitions,
@@ -160,18 +160,18 @@ test("GM roster uses token actors, scene identity, ownership and native initiati
   f.last.players = [{ active: true }];
   assert.deepEqual(
     f.controller.roster().map(entry => entry.id),
-    ["first", "second"]
+    ["first", "player", "second"]
   );
   f.values[SETTINGS.gmIncludePlayerNpcs] = true;
   assert.deepEqual(
     f.controller.roster().map(entry => entry.id),
-    ["first", "second", "last"]
+    ["first", "player", "second", "last"]
   );
   f.second.sceneId = "elsewhere";
   f.first.token = null;
   assert.deepEqual(
     f.controller.roster().map(entry => entry.id),
-    ["last"]
+    ["player", "last"]
   );
   assert.deepEqual(gmRoster(f.combat, { isGM: false, sceneId: "scene" }), []);
 });
@@ -245,13 +245,18 @@ test("GM settings reuse the form, reject player access and isolate reset from pl
   const keys = context.groups.flatMap(group =>
     group.settings.map(setting => setting.key)
   );
-  assert.ok(keys.every(key => getSettingDefinitions()[key].gmOnly));
+  assert.ok(
+    keys.every(
+      key =>
+        getSettingDefinitions()[key]?.gmOnly ||
+        ["gmSelectionMode", "gmActionDisplay", "gmCardDetails"].includes(key)
+    )
+  );
   const submit = f.menus.get("configure").type.DEFAULT_OPTIONS.form.handler;
   await submit.call(gmApp, null, null, {
     object: {
       gmEnabled: true,
-      gmFollowTurn: true,
-      gmAutoAdvance: false,
+      gmSelectionMode: "turn",
       showSearch: true
     }
   });
@@ -318,6 +323,7 @@ test("real GM HUD switches between synthetic NPCs and releases old subscriptions
   };
   const first = make("one", 8),
     second = make("two", 3);
+  canvas.scene.tokens = itemCollection([first.token, second.token]);
   const combat = {
     id: "battle",
     name: "Encounter",

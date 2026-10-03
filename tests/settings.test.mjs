@@ -52,7 +52,10 @@ test("main and additional settings use task-based groups", async () => {
     assert.equal(registrations.get(key).default, true);
     assert.equal(registrations.get(key).config, false);
     assert.equal(SETTING_DEFINITIONS[key].gmOnly, true);
-    assert.equal(SETTING_DEFINITIONS[key].placement, "gm");
+    assert.equal(
+      SETTING_DEFINITIONS[key].placement,
+      key === SETTINGS.gmActionTypesOnly ? "internal" : "gm"
+    );
     assert.equal(settingRefreshStrategy(key), "content");
   }
 
@@ -113,7 +116,7 @@ test("main and additional settings use task-based groups", async () => {
   );
   assert.equal(
     SETTING_DEFINITIONS[SETTINGS.showModeNavigation].placement,
-    "advanced"
+    "internal"
   );
   const context = await new (menus.get("configure").type)()._prepareContext();
   assert.deepEqual(
@@ -132,7 +135,10 @@ test("main and additional settings use task-based groups", async () => {
     group.settings.map(setting => setting.key)
   );
   assert.equal(visibleKeys.includes(SETTINGS.pinWindow), false);
-  assert.equal(visibleKeys.includes(SETTINGS.showModeNavigation), true);
+  assert.equal(visibleKeys.includes(SETTINGS.showModeNavigation), false);
+  assert.equal(visibleKeys.includes(SETTINGS.showShortcuts), true);
+  assert.equal(registrations.get(SETTINGS.showShortcuts)?.default, true);
+  assert.equal(settingRefreshStrategy(SETTINGS.showShortcuts), "content");
   assert.equal(new Set(visibleKeys).size, visibleKeys.length);
   assert.deepEqual(
     context.groups.map(group => group.label),
@@ -146,7 +152,10 @@ test("main and additional settings use task-based groups", async () => {
   for (const key of [
     SETTINGS.showSearch,
     SETTINGS.showFavorites,
-    SETTINGS.showActivityPicker
+    SETTINGS.showActivityPicker,
+    SETTINGS.showCompanions,
+    SETTINGS.showCompanionEffects,
+    SETTINGS.companionVisionPan
   ]) {
     assert.equal(registrations.get(key)?.config, false);
     assert.equal(registrations.get(key)?.default, true);
@@ -202,6 +211,7 @@ test("additional settings serialize concurrent saves and write only changed cont
   const values = Object.fromEntries(current);
   values.showSearch = false;
   values.pinWindow = true;
+  values.showModeNavigation = true;
   await Promise.all([
     handler(null, null, { object: values }),
     handler(null, null, { object: values })
@@ -214,7 +224,25 @@ test("additional settings serialize concurrent saves and write only changed cont
   assert.equal(batches.length, 1);
 });
 
-test("footer reset requires confirmation, preserves saved data, and refreshes the form", async () => {
+test("saving additional settings preserves mode buttons enabled from the header menu", async () => {
+  const { current, menus, writes } = installSettings({
+    values: { [SETTINGS.showModeNavigation]: true }
+  });
+  const context = await new (menus.get("configure").type)()._prepareContext();
+  const submitted = Object.fromEntries(
+    context.groups.flatMap(group =>
+      group.settings.map(setting => [setting.key, setting.value])
+    )
+  );
+  submitted[SETTINGS.showShortcuts] = false;
+  await menus.get("configure").type.DEFAULT_OPTIONS.form.handler(null, null, {
+    object: submitted
+  });
+  assert.equal(current.get(SETTINGS.showModeNavigation), true);
+  assert.deepEqual(writes, [[SETTINGS.showShortcuts, false]]);
+});
+
+test("troubleshooting reset requires confirmation and preserves saved data", async () => {
   const savedData = {
     [SETTINGS.panelStates]: { "Actor.hero": { currentView: "inventory" } },
     [SETTINGS.windowGeometry]: { width: 900, left: 20 }
@@ -233,12 +261,9 @@ test("footer reset requires confirmation, preserves saved data, and refreshes th
       .flatMap(group => group.settings)
       .find(setting => setting.key === SETTINGS.showSearch)?.value;
   assert.equal(searchValue(), false);
-  let prevented = 0;
-  const event = { preventDefault: () => prevented++ };
-  const cancelled = await SettingsApp.DEFAULT_OPTIONS.actions.reset.call(
-    app,
-    event
-  );
+  const cancelled = await menus
+    .get("troubleshooting")
+    .type.DEFAULT_OPTIONS.actions.resetsettings.call({});
   assert.equal(cancelled.rendered, true);
   assert.deepEqual(writes, []);
   cancelled.constructor.DEFAULT_OPTIONS.actions.cancel.call(cancelled);
@@ -246,16 +271,14 @@ test("footer reset requires confirmation, preserves saved data, and refreshes th
   assert.equal(current.get(SETTINGS.pinWindow), true);
   assert.deepEqual(writes, []);
 
-  const confirmation = await SettingsApp.DEFAULT_OPTIONS.actions.reset.call(
-    app,
-    event
-  );
+  const confirmation = await menus
+    .get("troubleshooting")
+    .type.DEFAULT_OPTIONS.actions.resetsettings.call({});
   await confirmation.constructor.DEFAULT_OPTIONS.form.handler.call(
     confirmation
   );
-  assert.equal(prevented, 2);
-  assert.equal(app.renderCount, 2);
-  assert.equal(searchValue(), true);
+  assert.equal(app.renderCount, 1);
+  assert.equal(current.get(SETTINGS.showSearch), true);
   assert.equal(current.get(SETTINGS.pinWindow), false);
   assert.deepEqual(writes, [
     [SETTINGS.pinWindow, false],
@@ -271,8 +294,6 @@ test("setting metadata drives defaults, placement, and refresh behavior", () => 
     new Set(Object.keys(SETTING_DEFAULTS))
   );
   assert.equal(settingRefreshStrategy(SETTINGS.pinWindow), "runtime");
-  assert.equal(settingRefreshStrategy(SETTINGS.debugWindowSize), "runtime");
-  assert.equal(SETTING_DEFINITIONS[SETTINGS.debugWindowSize].default, false);
   assert.equal(settingRefreshStrategy(SETTINGS.showVisualEffects), "runtime");
   assert.equal(settingRefreshStrategy(SETTINGS.fontSize), "reopen");
   assert.equal(

@@ -9,7 +9,7 @@ import { createHudActions } from "../scripts/hud/actions.js";
 import { combatTurnState } from "../scripts/hud/actor-context.js";
 import { getCurrentCombat } from "../scripts/runtime-helpers.js";
 import { applyHudSettingChanges } from "../scripts/hud/settings-refresh.js";
-import { activateHudWindow } from "../scripts/hud/window-session.js";
+import { activateHudWindow } from "../scripts/hud/window/window-session.js";
 
 restoreGlobalsAfterEach();
 
@@ -325,6 +325,10 @@ test("window session updates live settings and releases document hooks", async (
     const elementClasses = new Set();
     const app = {
       element: {
+        closest: () => null,
+        ownerDocument: { defaultView: {} },
+        dataset: {},
+        removeAttribute() {},
         querySelector: () => null,
         style: { setProperty() {} },
         classList: {
@@ -337,6 +341,10 @@ test("window session updates live settings and releases document hooks", async (
         offsetWidth: 100,
         addEventListener(name, callback) {
           elementListeners.set(name, callback);
+        },
+        removeEventListener(name, callback) {
+          if (elementListeners.get(name) === callback)
+            elementListeners.delete(name);
         }
       },
       addEventListener(name, callback) {

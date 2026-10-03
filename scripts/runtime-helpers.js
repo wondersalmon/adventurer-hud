@@ -9,6 +9,16 @@ export function tokenForActor(token, actor) {
   return token?.actor?.uuid === actor?.uuid ? token : null;
 }
 
+// World sheets can represent a selected unlinked token through its base Actor.
+// Keep that navigation identity separate from the displayed synthetic Actor.
+export function ownerTokenForActor(token, actor) {
+  const document = token?.document ?? token;
+  return (
+    tokenForActor(token, actor) ??
+    (actor && !actor.isToken && document?.baseActor === actor ? token : null)
+  );
+}
+
 export function getCurrentCombat(gameState) {
   return (
     gameState.combat ??

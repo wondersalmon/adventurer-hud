@@ -491,6 +491,11 @@
   display: none;
 }
 
+.ws-rolls-dialog .ws-gm-initiative-options {
+  min-width: 0;
+  margin-top: 4px;
+}
+
 .ws-rolls-dialog .ws-gm-toolbar select {
   min-width: 0;
   width: 100%;
@@ -637,12 +642,12 @@
 .ws-rolls-dialog .ws-combat-item-card {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 32px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
 }
 
 .ws-rolls-dialog .ws-combat-item-card.ws-has-side-actions {
-  grid-template-columns: minmax(0, 1fr) 32px 32px;
+  grid-template-columns: minmax(0, 1fr) 32px;
 }
 
 .ws-rolls-dialog .ws-item-side-actions {
@@ -686,8 +691,12 @@
 
 .ws-rolls-dialog .ws-activity-option {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 32px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
+}
+
+.ws-rolls-dialog .ws-activity-option:has(.ws-item-favorite) {
+  grid-template-columns: minmax(0, 1fr) 32px;
 }
 
 .ws-rolls-dialog .ws-activity-option > button:first-child {
@@ -754,8 +763,7 @@
   font-weight: 750;
 }
 
-.ws-rolls-dialog .ws-detailed-card .ws-combat-item,
-.ws-rolls-dialog .ws-detailed-card .ws-item-description {
+.ws-rolls-dialog .ws-detailed-card .ws-combat-item {
   min-height: 52px;
 }
 
@@ -804,20 +812,6 @@
   border-radius: 3px;
   background: var(--accent-bg);
   text-align: center;
-}
-
-.ws-rolls-dialog .ws-item-description {
-  width: 32px;
-  height: 36px;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  color: var(--muted) !important;
-  font-size: calc(9px * var(--ws-type-scale));
-}
-
-.ws-rolls-dialog .ws-item-description:hover {
-  color: var(--accent) !important;
 }
 
 .ws-rolls-dialog .ws-combat-item > i {
@@ -1696,4 +1690,71 @@
   .ws-rolls-dialog .ws-gm-start::after {
     animation: none;
   }
+}
+
+.ws-rolls-dialog .ws-item-preview {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  z-index: 10000;
+  box-sizing: border-box;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--background, var(--color-cool-5, #19181f));
+  color: var(--text, var(--color-text-primary));
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.35);
+  font-size: max(12px, calc(11px * var(--ws-type-scale, 1)));
+  user-select: text;
+}
+
+.ws-rolls-dialog .ws-item-preview > header {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ws-rolls-dialog .ws-item-preview > header strong {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ws-rolls-dialog .ws-item-preview > header button {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+}
+
+.ws-rolls-dialog .ws-item-preview button[aria-pressed="true"] {
+  color: var(--accent) !important;
+}
+
+.ws-rolls-dialog .ws-item-preview-body {
+  max-height: min(55vh, 440px);
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+.ws-rolls-dialog .ws-item-preview-body :first-child {
+  margin-top: 0;
+}
+
+.ws-rolls-dialog .ws-item-preview-body :last-child {
+  margin-bottom: 0;
+}
+
+.ws-rolls-dialog .ws-feature-filter {
+  display: flex;
+  margin: 6px 0;
+}
+
+.ws-rolls-dialog .ws-feature-filter button {
+  max-width: 100%;
+  padding: 5px 9px;
+  white-space: normal;
+  font-size: calc(11px * var(--ws-font-scale, 1));
 }

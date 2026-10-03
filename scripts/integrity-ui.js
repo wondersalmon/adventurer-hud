@@ -5,10 +5,17 @@ import { SETTINGS, getSettingDefinitions } from "./settings-schema.js";
 import {
   diagnosticReport,
   exportDiagnosticReport,
-  reportFailure
+  reportFailure,
+  startDiagnosticRecording,
+  stopDiagnosticRecording,
+  clearDiagnostics,
+  subscribeDiagnostics
 } from "./diagnostics.js";
 
-export function createIntegrityApplication() {
+export function createIntegrityApplication({
+  openResetSettings,
+  resetWindowPositions
+} = {}) {
   const { ApplicationV2, HandlebarsApplicationMixin } =
     foundry.applications.api;
   return class AdventurerHudIntegrity extends HandlebarsApplicationMixin(
@@ -18,15 +25,66 @@ export function createIntegrityApplication() {
       id: "adventurer-hud-integrity",
       classes: ["adventurer-hud-settings"],
       window: {
-        title: "ADVENTURER_HUD.Integrity.Title",
+        title: "ADVENTURER_HUD.Settings.Troubleshooting.Name",
         icon: "fa-solid fa-wrench"
       },
       position: { width: 520, height: "auto" },
       actions: {
+        resetsettings: function () {
+          return openResetSettings?.(false);
+        },
+        resetgm: function () {
+          if (game.user?.isGM) return openResetSettings?.(true);
+        },
+        resetpositions: async function () {
+          const accepted = await foundry.applications.api.DialogV2.confirm({
+            window: { title: this.t("Troubleshooting.ResetPositions") },
+            content: `<p>${this.t("Troubleshooting.ResetPositionsHint")}</p>`
+          });
+          if (accepted) await resetWindowPositions?.();
+        },
+        record: async function () {
+          this.readDiagnosticInput();
+          startDiagnosticRecording();
+          await this.render({ force: true });
+        },
+        mark: async function () {
+          this.readDiagnosticInput();
+          stopDiagnosticRecording({ mark: true });
+          await this.render({ force: true });
+        },
+        stoprecord: async function () {
+          this.readDiagnosticInput();
+          stopDiagnosticRecording();
+          await this.render({ force: true });
+        },
+        cleardiagnostics: async function () {
+          const comment = this.element?.querySelector?.(
+            "[data-diagnostic-comment]"
+          );
+          const include = this.element?.querySelector?.(
+            "[data-diagnostic-errors]"
+          );
+          if (comment) comment.value = "";
+          if (include) include.checked = false;
+          clearDiagnostics();
+          this.diagnosticComment = "";
+          this.includeErrorText = false;
+          this.showPreview = false;
+          await this.render({ force: true });
+        },
+        preview: async function () {
+          this.readDiagnosticInput();
+          this.showPreview = !this.showPreview;
+          await this.render({ force: true });
+        },
         export: async function () {
           try {
+            this.readDiagnosticInput();
             const { filename, eventCount } = await exportDiagnosticReport({
-              integrity: this.report ?? null
+              integrity: this.report ?? null,
+              comment: this.diagnosticComment ?? "",
+              includeErrorText: this.includeErrorText ?? false
             });
             const key = eventCount
               ? "Diagnostics.DownloadRequested"
@@ -67,6 +125,34 @@ export function createIntegrityApplication() {
       report: { template: "modules/adventurer-hud/templates/integrity.hbs" }
     };
 
+    readDiagnosticInput() {
+      const comment = this.element?.querySelector?.(
+        "[data-diagnostic-comment]"
+      );
+      const include = this.element?.querySelector?.("[data-diagnostic-errors]");
+      if (comment) this.diagnosticComment = comment.value.slice(0, 4000);
+      if (include) this.includeErrorText = Boolean(include.checked);
+    }
+
+    _onRender(context, options) {
+      super._onRender?.(context, options);
+      if (this.unwatchDiagnostics) return;
+      this.unwatchDiagnostics = subscribeDiagnostics(() => {
+        if (this.rendered) {
+          this.readDiagnosticInput();
+          void this.render({ force: true }).catch(error =>
+            reportFailure("diagnostics.ui", error, { notify: false })
+          );
+        }
+      });
+    }
+
+    async close(options) {
+      this.unwatchDiagnostics?.();
+      this.unwatchDiagnostics = null;
+      return super.close(options);
+    }
+
     async runCheck() {
       if (this.busy) return;
       this.busy = true;
@@ -91,10 +177,49 @@ export function createIntegrityApplication() {
       });
       this.t = t;
       if (this.options?.window)
-        this.options.window.title = t("Integrity.Title");
+        this.options.window.title = t("Settings.Troubleshooting.Name");
       const issues = this.report?.issues ?? [];
+      this.readDiagnosticInput();
+      const diagnostics = diagnosticReport({
+        integrity: this.report ?? null,
+        comment: this.diagnosticComment ?? "",
+        includeErrorText: this.includeErrorText ?? false
+      });
+      const serialized = JSON.stringify(diagnostics, null, 2);
       return {
         intro: t("Integrity.Intro"),
+        recording: diagnostics.summary.recording,
+        recordLabel: t("Diagnostics.Record"),
+        markLabel: t("Diagnostics.Mark"),
+        stopRecordLabel: t("Diagnostics.Stop"),
+        clearDiagnosticsLabel: t("Diagnostics.Clear"),
+        previewLabel: t("Diagnostics.Preview"),
+        commentLabel: t("Diagnostics.Comment"),
+        includeErrorsLabel: t("Diagnostics.IncludeErrors"),
+        privacyHint: t("Diagnostics.Privacy"),
+        recordingLabel: t("Diagnostics.Recording"),
+        sectionsLabel: t("Diagnostics.Sections"),
+        recordingStatus: diagnostics.recording
+          ? tf("Diagnostics.Period", {
+              start: diagnostics.recording.startedAt,
+              end: diagnostics.recording.endedAt ?? t("Diagnostics.Recording"),
+              reason: diagnostics.recording.reason ?? "active"
+            })
+          : t("Diagnostics.NotRecording"),
+        diagnosticSummary: tf("Diagnostics.Summary", {
+          errors: diagnostics.summary.errors,
+          refusals: diagnostics.summary.refusals,
+          events: diagnostics.summary.history + diagnostics.summary.detail,
+          size: Math.ceil(new TextEncoder().encode(serialized).length / 1024),
+          dropped: Object.values(diagnostics.dropped).reduce((a, b) => a + b, 0)
+        }),
+        diagnosticComment: this.diagnosticComment ?? "",
+        includeErrorText: this.includeErrorText ?? false,
+        preview: this.showPreview ? serialized : "",
+        resetSettingsLabel: t("Troubleshooting.ResetSettings"),
+        resetGmLabel: t("Troubleshooting.ResetGm"),
+        resetPositionsLabel: t("Troubleshooting.ResetPositions"),
+        isGM: Boolean(game.user?.isGM),
         diagnosticsHint: tf("Diagnostics.Hint", {
           count: diagnosticReport().events.length
         }),

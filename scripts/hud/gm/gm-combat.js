@@ -1,5 +1,5 @@
-import { getCurrentCombat } from "../runtime-helpers.js";
-import { getSetting, setSetting, SETTINGS } from "../settings.js";
+import { getCurrentCombat } from "../../runtime-helpers.js";
+import { getSetting, setSetting, SETTINGS } from "../../settings-access.js";
 
 const entries = collection => [...(collection?.values?.() ?? collection ?? [])];
 
@@ -22,16 +22,32 @@ export const defeated = combatant =>
     )
   );
 
-export function gmRoster(combat, { isGM, sceneId, includePlayerNpcs = false }) {
+// Destructive actions protect player ownership even when the player is offline.
+export function hasPlayerOwner(combatant) {
+  const actor = combatant?.token?.actor ?? combatant?.actor;
+  return (
+    (combatant?.players ?? []).some(user => !user.isGM) ||
+    [...(globalThis.game?.users?.values?.() ?? [])].some(
+      user => !user.isGM && actor?.testUserPermission?.(user, "OWNER")
+    )
+  );
+}
+
+export function gmRoster(
+  combat,
+  { isGM, sceneId, includePlayerNpcs = false, includeCharacters = false }
+) {
   if (!isGM) return [];
   return (combat?.turns ?? entries(combat?.combatants)).filter(combatant => {
     const actor = combatant.token?.actor ?? combatant.actor;
     return (
-      actor?.type === "npc" &&
+      (actor?.type === "npc" ||
+        (includeCharacters && actor?.type === "character")) &&
       actor.isOwner &&
       combatant.token &&
       (!sceneId || combatant.sceneId === sceneId) &&
-      (includePlayerNpcs ||
+      (actor.type === "character" ||
+        includePlayerNpcs ||
         !(combatant.players ?? []).some(user => user.active && !user.isGM))
     );
   });
@@ -63,16 +79,22 @@ export function createGmCombatController({
       null
     );
   };
-  const roster = () =>
-    gmRoster(getCombat(), {
+  const rosterFor = combat =>
+    gmRoster(combat, {
       isGM: isGM(),
       sceneId: getSceneId(),
+      includeCharacters: true,
       includePlayerNpcs: readSetting(SETTINGS.gmIncludePlayerNpcs)
     });
-  const remember = combatant => {
-    memory.combatId = getCombat()?.id ?? null;
+  const roster = () => rosterFor(getCombat());
+  const remember = (
+    combatant,
+    combat = getCombat(),
+    list = rosterFor(combat)
+  ) => {
+    memory.combatId = combat?.id ?? null;
     memory.combatantId = combatant?.id ?? null;
-    if (combatant) memory.index = roster().indexOf(combatant);
+    if (combatant) memory.index = list.indexOf(combatant);
     return combatant;
   };
   /** @param {{follow?: boolean, forceFollow?: boolean, selectedToken?: any}} options */
@@ -82,14 +104,15 @@ export function createGmCombatController({
     selectedToken
   } = {}) => {
     if (!isGM()) return null;
-    if (memory.combatId && memory.combatId !== getCombat()?.id) {
+    const combat = getCombat();
+    if (memory.combatId && memory.combatId !== combat?.id) {
       memory.combatantId = null;
       memory.index = 0;
       memory.suppressedTurn = null;
     }
-    const list = roster();
+    const list = rosterFor(combat);
     const current = list.find(combatant => combatant.id === memory.combatantId);
-    const turnKey = `${getCombat()?.id}:${getCombat()?.round}:${getCombat()?.turn}:${getCombat()?.combatant?.id}`;
+    const turnKey = `${combat?.id}:${combat?.round}:${combat?.turn}:${combat?.combatant?.id}`;
     if (memory.suppressedTurn && memory.suppressedTurn !== turnKey)
       memory.suppressedTurn = null;
     if (
@@ -98,26 +121,39 @@ export function createGmCombatController({
       (forceFollow || memory.suppressedTurn !== turnKey) &&
       (forceFollow || readSetting(SETTINGS.gmFollowTurn))
     ) {
-      const followedId = getCombat()?.started
-        ? getCombat()?.combatant?.id
-        : list.find(entry => !defeated(entry))?.id;
+      const followedId = combat?.started
+        ? combat?.combatant?.id
+        : list.find(
+            entry =>
+              (entry.token.actor ?? entry.actor)?.type === "npc" &&
+              !defeated(entry)
+          )?.id;
       const active = list.find(
         combatant =>
           combatant.id === followedId &&
+          (combatant.token.actor ?? combatant.actor)?.type === "npc" &&
           (!defeated(combatant) ||
             forceFollow ||
             readSetting(SETTINGS.gmHighlightDead))
       );
-      if (active) return remember(active);
+      if (active) return remember(active, combat, list);
     }
     if (current) return current;
     const token = selectedToken?.document ?? selectedToken;
-    const preferred = list.find(combatant => combatant.tokenId === token?.id);
+    const preferred = token?.id
+      ? list.find(combatant => combatant.tokenId === token.id)
+      : null;
     const active = list.find(
       combatant =>
-        combatant.id === getCombat()?.combatant?.id && !defeated(combatant)
+        combatant.id === combat?.combatant?.id &&
+        (combatant.token.actor ?? combatant.actor)?.type === "npc" &&
+        !defeated(combatant)
     );
-    const eligible = list.filter(combatant => !defeated(combatant));
+    const eligible = list.filter(
+      combatant =>
+        (combatant.token.actor ?? combatant.actor)?.type === "npc" &&
+        !defeated(combatant)
+    );
     return remember(
       preferred ??
         (memory.combatantId
@@ -126,7 +162,9 @@ export function createGmCombatController({
             )
           : active) ??
         eligible[0] ??
-        list[0]
+        list[0],
+      combat,
+      list
     );
   };
   const select = async id => {
@@ -161,8 +199,12 @@ export function createGmCombatController({
         const index = list.findIndex(entry => entry.id === expectedId);
         const ordered = [...list.slice(index + 1), ...list.slice(0, index + 1)];
         remember(
-          ordered.find(entry => entry.id !== expectedId && !defeated(entry)) ??
-            before
+          ordered.find(
+            entry =>
+              (entry.token.actor ?? entry.actor)?.type === "npc" &&
+              entry.id !== expectedId &&
+              !defeated(entry)
+          ) ?? before
         );
       }
       return sync();
@@ -242,10 +284,11 @@ export function renderGmCombatHeader({
       preparing
         ? `<section class="ws-gm-encounter-tools"><h3>${t("GM.CombatSetup")}</h3>
     <div class="ws-gm-setup"><button type="button" class="ws-button" data-action="gmaddcreatures"><i class="fa-solid fa-users" aria-hidden="true"></i>${t("GM.AddCreatures")}</button><button type="button" class="ws-button" data-action="gmaddcreatures" data-scope="all"><i class="fa-solid fa-layer-group" aria-hidden="true"></i>${t("GM.AddSceneCreatures")}</button></div>
-    <div class="ws-gm-initiative-controls">${(combat && list.length
+    <div class="ws-gm-initiative-controls">${combat && list.length ? `<button type="button" class="ws-button" data-action="gmrollinitiative" data-scope="all" data-reroll="false"><i class="fa-solid fa-dice-d20" aria-hidden="true"></i>${t("GM.RollAllInitiative")}</button>` : ""}</div>
+    <details class="ws-gm-initiative-options"><summary data-gm-initiative-options>${t("GM.MoreInitiative")}</summary><div class="ws-gm-initiative-controls">${(combat &&
+    list.length
       ? [
           ["selected", false, "GM.RollSelectedInitiative"],
-          ["all", false, "GM.RollAllInitiative"],
           ["selected", true, "GM.RerollSelectedInitiative"],
           ["all", true, "GM.RerollAllInitiative"]
         ]
@@ -257,7 +300,7 @@ export function renderGmCombatHeader({
       )
       .join(
         ""
-      )}</div>${combat ? `<button type="button" class="ws-button" data-action="gmresetinitiative" ${(combat.turns ?? entries(combat.combatants)).some(entry => entry.initiative != null) ? "" : "disabled"}><i class="fa-solid fa-eraser" aria-hidden="true"></i>${t("GM.ResetInitiative")}</button>` : ""}</section>`
+      )}</div>${combat ? `<button type="button" class="ws-button" data-action="gmresetinitiative" ${(combat.turns ?? entries(combat.combatants)).some(entry => entry.initiative != null) ? "" : "disabled"}><i class="fa-solid fa-eraser" aria-hidden="true"></i>${t("GM.ResetInitiative")}</button>` : ""}</details></section>`
         : ""
     }
     ${combat && !combat.started ? `<button type="button" class="ws-button ws-gm-start" data-action="gmstartcombat"><i class="fa-solid fa-play" aria-hidden="true"></i>${t("GM.StartCombat")}</button>` : ""}
@@ -270,7 +313,20 @@ export function renderGmCombatHeader({
         )
       )
       .join("")}</div>${preparing ? "</details>" : "</section>"}
-    ${preparing ? `<details class="ws-gm-list ws-gm-player-roster" open><summary>${t("GM.Players")} · ${players.length}</summary><div class="ws-gm-roster">${players.map(entry => renderCard(entry, false)).join("")}</div>${players.length ? "" : `<div class="ws-empty">${t("GM.NoPlayers")}</div>`}</details></div>` : ""}
+    ${
+      preparing
+        ? `<details class="ws-gm-list ws-gm-player-roster" open><summary>${t("GM.Players")} · ${players.length}</summary><div class="ws-gm-roster">${players
+            .map(entry =>
+              renderCard(
+                entry,
+                list.some(candidate => candidate.id === entry.id)
+              )
+            )
+            .join(
+              ""
+            )}</div>${players.length ? "" : `<div class="ws-empty">${t("GM.NoPlayers")}</div>`}</details></div>`
+        : ""
+    }
     ${showRemoval && combat?.started ? `<div class="ws-gm-tools">${renderGmTurnControls(combat, t)}${renderGmInitiativeButtons(combat, list, t)}${renderGmRemovalButton(list, t)}${renderGmEndCombatButton(combat, t)}</div>` : ""}
     ${combat && !list.length ? `<div class="ws-empty">${t("GM.NoCreatures")}</div>` : ""}
   </section>`;
@@ -278,9 +334,7 @@ export function renderGmCombatHeader({
 
 export function renderGmRemovalButton(list, t) {
   const count = list.filter(
-    entry =>
-      defeated(entry) &&
-      !(entry.players ?? []).some(user => user.active && !user.isGM)
+    entry => defeated(entry) && !hasPlayerOwner(entry)
   ).length;
   return `<button type="button" class="ws-button" data-action="gmremovedead" ${count ? "" : "disabled"}><i class="fa-solid fa-skull" aria-hidden="true"></i>${t("GM.RemoveDead")} · ${count}</button>`;
 }

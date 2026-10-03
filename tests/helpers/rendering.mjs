@@ -1,5 +1,5 @@
 import { parseHTML } from "linkedom";
-import { createItemPanelRenderer } from "../../scripts/hud/item-panels.js";
+import { createItemPanelRenderer } from "../../scripts/hud/items/item-panels.js";
 import { createHudComponents } from "../../scripts/hud/components.js";
 
 export const escapeHTML = value =>

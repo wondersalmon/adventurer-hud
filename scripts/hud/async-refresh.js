@@ -1,4 +1,5 @@
 // @ts-check
+import { beginDiagnostic } from "../diagnostics.js";
 
 /**
  * @template T
@@ -16,10 +17,19 @@ export function createLatestRefresh({ load, apply, isCurrent, onError }) {
       if (!isCurrent()) return;
       requested = version;
       loadedVersion = requested;
+      const trace = beginDiagnostic(
+        "hud.refresh.load",
+        { requested },
+        { detailed: true }
+      );
       try {
         const value = await load();
-        if (requested === version && isCurrent()) apply(value);
+        if (requested === version && isCurrent()) {
+          apply(value);
+          trace.finish("completed", "applied");
+        } else trace.finish("stale", "session-or-request-replaced");
       } catch (error) {
+        trace.finish("error", "load-failed");
         if (isCurrent()) onError(error);
       }
       // A burst of hooks shares one load and, if needed, one fresh follow-up.

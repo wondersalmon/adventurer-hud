@@ -1,5 +1,9 @@
 import { test, expect } from "@playwright/test";
 import { layoutFixture } from "./layout-fixture.mjs";
+import {
+  captureHudDomState,
+  restoreHudDomState
+} from "../scripts/hud/window/dom-state.js";
 
 const fixtures = {};
 test.beforeAll(async () => {
@@ -287,7 +291,12 @@ test("player health precedes abilities and navigation and wide panels share the 
   expect(abilities.y + abilities.height).toBeLessThan(nav.y);
   await expect(
     page.locator('[data-action="shortrest"], [data-action="longrest"]')
-  ).toHaveCount(0);
+  ).toHaveCount(2);
+  await expect(page.locator('[data-action="shortrest"]')).toBeVisible();
+  await expect(page.locator('[data-action="longrest"]')).toBeVisible();
+  const rest = await page.locator(".ws-rest-controls").boundingBox();
+  expect(rest.y).toBeGreaterThanOrEqual(health.y + health.height);
+  expect(rest.y + rest.height).toBeLessThan(abilities.y);
   expect(nav.y + nav.height).toBeLessThan(favorites.y);
   await showPanel(page, "player-main", {
     width: 1100,
@@ -431,12 +440,38 @@ test("GM preparation shows setup directly and puts start after initiative", asyn
       expect(players.x).toBeGreaterThanOrEqual(monsters.x + monsters.width);
     else expect(players.y).toBeGreaterThanOrEqual(monsters.y + monsters.height);
     const initiative = await page
-      .locator(".ws-gm-initiative-controls")
+      .locator(".ws-gm-encounter-tools > .ws-gm-initiative-controls")
       .boundingBox();
     const start = await page
       .locator('[data-action="gmstartcombat"]')
       .boundingBox();
     expect(initiative.y + initiative.height).toBeLessThan(start.y);
+    const options = page.locator(".ws-gm-initiative-options");
+    await expect(
+      options.locator('[data-action="gmrollinitiative"]').first()
+    ).not.toBeVisible();
+    await options.locator("summary").focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      options.locator('[data-action="gmrollinitiative"]')
+    ).toHaveCount(3);
+    for (const button of await options.locator("button").all())
+      await expect(button).toBeVisible();
+    await page.addScriptTag({
+      content: `${captureHudDomState.toString()}\n${restoreHudDomState.toString()}`
+    });
+    await page.evaluate(() => {
+      const root = document.querySelector(".ws-shell");
+      const state = captureHudDomState(root);
+      root.innerHTML = root.innerHTML;
+      restoreHudDomState(root, state);
+    });
+    await expect(options.locator("summary")).toBeFocused();
+    await expect(options).toHaveAttribute("open", "");
+    await page.keyboard.press("Enter");
+    await expect(
+      options.locator('[data-action="gmresetinitiative"]')
+    ).not.toBeVisible();
   }
 });
 
@@ -463,7 +498,7 @@ test("player quick controls sit beside identity and abilities follow stats", asy
     ).toHaveCount(1);
     await expect(
       page.locator('[data-action="shortrest"], [data-action="longrest"]')
-    ).toHaveCount(0);
+    ).toHaveCount(scenario === "player-main" ? 2 : 0);
     if (scenario === "player-combat") {
       const stats = await page.locator(".ws-combat-stats").boundingBox();
       expect(stats.y + stats.height).toBeLessThan(abilities.y);

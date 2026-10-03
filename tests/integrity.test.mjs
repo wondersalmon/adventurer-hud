@@ -32,7 +32,7 @@ test("repair backs up and corrects only invalid data, preserving valid preferenc
     }
   });
   assert.equal(registrations.has("manageResources"), false);
-  assert.equal(menus.get("integrity").restricted, false);
+  assert.equal(menus.get("troubleshooting").restricted, false);
   assert.equal(await repairSavedData(), 3);
   assert.equal(writes[0][0], SETTINGS.repairBackup);
   assert.equal(current.get(SETTINGS.repairBackup).values.showSearch, "broken");

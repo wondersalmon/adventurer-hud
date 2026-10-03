@@ -1,13 +1,64 @@
+import {
+  getSettingDefinitions,
+  getSettingsViewDefinitions,
+  SETTINGS
+} from "./settings-schema.js";
+
 export function prepareSettingsGroups({ groups, readValue, t }) {
+  const definitions = getSettingsViewDefinitions();
+  const valueFor = key =>
+    key === "gmCardDetails"
+      ? readValue(SETTINGS.gmShowItemDetails)
+        ? "full"
+        : readValue(SETTINGS.gmShowAttackDetails)
+          ? "attack"
+          : "compact"
+      : key === "gmActionDisplay"
+        ? !readValue(SETTINGS.gmFilterActions)
+          ? "all"
+          : readValue(SETTINGS.gmActionTypesOnly)
+            ? "types"
+            : "items"
+        : key === "gmSelectionMode"
+          ? readValue(SETTINGS.gmAutoAdvance)
+            ? "next"
+            : readValue(SETTINGS.gmFollowTurn)
+              ? "turn"
+              : "manual"
+          : key === SETTINGS.gmHideSearch
+            ? !readValue(key)
+            : readValue(key);
   return Object.entries(groups)
     .map(([id, keys]) => ({
       label: t(`Settings.Groups.${id}`),
-      settings: keys.map(key => ({
-        hint: t(`Settings.${key}.Hint`),
-        key,
-        name: t(`Settings.${key}.Name`),
-        value: readValue(key)
-      }))
+      settings: keys.map(key => {
+        const value = valueFor(key);
+        const choices = definitions[key]?.choices;
+        const parentKey = [SETTINGS.showCompanionEffects].includes(key)
+          ? SETTINGS.showCompanions
+          : key !== SETTINGS.gmEnabled &&
+              (definitions[key]?.gmOnly ||
+                ["gmSelectionMode", "gmActionDisplay"].includes(key))
+            ? SETTINGS.gmEnabled
+            : null;
+        return {
+          key,
+          name: t(`Settings.${key}.Name`),
+          hint: t(`Settings.${key}.Hint`),
+          value,
+          parentKey,
+          disabled: Boolean(parentKey && !readValue(parentKey)),
+          disabledAttribute:
+            parentKey && !readValue(parentKey) ? "disabled" : "",
+          choices: choices
+            ? Object.entries(choices).map(([choice, label]) => ({
+                value: choice,
+                label: t(label.replace("ADVENTURER_HUD.", "")),
+                selected: choice === value
+              }))
+            : null
+        };
+      })
     }))
     .filter(group => group.settings.length);
 }
@@ -15,5 +66,42 @@ export function prepareSettingsGroups({ groups, readValue, t }) {
 export function booleanSettingsEntries(groups, submitted) {
   return Object.values(groups)
     .flat()
-    .map(key => [key, Boolean(submitted[key])]);
+    .flatMap(key => {
+      if (!Object.hasOwn(submitted, key)) return [];
+      const value = submitted[key];
+      if (key === "gmCardDetails") {
+        if (!["compact", "attack", "full"].includes(value))
+          throw new Error("Invalid GM card details");
+        return [
+          [SETTINGS.gmShowItemDetails, value === "full"],
+          [SETTINGS.gmShowAttackDetails, value !== "compact"]
+        ];
+      }
+      if (key === "gmActionDisplay") {
+        if (!["all", "types", "items"].includes(value))
+          throw new Error("Invalid GM action display");
+        return [
+          [SETTINGS.gmFilterActions, value !== "all"],
+          [SETTINGS.gmActionTypesOnly, value !== "items"]
+        ];
+      }
+      if (key === "gmSelectionMode") {
+        if (!["manual", "turn", "next"].includes(value))
+          throw new Error("Invalid GM selection mode");
+        return [
+          [SETTINGS.gmFollowTurn, value === "turn"],
+          [SETTINGS.gmAutoAdvance, value === "next"]
+        ];
+      }
+      return [
+        [
+          key,
+          key === SETTINGS.gmHideSearch
+            ? !Boolean(value)
+            : getSettingDefinitions()[key]?.type === String
+              ? value
+              : Boolean(value)
+        ]
+      ];
+    });
 }

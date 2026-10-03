@@ -1,11 +1,16 @@
-import { gmRoster, defeated } from "./gm-combat.js";
+import { gmRoster, defeated, hasPlayerOwner } from "./gm-combat.js";
 
 export function deadCreatures(combat) {
   return gmRoster(combat, {
     isGM: Boolean(game.user?.isGM),
     sceneId: canvas.scene?.id,
-    includePlayerNpcs: false
-  }).filter(defeated);
+    includePlayerNpcs: true
+  }).filter(
+    entry =>
+      (entry.token.actor ?? entry.actor)?.type === "npc" &&
+      defeated(entry) &&
+      !hasPlayerOwner(entry)
+  );
 }
 
 // Only tokens of this encounter are removed. Actor directory documents are never deleted.
@@ -30,6 +35,14 @@ async function deleteDeadTokens(combat, ids) {
   for (const token of tokens) {
     // Use the actual token document and its parent, including unlinked/global encounters.
     if (token.parent?.id !== canvas.scene?.id) continue;
+    if (
+      candidates.some(
+        entry =>
+          entry.token.id === token.id &&
+          (hasPlayerOwner(entry) || !defeated(entry))
+      )
+    )
+      continue;
     const deleted = await token.delete();
     if (deleted) {
       deletedCount++;

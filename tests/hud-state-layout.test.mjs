@@ -21,6 +21,7 @@ test("panel layout is restored per actor and ignores transient state", () => {
     combatCategory: "spells",
     currentView: "inventory",
     searchQuery: "sword",
+    favoriteEdit: true,
     openActivityItemId: "item-1"
   });
   const stored = { "Actor.hero": panelStateSnapshot(state) };
@@ -31,9 +32,11 @@ test("panel layout is restored per actor and ignores transient state", () => {
     actionMenuOpen: false,
     favoritesExpanded: true,
     preparedSpellsOnly: true,
+    showPassiveFeatures: false,
     combatCategory: "spells",
     currentView: "inventory",
-    inventoryCategory: "equipped"
+    inventoryCategory: "equipped",
+    companionsExpanded: false
   });
   assert.deepEqual(panelStateForActor(stored, "Actor.other"), {});
   assert.equal(
@@ -53,6 +56,7 @@ test("panel layout is restored per actor and ignores transient state", () => {
   );
   assert.equal(stored["Actor.hero"].searchQuery, undefined);
   assert.equal(stored["Actor.hero"].openActivityItemId, undefined);
+  assert.equal(stored["Actor.hero"].favoriteEdit, undefined);
   assert.deepEqual(
     panelStateForActor(
       { "Actor.hero": { combatCategory: "invalid" } },
@@ -60,6 +64,25 @@ test("panel layout is restored per actor and ignores transient state", () => {
     ),
     {}
   );
+});
+
+test("legacy companion tab selection migrates to expansion without overriding a saved collapse", () => {
+  for (const [companionTab, expanded] of [
+    ["companions", true],
+    ["character", false]
+  ]) {
+    assert.deepEqual(panelStateForActor({ hero: { companionTab } }, "hero"), {
+      companionsExpanded: expanded
+    });
+  }
+  assert.equal(
+    panelStateForActor(
+      { hero: { companionTab: "companions", companionsExpanded: false } },
+      "hero"
+    ).companionsExpanded,
+    false
+  );
+  assert.equal(panelStateSnapshot(createHudState()).companionTab, undefined);
 });
 
 test("manual mode is limited to exploration and combat", () => {

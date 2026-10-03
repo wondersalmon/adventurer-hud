@@ -6,7 +6,40 @@ import { itemCollection } from "./helpers/rendering.mjs";
 
 restoreGlobalsAfterEach();
 
-test("feature category contains activatable limited-use and resource-consuming feats", () => {
+test("render usage index preserves first Cast source and rebuilds after activity changes", () => {
+  const spell = { id: "spell", type: "spell", system: { activities: [] } };
+  const cached = { name: "Cached spell" };
+  const cast = {
+    id: "cast",
+    type: "cast",
+    spell: { uuid: "Actor.hero.Item.spell" },
+    cachedSpell: cached
+  };
+  const first = { id: "first", type: "feat", system: { activities: [cast] } };
+  const second = {
+    id: "second",
+    type: "feat",
+    system: { activities: [{ ...cast, id: "other" }] }
+  };
+  const actor = { items: itemCollection([spell, first, second]) };
+  const index = adapter.itemUsageTargets(actor);
+  assert.deepEqual(
+    adapter.itemUsageTarget(actor, spell, index),
+    adapter.itemUsageTarget(actor, spell)
+  );
+  assert.equal(index.get(spell.id).detailsItem, cached);
+  first.system.activities = [];
+  const updated = adapter.itemUsageTargets(actor);
+  assert.equal(updated.get(spell.id).item, second);
+  assert.equal(updated.get(spell.id).activityId, "other");
+  second.system.activities = [];
+  assert.deepEqual(
+    adapter.itemUsageTarget(actor, spell, adapter.itemUsageTargets(actor)),
+    { item: spell, activityId: null }
+  );
+});
+
+test("feature category includes active, passive and resource-pool feats", () => {
   const activity = { id: "use", use() {} };
   const own = {
     id: "own",
@@ -74,7 +107,7 @@ test("feature category contains activatable limited-use and resource-consuming f
       weapon
     ])
   };
-  const expected = [own, linked, attribute, activityUses];
+  const expected = [own, linked, attribute, activityUses, pool, passive];
   assert.deepEqual(adapter.combatItems(actor, "features"), expected);
   assert.deepEqual(
     adapter.combatItemsByCategory(actor, ["features"]).get("features"),

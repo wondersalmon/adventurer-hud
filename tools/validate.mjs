@@ -61,6 +61,7 @@ assert.deepEqual(manifest.styles, [
   "styles/dialogs.css",
   "styles/adventurer-hud.css",
   "styles/combat.css",
+  "styles/companions.css",
   "styles/shared.css",
   "styles/death.css",
   "styles/responsive.css"

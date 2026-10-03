@@ -4,8 +4,61 @@
   {{#if repaired}}<p>{{repaired}}</p>{{/if}}
   <ul>{{#each issues}}<li>{{message}} — {{action}}</li>{{/each}}</ul>
   {{#if manualHint}}<p class="hint">{{manualHint}}</p>{{/if}}
-  <p class="hint">{{diagnosticsHint}}</p>
-  <button type="button" data-action="export">{{exportLabel}}</button>
+  <fieldset class="ws-settings-group ws-diagnostics">
+    <legend>{{exportLabel}}</legend>
+    <p class="hint">{{sectionsLabel}}</p>
+    <p role="status">{{diagnosticSummary}}</p>
+    <p>{{recordingStatus}}</p>
+    {{#if recording}}
+      <p class="ws-diagnostic-recording" role="status">{{recordingLabel}}</p>
+      <button type="button" data-action="mark">{{markLabel}}</button>
+      <button
+        type="button"
+        data-action="stoprecord"
+      >{{stopRecordLabel}}</button>
+    {{else}}
+      <button type="button" data-action="record">{{recordLabel}}</button>
+    {{/if}}
+    <label>{{commentLabel}}<textarea
+        data-diagnostic-comment
+        maxlength="4000"
+        rows="3"
+      >{{diagnosticComment}}</textarea></label>
+    <label>{{#if includeErrorText}}<input
+          type="checkbox"
+          data-diagnostic-errors
+          checked
+        />{{else}}<input
+          type="checkbox"
+          data-diagnostic-errors
+        />{{/if}}{{includeErrorsLabel}}</label>
+    <p class="hint">{{privacyHint}}</p>
+    <button type="button" data-action="preview">{{previewLabel}}</button>
+    {{#if preview}}<pre
+        class="ws-diagnostic-preview"
+        tabindex="0"
+        aria-label="{{previewLabel}}"
+      >{{preview}}</pre>{{/if}}
+    <button type="button" data-action="export">{{exportLabel}}</button>
+    <button
+      type="button"
+      data-action="cleardiagnostics"
+    >{{clearDiagnosticsLabel}}</button>
+  </fieldset>
+  <fieldset class="ws-settings-group">
+    <button
+      type="button"
+      data-action="resetsettings"
+    >{{resetSettingsLabel}}</button>
+    {{#if isGM}}<button
+        type="button"
+        data-action="resetgm"
+      >{{resetGmLabel}}</button>{{/if}}
+    <button
+      type="button"
+      data-action="resetpositions"
+    >{{resetPositionsLabel}}</button>
+  </fieldset>
   <footer class="form-footer">
     {{#if busy}}<button
         type="button"

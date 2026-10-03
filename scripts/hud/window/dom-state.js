@@ -8,9 +8,19 @@ export function captureHudDomState(root) {
     "data-item-id",
     "data-activity-id",
     "data-key",
+    "data-companion-uuid",
+    "data-companion-direction",
+    "data-companion-filter",
     "data-category",
     "data-type",
+    "data-proficient",
+    "data-prepared",
+    "data-view",
+    "data-scope",
+    "data-reroll",
+    "data-reset-initiative-id",
     "data-gm-combat-select",
+    "data-gm-initiative-options",
     "data-open-actor-sheet",
     "name",
     "id"
@@ -46,6 +56,8 @@ export function captureHudDomState(root) {
     playersCollapsed:
       root?.querySelector(".ws-gm-player-roster")?.open === false,
     setupExpanded: root?.querySelector(".ws-gm-encounter-tools")?.open === true,
+    initiativeOptionsExpanded:
+      root?.querySelector(".ws-gm-initiative-options")?.open === true,
     moreExpanded:
       root?.querySelector(".ws-gm-more")?.open === true ||
       root?.querySelector(".ws-gm-more")?.classList.contains("ws-expanded") ===
@@ -65,6 +77,9 @@ export function restoreHudDomState(root, state) {
   if (players) players.open = !state.playersCollapsed;
   const setup = root.querySelector(".ws-gm-encounter-tools");
   if (setup) setup.open = state.setupExpanded;
+  const initiativeOptions = root.querySelector(".ws-gm-initiative-options");
+  if (initiativeOptions)
+    initiativeOptions.open = Boolean(state.initiativeOptionsExpanded);
   const more = root.querySelector(".ws-gm-more");
   if (more) {
     if (more.tagName === "DETAILS") more.open = Boolean(state.moreExpanded);
@@ -78,8 +93,10 @@ export function restoreHudDomState(root, state) {
     ...root.querySelectorAll(
       "button, input, select, textarea, summary, [tabindex], [data-action]"
     )
-  ].find(candidate =>
-    state.focus.every(([key, value]) => candidate.getAttribute(key) === value)
+  ].find(
+    candidate =>
+      !candidate.disabled &&
+      state.focus.every(([key, value]) => candidate.getAttribute(key) === value)
   );
   node?.focus({ preventScroll: true });
   if (state.selection) node?.setSelectionRange?.(...state.selection);

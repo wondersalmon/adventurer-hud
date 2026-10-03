@@ -2,6 +2,13 @@ import { skillIcons } from "./constants.js";
 import { proficiencyMultiplier } from "./actor-data.js";
 import { reportFailure } from "../diagnostics.js";
 export const dnd5eConfig = {
+  activationTypeLabel(type) {
+    const config =
+      CONFIG.DND5E.activityActivationTypes?.[type] ??
+      CONFIG.DND5E.abilityActivationTypes?.[type];
+    const label = config?.header ?? config?.label ?? config;
+    return typeof label === "string" ? game.i18n.localize(label) : "";
+  },
   skillDefinitions({ localize }) {
     return Object.entries(CONFIG.DND5E.skills ?? {})
       .map(([id, config]) => [

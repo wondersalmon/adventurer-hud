@@ -30,6 +30,35 @@ export function syncPinControl({ document, header, label, pinned }) {
   return control;
 }
 
+export function syncFavoriteEditControl({
+  document,
+  header,
+  enabled,
+  editing,
+  label
+}) {
+  if (!header) return null;
+  let control = header.querySelector('[data-action="togglefavoriteedit"]');
+  if (!enabled) {
+    control?.remove();
+    return null;
+  }
+  const menu = header.querySelector(MENU_SELECTOR);
+  if (!menu) return null;
+  if (!control) {
+    control = document.createElement("button");
+    control.type = "button";
+    control.classList.add("header-control", "icon", "fa-solid", "fa-star");
+    control.dataset.action = "togglefavoriteedit";
+    menu.before(control);
+  }
+  control.classList.toggle("ws-active", editing);
+  control.title = label;
+  control.setAttribute("aria-label", label);
+  control.setAttribute("aria-pressed", String(editing));
+  return control;
+}
+
 export function createHudApplicationClass({
   DialogV2,
   document,
@@ -41,7 +70,7 @@ export function createHudApplicationClass({
     _onRender(context, options) {
       super._onRender(context, options);
       this.updatePinControl();
-      this.updateHudDimensions?.();
+      this.updateFavoriteEditControl?.();
     }
 
     setPosition(position = {}) {
@@ -77,25 +106,4 @@ export function createHudApplicationClass({
       return closed;
     }
   };
-}
-
-export function syncHudDimensions({ element, enabled, label }) {
-  const header = element?.querySelector(".window-header");
-  const previous = header?.querySelector(".ws-window-size");
-  if (!enabled) {
-    previous?.remove();
-    return;
-  }
-  const title = header?.querySelector(".window-title");
-  if (!title) return;
-  const rect = element.getBoundingClientRect?.();
-  if (!(rect?.width > 0 && rect?.height > 0)) return;
-  const badge = previous ?? element.ownerDocument.createElement("span");
-  if (!previous) {
-    badge.className = "ws-window-size";
-    title.after(badge);
-  }
-  const text = `${Math.round(rect.width)} × ${Math.round(rect.height)} px`;
-  if (badge.textContent !== text) badge.textContent = text;
-  badge.title = label;
 }

@@ -1,7 +1,11 @@
 import { renderHudMode } from "../render/index.js";
 import { setRegularView } from "./state.js";
-import { captureHudDomState, restoreHudDomState } from "./dom-state.js";
-import { reportFailure } from "../diagnostics.js";
+import { captureHudDomState, restoreHudDomState } from "./window/dom-state.js";
+import {
+  reportFailure,
+  beginDiagnostic,
+  recordDiagnostic
+} from "../diagnostics.js";
 
 const REFRESH_PRIORITY = Object.freeze({
   actions: 1,
@@ -27,15 +31,30 @@ export function createRefreshScheduler(
 ) {
   let frame = null;
   let pending = null;
+  let requests = 0;
   const runRefresh = region => {
+    const trace = beginDiagnostic(
+      "hud.refresh",
+      { scope: region, coalesced: requests },
+      { detailed: true }
+    );
+    requests = 0;
     try {
       refresh(region === "full" ? null : region);
+      trace.finish();
     } catch (error) {
+      trace.finish("error", "render-failed");
       reportFailure("hud.refresh", error);
     }
   };
 
   const schedule = (region = "full") => {
+    requests++;
+    recordDiagnostic(
+      "hud.refresh.request",
+      { scope: region },
+      { detailed: true }
+    );
     const requested = REFRESH_PRIORITY[region] ? region : "full";
     if (!pending || REFRESH_PRIORITY[requested] > REFRESH_PRIORITY[pending]) {
       pending = requested;
@@ -62,6 +81,7 @@ export function createRefreshScheduler(
   };
 
   const cancel = () => {
+    requests = 0;
     if (frame !== null) cancelFrame(frame);
     frame = null;
     pending = null;

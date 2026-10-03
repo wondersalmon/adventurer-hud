@@ -1,7 +1,7 @@
 // @ts-check
-import { getSetting, SETTINGS } from "../settings.js";
+import { getSetting, SETTINGS } from "../../settings-access.js";
 
-/** @param {{controller: import('../../types/hud.js').GmController | null, combatant?: any, actorContext?: import('../../types/hud.js').ActorContext | null, getApp: () => any, isCurrent: () => boolean, scheduler: import('../../types/hud.js').RefreshScheduler, openHud: () => Promise<unknown>, controlledTokens?: () => any[], readSetting?: (key: string) => any}} options */
+/** @param {{controller: import('../../../types/hud.js').GmController | null, combatant?: any, actorContext?: import('../../../types/hud.js').ActorContext | null, getApp: () => any, isCurrent: () => boolean, scheduler: import('../../../types/hud.js').RefreshScheduler, openHud: () => Promise<unknown>, controlledTokens?: () => any[], readSetting?: (key: string) => any}} options */
 export function createGmSelection({
   controller,
   combatant = null,
@@ -42,9 +42,23 @@ export function createGmSelection({
     if (changed) void reopen();
     else scheduler.schedule();
   };
+  let scheduled = false;
+  let followScheduled = false;
+  const scheduleCombatChange = ({ follow = true } = {}) => {
+    followScheduled ||= follow;
+    if (scheduled) return;
+    scheduled = true;
+    queueMicrotask(() => {
+      scheduled = false;
+      const follow = followScheduled;
+      followScheduled = false;
+      onCombatChange({ follow });
+    });
+  };
   return {
     reopen,
     onCombatChange,
+    scheduleCombatChange,
     async selectCombat(id) {
       if (isCurrent() && controller?.chooseCombat(id)) await reopen();
     },

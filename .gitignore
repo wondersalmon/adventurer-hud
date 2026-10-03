@@ -1,13 +1,9 @@
 dist/
 node_modules/
-*.ps1
 .eslintcache
-coverage/
 *.zip
 *.log
 .DS_Store
 Thumbs.db
-docs/dev/*
-test-results/
-playwright-report/
 AGENTS.MD
+dev/

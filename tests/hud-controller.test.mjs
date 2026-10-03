@@ -6,6 +6,142 @@ import { hudFixture, waitFor } from "./helpers/hud.mjs";
 
 restoreGlobalsAfterEach();
 
+test("exploration exposes native short and long rest and revoking ownership blocks both", async t => {
+  let time = 0;
+  t.mock.method(performance, "now", () => time);
+  const fixture = await hudFixture();
+  const calls = [];
+  fixture.actor.shortRest = () => calls.push("short");
+  fixture.actor.longRest = () => calls.push("long");
+  await fixture.api.open(fixture.actor);
+  const app = __adventurerHud.app;
+  assert.ok(app.element.querySelector('[data-action="shortrest"]'));
+  assert.ok(app.element.querySelector('[data-action="longrest"]'));
+  await app.hudActions.shortrest();
+  time += ACTION_COOLDOWN_MS;
+  await app.hudActions.longrest();
+  assert.deepEqual(calls, ["short", "long"]);
+  fixture.actor.isOwner = false;
+  fixture.hooks.callAll("updateActor", fixture.actor, { ownership: {} });
+  fixture.flushFrames();
+  assert.equal(
+    app.element.querySelector('[data-action="shortrest"]').disabled,
+    true
+  );
+  assert.equal(
+    app.element.querySelector('[data-action="longrest"]').disabled,
+    true
+  );
+  await app.hudActions.shortrest();
+  await app.hudActions.longrest();
+  assert.deepEqual(calls, ["short", "long"]);
+  await app.close();
+});
+
+test("open HUD follows granted and revoked ownership without reopening", async () => {
+  const fixture = await hudFixture({ owned: false });
+  await fixture.api.open(fixture.actor);
+  const app = __adventurerHud.app;
+  const ability = () => app.element.querySelector('[data-action="ability"]');
+  assert.equal(ability().disabled, true);
+  fixture.actor.isOwner = true;
+  fixture.hooks.callAll("updateActor", fixture.actor, {
+    ownership: { player: 3 }
+  });
+  fixture.flushFrames();
+  assert.equal(ability().disabled, false);
+  await app.options.actions.inspiration();
+  assert.equal(fixture.nativeCalls.length, 1);
+  fixture.actor.isOwner = false;
+  fixture.hooks.callAll("updateUser", game.user, { role: 1 });
+  fixture.flushFrames();
+  assert.equal(ability().disabled, true);
+  assert.equal(
+    app.element.querySelector('[data-action="edithp"]').disabled,
+    true
+  );
+  await app.options.actions.inspiration();
+  assert.equal(fixture.nativeCalls.length, 1);
+  assert.equal(
+    fixture.notifications.at(-1)[1],
+    "ADVENTURER_HUD.Warnings.NoPermission"
+  );
+  assert.equal(__adventurerHud.app, app);
+  await app.close();
+});
+
+test("HP dialog rejects saving after ownership is revoked", async () => {
+  const fixture = await hudFixture();
+  await fixture.api.open(fixture.actor);
+  const app = __adventurerHud.app;
+  const dialog = await app.options.actions.edithp({});
+  fixture.actor.isOwner = false;
+  await dialog.options.buttons[0].callback(
+    {},
+    {
+      form: { elements: { namedItem: () => ({ value: "5" }) } }
+    }
+  );
+  assert.deepEqual(fixture.nativeCalls, []);
+  assert.equal(
+    fixture.notifications.at(-1)[1],
+    "ADVENTURER_HUD.Warnings.NoPermission"
+  );
+  await dialog.close();
+  await app.close();
+});
+
+for (const combat of [false, true]) {
+  test(`shortcut hints follow saved and live settings in ${combat ? "combat" : "exploration"} mode`, async t => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const fixture = await hudFixture({
+      combat,
+      values: { showShortcuts: false }
+    });
+    fixture.actor.items.set("spell", {
+      id: "spell",
+      name: "Test spell",
+      type: "spell",
+      system: { level: 1, activities: [] }
+    });
+    await fixture.api.open(fixture.actor);
+    const app = __adventurerHud.app;
+    assert.equal(app.element.querySelector(".ws-shortcuts"), null);
+
+    for (const enabled of [true, false]) {
+      await game.settings.set("adventurer-hud", "showShortcuts", enabled);
+      t.mock.timers.tick(50);
+      for (const view of combat
+        ? [null]
+        : ["main", "skills", "tools", "spells", "inventory"]) {
+        if (view) await app.options.actions.view(null, { dataset: { view } });
+        const hints = app.element.querySelector(".ws-shortcuts");
+        assert.equal(
+          Boolean(hints),
+          enabled,
+          `${view ?? "combat"}: ${enabled}`
+        );
+        if (enabled) {
+          assert.deepEqual(
+            [...hints.querySelectorAll("kbd")].map(key => key.textContent),
+            ["Shift", "Alt", "Ctrl"]
+          );
+        }
+        if (view) {
+          await waitFor(
+            () =>
+              fixture.current.get("panelStates")?.[fixture.actor.uuid]
+                ?.currentView === view
+          );
+        }
+      }
+      assert.equal(__adventurerHud.app, app);
+    }
+    assert.deepEqual(fixture.notifications, []);
+    await app.close();
+  });
+}
+
 test("header menu toggles the existing mode setting and restores automatic mode when hidden", async t => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const fixture = await hudFixture({ combat: true });
@@ -99,7 +235,7 @@ test("native feature changes refresh the selected feature category", async () =>
     parent: fixture.actor,
     system: {
       uses: { value: 1, max: 3 },
-      activities: [{ id: "burst", use() {} }]
+      activities: [{ id: "burst", activation: { type: "action" }, use() {} }]
     }
   };
   fixture.actor.items.set(item.id, item);
@@ -114,6 +250,12 @@ test("native feature changes refresh the selected feature category", async () =>
   item.name = "Updated Burst";
   fixture.hooks.callAll("updateItem", item);
   fixture.flushFrames();
+  assert.match(app.element.textContent, /Updated Burst/);
+  item.system.activities[0].activation.type = "";
+  fixture.hooks.callAll("updateItem", item);
+  fixture.flushFrames();
+  assert.doesNotMatch(app.element.textContent, /Updated Burst/);
+  await app.hudActions.featurefilter();
   assert.match(app.element.textContent, /Updated Burst/);
   fixture.actor.items.delete(item.id);
   fixture.hooks.callAll("deleteItem", item);
@@ -158,7 +300,8 @@ test("rejected native item operations report an error and leave the HUD usable",
     diagnosticReport().events.some(
       entry =>
         entry.scope === "hud.action.useitem" &&
-        entry.message === "native failure"
+        entry.errorClass === "Error" &&
+        entry.message === undefined
     )
   );
   assert.equal(app.rendered, true);
@@ -217,7 +360,7 @@ test("native favorite writes serialize rapid changes and recover after a failed 
   await Promise.all([toggle("sword"), toggle("sword")]);
   assert.deepEqual(
     fixture.actor.system.favorites.map(f => f.id),
-    [".Item.wand", ".Item.sword"]
+    [".Item.sword", ".Item.wand"]
   );
   assert.deepEqual(fixture.notifications, [
     ["error", "Adventurer HUD: operation failed: save failed"]

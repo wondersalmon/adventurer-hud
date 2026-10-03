@@ -1,4 +1,4 @@
-import { tokenForActor } from "../runtime-helpers.js";
+import { ownerTokenForActor } from "../runtime-helpers.js";
 import { openActorPicker } from "./actor-picker.js";
 
 export async function selectHudActor({
@@ -22,7 +22,7 @@ export async function selectHudActor({
       ? null
       : (selected[0] ?? null);
   const actor = actorOverride ?? selectedToken?.actor ?? null;
-  const token = tokenForActor(selectedToken, actor);
+  const token = ownerTokenForActor(selectedToken, actor);
 
   if (!actor) {
     const availableActors = game.actors.filter(

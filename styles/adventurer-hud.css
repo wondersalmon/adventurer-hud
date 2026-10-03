@@ -15,13 +15,6 @@
   cursor: default;
 }
 
-.ws-rolls-dialog .ws-window-size {
-  flex: 0 0 auto;
-  white-space: nowrap;
-  font-size: 11px;
-  margin-inline: 4px;
-}
-
 .ws-rolls-dialog.ws-unconscious .window-header,
 .ws-rolls-dialog.ws-unconscious
   .ws-view
@@ -164,14 +157,16 @@
   }
 }
 
-.ws-rolls-dialog .window-header [data-action="togglepin"].ws-active {
+.ws-rolls-dialog
+  .window-header
+  :is([data-action="togglepin"], [data-action="togglefavoriteedit"]).ws-active {
   color: var(--color-text-accent, #c19a58);
   text-shadow: 0 0 6px currentcolor;
 }
 
 .ws-rolls-dialog.ws-effects-disabled
   .window-header
-  [data-action="togglepin"].ws-active {
+  :is([data-action="togglepin"], [data-action="togglefavoriteedit"]).ws-active {
   text-shadow: none;
 }
 
@@ -326,6 +321,12 @@
 .ws-rolls-dialog .ws-rest-controls > * {
   min-width: 0;
   flex: 1 1 0;
+}
+
+@media (pointer: coarse) {
+  .ws-rolls-dialog .ws-rest-controls .ws-header-control {
+    min-height: 44px;
+  }
 }
 
 .ws-rolls-dialog .ws-header-control {
@@ -490,7 +491,7 @@
 }
 
 /* Explicit HUD palettes also set the native color scheme for form controls. */
-.ws-rolls-dialog.ws-theme-light {
+.ws-rolls-dialog:is(.ws-theme-light, [data-ws-auto-theme="light"]) {
   color-scheme: light;
 
   --color-text-primary: #292722;
@@ -503,7 +504,7 @@
   border: 1px solid #8b8274;
 }
 
-.ws-rolls-dialog.ws-theme-dark {
+.ws-rolls-dialog:is(.ws-theme-dark, [data-ws-auto-theme="dark"]) {
   color-scheme: dark;
 
   --color-text-primary: #e6e6df;
@@ -515,18 +516,21 @@
   background: var(--background);
 }
 
-.ws-rolls-dialog:is(.ws-theme-light, .ws-theme-dark) .window-header,
-.ws-rolls-dialog:is(.ws-theme-light, .ws-theme-dark) .window-content {
+.ws-rolls-dialog:is(.ws-theme-light, .ws-theme-dark, [data-ws-auto-theme])
+  .window-header,
+.ws-rolls-dialog:is(.ws-theme-light, .ws-theme-dark, [data-ws-auto-theme])
+  .window-content {
   color: var(--color-text-primary);
   background: var(--background);
 }
 
-.ws-rolls-dialog:is(.ws-theme-light, .ws-theme-dark) :is(input, select) {
+.ws-rolls-dialog:is(.ws-theme-light, .ws-theme-dark, [data-ws-auto-theme])
+  :is(input, select) {
   color: var(--color-text-primary);
   background: var(--background);
 }
 
-.ws-rolls-dialog.ws-theme-light .ws-shell {
+.ws-rolls-dialog:is(.ws-theme-light, [data-ws-auto-theme="light"]) .ws-shell {
   --line: #857b6e;
   --surface: #e9e4da;
   --hover: #ddd6c8;
@@ -537,16 +541,19 @@
   --danger: #a13b34;
 }
 
-.ws-rolls-dialog.ws-theme-light .window-header {
+.ws-rolls-dialog:is(.ws-theme-light, [data-ws-auto-theme="light"])
+  .window-header {
   border-bottom: 1px solid #9c9385;
 }
 
-.ws-rolls-dialog.ws-theme-light .ws-nav {
+.ws-rolls-dialog:is(.ws-theme-light, [data-ws-auto-theme="light"]) .ws-nav {
   border-color: var(--line) !important;
   background: var(--surface) !important;
 }
 
-.ws-rolls-dialog.ws-theme-light .window-header :is(button, .window-title) {
+.ws-rolls-dialog:is(.ws-theme-light, [data-ws-auto-theme="light"])
+  .window-header
+  :is(button, .window-title) {
   color: #292722 !important;
 
   --button-text-color: #292722;
@@ -554,18 +561,23 @@
   text-shadow: none;
 }
 
-.ws-rolls-dialog.ws-theme-light .window-header button {
+.ws-rolls-dialog:is(.ws-theme-light, [data-ws-auto-theme="light"])
+  .window-header
+  button {
   border: 1px solid #9c9385;
   background: #e9e4da;
 }
 
-.ws-rolls-dialog.ws-theme-light .controls-dropdown {
+.ws-rolls-dialog:is(.ws-theme-light, [data-ws-auto-theme="light"])
+  .controls-dropdown {
   color: #292722 !important;
   background: #f5f1e8 !important;
   border: 1px solid #9c9385;
 }
 
-.ws-rolls-dialog.ws-theme-light .controls-dropdown :is(button, .control) {
+.ws-rolls-dialog:is(.ws-theme-light, [data-ws-auto-theme="light"])
+  .controls-dropdown
+  :is(button, .control) {
   color: #292722 !important;
 
   --button-text-color: #292722;
@@ -573,22 +585,72 @@
   text-shadow: none;
 }
 
-.ws-rolls-dialog.ws-theme-light .ws-health-condition {
+.ws-rolls-dialog:is(.ws-theme-light, [data-ws-auto-theme="light"])
+  .ws-health-condition {
   color: #a13b34;
 }
 
-.ws-rolls-dialog.ws-theme-light .ws-health-condition.ws-health-critical {
+.ws-rolls-dialog:is(.ws-theme-light, [data-ws-auto-theme="light"])
+  .ws-health-condition.ws-health-critical {
   color: #82241e;
 }
 
-.ws-rolls-dialog.ws-theme-light .ws-spell-slots {
+.ws-rolls-dialog:is(.ws-theme-light, [data-ws-auto-theme="light"])
+  .ws-spell-slots {
   --ws-slot-color: #21677f;
 }
 
-.ws-rolls-dialog.ws-theme-light .ws-pact-slots {
+.ws-rolls-dialog:is(.ws-theme-light, [data-ws-auto-theme="light"])
+  .ws-pact-slots {
   --ws-slot-color: #76439e;
 }
 
-.ws-rolls-dialog.ws-theme-light .ws-health-label small {
+.ws-rolls-dialog:is(.ws-theme-light, [data-ws-auto-theme="light"])
+  .ws-health-label
+  small {
   color: #21677f;
+}
+
+.ws-rolls-dialog .ws-inventory-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.ws-rolls-dialog .ws-inventory-stat {
+  min-width: 0;
+  padding: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.ws-rolls-dialog .ws-inventory-stat > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: calc(9px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-inventory-stat strong {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+  overflow-wrap: anywhere;
+  font-size: calc(11px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-inventory-stat strong > span {
+  min-width: 0;
+}
+
+.ws-rolls-dialog .ws-inventory-stat small {
+  color: var(--muted);
+  font-size: calc(8px * var(--ws-type-scale));
 }

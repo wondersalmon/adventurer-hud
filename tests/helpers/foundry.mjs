@@ -91,6 +91,7 @@ export function installSettings({
       },
       registerMenu: (_moduleId, key, config) => menus.set(key, config),
       get(_moduleId, key) {
+        if (_moduleId === "dnd5e" && key === "metricWeightUnits") return false;
         assert.ok(registrations.has(key), `Unregistered setting: ${key}`);
         return current.get(key);
       },

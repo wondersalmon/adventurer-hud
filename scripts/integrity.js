@@ -9,6 +9,7 @@ const isRecord = value =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const obsoletePanelKeys = new Set([
+  "companionTab",
   "resourcesExpanded",
   "favoriteOrder",
   "openActivityItemId",
@@ -58,7 +59,8 @@ export function inspectSavedData(values) {
         "preparedSpellsOnly",
         "combatCategory",
         "inventoryCategory",
-        "currentView"
+        "currentView",
+        "companionsExpanded"
       ];
       for (const key of known)
         if (Object.hasOwn(saved, key) && !Object.hasOwn(valid, key))

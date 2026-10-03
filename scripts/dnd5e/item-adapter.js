@@ -9,37 +9,53 @@ import {
   itemUseState,
   spellPreparation
 } from "./items.js";
-const combatItemCategories = item => {
+const combatItemCategories = (item, { groupOtherActions = false } = {}) => {
   const categories = new Set();
   if (item.flags?.dnd5e?.cachedFor) return categories;
   if (item.type === "weapon") categories.add("weapons");
   if (item.type === "spell") categories.add("spells");
-  if (isResourceFeature(item)) categories.add("features");
+  if (item.type === "feat") categories.add("features");
 
   const activities = itemActivities(item);
-  const activation = activities.find(activity => activity?.activation?.type)
-    ?.activation?.type;
-  if (activation) categories.add(activation);
   for (const activity of activities) {
-    if (activity?.activation?.type) categories.add(activity.activation.type);
+    if (
+      groupOtherActions &&
+      !["action", "bonus", "reaction"].includes(activity?.activation?.type)
+    )
+      categories.add("special");
+    if (activity?.activation?.type) {
+      if (
+        !["weapons", "spells", "features", "skills"].includes(
+          activity.activation.type
+        )
+      )
+        categories.add(activity.activation.type);
+      categories.add(`activation:${activity.activation.type}`);
+    }
   }
   return categories;
 };
 
-const isResourceFeature = item => {
-  if (item.type !== "feat") return false;
-  const activities = itemActivities(item);
-  return (
-    activities.length > 0 &&
-    (itemUsesData(item) !== null ||
-      activities.some(
-        activity =>
-          activity.uses?.max > 0 || activity.consumption?.targets?.length > 0
-      ))
-  );
-};
-
 export const dnd5eItems = {
+  combatActionTypes(actor) {
+    const types = new Set();
+    for (const item of actor.items.values()) {
+      if (item.flags?.dnd5e?.cachedFor) continue;
+      for (const activity of itemActivities(item)) {
+        if (activity.activation?.type) types.add(activity.activation.type);
+      }
+    }
+    return [...types];
+  },
+  async itemDescription(item) {
+    return foundry.applications.ux.TextEditor.implementation.enrichHTML(
+      item.system?.description?.value ?? "",
+      {
+        relativeTo: item,
+        secrets: Boolean(item.isOwner ?? item.actor?.isOwner)
+      }
+    );
+  },
   legendaryResistanceUsage(actor) {
     for (const item of actor.items.values()) {
       const activity = itemActivities(item).find(activity =>
@@ -53,7 +69,25 @@ export const dnd5eItems = {
     }
     return null;
   },
-  itemUsageTarget(actor, item) {
+  itemUsageTargets(actor) {
+    const targets = new Map();
+    for (const owner of actor.items.values()) {
+      for (const activity of itemActivities(owner)) {
+        if (activity.type !== "cast") continue;
+        const id = /\.Item\.([^.]+)$/.exec(activity.spell?.uuid ?? "")?.[1];
+        const spell = id ? actor.items.get(id) : null;
+        if (spell?.type !== "spell" || targets.has(id)) continue;
+        targets.set(id, {
+          item: owner,
+          activityId: activity.id,
+          detailsItem: activity.cachedSpell ?? spell
+        });
+      }
+    }
+    return targets;
+  },
+  itemUsageTarget(actor, item, targets = null) {
+    if (targets) return targets.get(item.id) ?? { item, activityId: null };
     if (item.type === "spell") {
       for (const owner of actor.items.values()) {
         const activity = itemActivities(owner).find(
@@ -125,8 +159,11 @@ export const dnd5eItems = {
     if (item.type === "spell") return "spell";
     return "other";
   },
-  combatItems(actor, category) {
-    if (category === "features") return actor.items.filter(isResourceFeature);
+  combatItems(actor, category, options = {}) {
+    if (category === "features")
+      return actor.items.filter(
+        item => item.type === "feat" && !item.flags?.dnd5e?.cachedFor
+      );
     if (category === "weapons") {
       return actor.items.filter(item => item.type === "weapon");
     }
@@ -135,9 +172,11 @@ export const dnd5eItems = {
         item => item.type === "spell" && !item.flags?.dnd5e?.cachedFor
       );
     }
-    return actor.items.filter(item => combatItemCategories(item).has(category));
+    return actor.items.filter(item =>
+      combatItemCategories(item, options).has(category)
+    );
   },
-  combatItemsByCategory(actor, categoryNames) {
+  combatItemsByCategory(actor, categoryNames, options = {}) {
     const categories = new Map(categoryNames.map(category => [category, []]));
     const includesActions = categoryNames.some(
       category => category !== "weapons" && category !== "spells"
@@ -149,7 +188,7 @@ export const dnd5eItems = {
           categories.get("spells")?.push(item);
         continue;
       }
-      for (const category of combatItemCategories(item)) {
+      for (const category of combatItemCategories(item, options)) {
         categories.get(category)?.push(item);
       }
     }

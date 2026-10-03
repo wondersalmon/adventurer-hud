@@ -1,14 +1,55 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createPanelPreferences } from "../scripts/hud/panel-preferences.js";
-import { createGmSelection } from "../scripts/hud/gm-selection.js";
+import { createGmSelection } from "../scripts/hud/gm/gm-selection.js";
 import { createHudState } from "../scripts/hud/state.js";
+
+test("GM document bursts share one selection sync and discard superseded work", async () => {
+  let syncs = 0;
+  let current = true;
+  const followed = [];
+  const actor = {};
+  const combatant = { id: "npc", token: { actor, uuid: "Token.npc" } };
+  const selection = createGmSelection({
+    controller: {
+      isGM: () => true,
+      sync: options => {
+        syncs++;
+        followed.push(options.follow);
+        return combatant;
+      }
+    },
+    combatant,
+    actorContext: { actor, tokenUuid: "Token.npc" },
+    getApp: () => ({ rendered: true }),
+    isCurrent: () => current,
+    scheduler: { schedule() {} },
+    readSetting: () => false,
+    openHud: async () => {},
+    controlledTokens: () => []
+  });
+  for (let i = 0; i < 10; i++)
+    selection.scheduleCombatChange({ follow: false });
+  assert.equal(syncs, 0);
+  await Promise.resolve();
+  assert.equal(syncs, 1);
+  assert.deepEqual(followed, [false]);
+  selection.scheduleCombatChange({ follow: false });
+  selection.scheduleCombatChange();
+  await Promise.resolve();
+  assert.deepEqual(followed, [false, true]);
+  selection.scheduleCombatChange();
+  current = false;
+  await Promise.resolve();
+  assert.equal(syncs, 2);
+});
 
 test("panel preferences keep player and synthetic token state independent", async () => {
   let saved = { "Actor.hero": { currentView: "inventory" } };
   const settings = {
     readSetting: key => (key === "panelStates" ? saved : true),
     writeSetting: async (_key, value) => {
+      await new Promise(resolve => setTimeout(resolve, 5));
       saved = value;
     }
   };

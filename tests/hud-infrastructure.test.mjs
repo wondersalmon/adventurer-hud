@@ -8,7 +8,7 @@ import {
   centeredWindowPosition,
   normalizeWindowGeometry,
   storedWindowGeometry
-} from "../scripts/hud/geometry.js";
+} from "../scripts/hud/window/geometry.js";
 import { syncHealthAppearance } from "../scripts/hud/health-feedback.js";
 import {
   createRefreshScheduler,
@@ -19,7 +19,7 @@ import { subscribeHudDocuments } from "../scripts/hud/subscriptions.js";
 import {
   createHudApplicationClass,
   syncPinControl
-} from "../scripts/hud/window-controls.js";
+} from "../scripts/hud/window/window-controls.js";
 
 class FakeClassList {
   #classes = new Set();

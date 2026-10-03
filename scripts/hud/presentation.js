@@ -2,20 +2,24 @@
 import { renderHudMode } from "../render/index.js";
 import { resolveHudMode } from "./state.js";
 import { createHudComponents } from "./components.js";
-import { createItemPanelRenderer } from "./item-panels.js";
+import { createItemPanelRenderer } from "./items/item-panels.js";
 import { createCombatRenderer } from "./combat.js";
 import { createRegularRenderer } from "./regular.js";
+import { renderInventorySummary } from "./items/inventory-summary.js";
+import { hudSceneTokens } from "./token-focus.js";
 import {
   gmWindowTitle,
   renderGmInitiativeButtons,
   renderGmCombatHeader,
   renderGmRemovalButton,
   renderGmTurnControls
-} from "./gm-combat.js";
+} from "./gm/gm-combat.js";
 
-/** @param {{actorContext: import('../../types/hud.js').ActorContext, adapter: import('../../types/hud.js').HudAdapter, gmActive: boolean, gmCombatant: any, gmController: import('../../types/hud.js').GmController | null, hudState: import('../../types/hud.js').HudState, visibility: ReturnType<typeof import('./visibility.js').readHudVisibility>, toolState: Awaited<ReturnType<typeof import('./tool-state.js').createHudToolState>>['toolState'], t: import('../../types/hud.js').Translate, tf: import('../../types/hud.js').Format}} options */
+/** @param {{actorContext: import('../../types/hud.js').ActorContext, adapter: import('../../types/hud.js').HudAdapter, gmActive: boolean, gmCombatant: any, gmController: import('../../types/hud.js').GmController | null, hudState: import('../../types/hud.js').HudState, visibility: ReturnType<typeof import('./visibility.js').readHudVisibility>, toolState: Awaited<ReturnType<typeof import('./tool-state.js').createHudToolState>>['toolState'], t: import('../../types/hud.js').Translate, tf: import('../../types/hud.js').Format, companions?: any, companion?: boolean}} options */
 export function createHudPresentation({
   actorContext,
+  companions = null,
+  companion = false,
   adapter,
   gmActive,
   gmCombatant,
@@ -27,6 +31,9 @@ export function createHudPresentation({
   tf
 }) {
   const { actor, getCombatState } = actorContext;
+  const inventoryNumberFormat = new Intl.NumberFormat(game.i18n.lang, {
+    maximumFractionDigits: 2
+  });
   const canRollActor = actor.isOwner;
   const abilities = adapter.abilityDefinitions();
   const skills = adapter.skillDefinitions({
@@ -72,19 +79,26 @@ export function createHudPresentation({
   };
 
   const combatModeAvailable = () =>
-    adapter.isActorSupported(actor, { gm: gmActive });
+    companion || adapter.isActorSupported(actor, { gm: gmActive });
 
   const currentMode = () =>
     gmActive
       ? "combat"
-      : resolveHudMode({
-          combatAvailable: combatModeAvailable(),
-          forcedMode: hudState.forcedMode,
-          isActiveCombatant: getCombatState().isActive
-        });
+      : companion
+        ? (hudState.forcedMode ?? "combat")
+        : resolveHudMode({
+            combatAvailable: combatModeAvailable(),
+            forcedMode: hudState.forcedMode,
+            isActiveCombatant: getCombatState().isActive
+          });
 
   const components = createHudComponents({
-    portrait: gmCombatant?.token?.texture?.src,
+    isCompanionTurn: () => companion && getCombatState().isTurn,
+    portrait:
+      gmCombatant?.token?.texture?.src ??
+      (companion ? actorContext.token?.texture?.src : undefined),
+    tokenControl: () =>
+      `<button type="button" class="ws-header-control ws-button" data-action="actorcenter" title="${t("Actor.SelectToken")}" aria-label="${t("Actor.SelectToken")}" ${actor.isOwner && hudSceneTokens(actorContext).length ? "" : "disabled"}><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i></button>`,
     abilities,
     actor,
     adapter,
@@ -116,6 +130,8 @@ export function createHudPresentation({
     visibility
   });
   const combatRenderer = createCombatRenderer({
+    companionNavigation: companions?.navigationHTML,
+    companionSection: companions?.sectionHTML,
     actor,
     adapter,
     canRollActor,
@@ -155,6 +171,15 @@ export function createHudPresentation({
   });
 
   const regularRenderer = createRegularRenderer({
+    inventorySummary: () =>
+      renderInventorySummary({
+        data: adapter.inventorySummary(actor),
+        t,
+        escapeHTML,
+        formatNumber: value => inventoryNumberFormat.format(value)
+      }),
+    companionNavigation: companions?.navigationHTML,
+    companionSection: companions?.sectionHTML,
     hudState,
     toolState,
     ...components,
@@ -165,9 +190,13 @@ export function createHudPresentation({
     visibility
   });
 
-  const { combatHTML } = combatRenderer;
-  const { combatActions } = itemPanels;
-  const { availableViews, normalHTML } = regularRenderer;
+  const { availableViews } = regularRenderer;
+  const combatHTML = () =>
+    itemPanels.withUsageTargets(combatRenderer.combatHTML);
+  const combatActions = () =>
+    itemPanels.withUsageTargets(itemPanels.combatActions);
+  const normalHTML = () =>
+    itemPanels.withUsageTargets(regularRenderer.normalHTML);
 
   const dialogTitle = () =>
     gmActive

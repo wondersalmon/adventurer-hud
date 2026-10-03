@@ -59,7 +59,17 @@ export async function toggleFavorite(actor, itemId, activityId = null) {
   if (!actor.isOwner) return;
   const existing = findFavorite(actor, itemId, activityId);
   if (existing) return actor.system.removeFavorite(existing.id);
+  return addFavorite(actor, itemId, activityId);
+}
+
+export async function addFavorite(actor, itemId, activityId = null) {
+  if (!actor.isOwner || findFavorite(actor, itemId, activityId)) return;
   const favorite = nativeFavorite(actor, itemId, activityId);
-  if (!favorite) return;
-  await actor.system.addFavorite(favorite);
+  if (favorite) return actor.system.addFavorite(favorite);
+}
+
+export async function removeFavorite(actor, itemId, activityId = null) {
+  if (!actor.isOwner) return;
+  const existing = findFavorite(actor, itemId, activityId);
+  if (existing) return actor.system.removeFavorite(existing.id);
 }

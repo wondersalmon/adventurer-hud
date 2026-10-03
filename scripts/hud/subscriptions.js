@@ -1,3 +1,4 @@
+import { recordDiagnostic } from "../diagnostics.js";
 import { hpChange } from "./health-feedback.js";
 
 // Foundry updates can contain nested objects, flattened keys or deletion keys.
@@ -132,22 +133,37 @@ export function subscribeHudDocuments({
       }
     ],
     ["deleteCombatant", refreshCombat],
+    [
+      "updateUser",
+      () => {
+        onCombatChange?.({ follow: false });
+        scheduleRefresh();
+      }
+    ],
     ...(onCombatChange
       ? [
           ["canvasReady", refreshCombat],
           ["deleteToken", refreshCombat],
-          ["updateToken", () => onCombatChange({ follow: false })],
-          ["updateUser", () => onCombatChange({ follow: false })]
+          ["updateToken", () => onCombatChange({ follow: false })]
         ]
       : [])
   ];
 
   const hookIds = subscriptions.map(([hook, callback]) => [
     hook,
-    hooks.on(hook, callback)
+    hooks.on(hook, (...args) => {
+      recordDiagnostic("hud.hook", { reason: hook }, { detailed: true });
+      return callback(...args);
+    })
   ]);
 
+  recordDiagnostic(
+    "hud.subscriptions",
+    { listeners: hookIds.length },
+    { detailed: true }
+  );
   return () => {
+    recordDiagnostic("hud.subscriptions", { listeners: 0 }, { detailed: true });
     for (const [hook, id] of hookIds) hooks.off(hook, id);
   };
 }

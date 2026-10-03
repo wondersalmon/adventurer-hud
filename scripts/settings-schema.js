@@ -10,24 +10,30 @@ export const SETTINGS = Object.freeze({
   fontSize: "fontSize",
   language: "language",
   theme: "theme",
-  debugWindowSize: "debugWindowSize",
   showVisualEffects: "showVisualEffects",
   showItemDetails: "showItemDetails",
   showActionTypes: "showActionTypes",
   showCombatSkills: "showCombatSkills",
   showModeNavigation: "showModeNavigation",
+  showShortcuts: "showShortcuts",
   showSearch: "showSearch",
   showActivityPicker: "showActivityPicker",
+  showItemDescriptions: "showItemDescriptions",
   showFavorites: "showFavorites",
+  showCompanions: "showCompanions",
+  showCompanionEffects: "showCompanionEffects",
+  companionVisionPan: "companionVisionPan",
+  companionAutoFocus: "companionAutoFocus",
   gmEnabled: "gmEnabled",
   gmFollowTurn: "gmFollowTurn",
   gmAutoAdvance: "gmAutoAdvance",
   gmIncludePlayerNpcs: "gmIncludePlayerNpcs",
+  gmShowItemDetails: "gmShowItemDetails",
   gmShowAttackDetails: "gmShowAttackDetails",
   gmHideSearch: "gmHideSearch",
+  gmFilterActions: "gmFilterActions",
   gmActionTypesOnly: "gmActionTypesOnly",
   gmHighlightDead: "gmHighlightDead",
-  gmAutoRemoveDead: "gmAutoRemoveDead",
   gmOpenOnCombat: "gmOpenOnCombat",
   gmCloseAfterCombat: "gmCloseAfterCombat",
   repairBackup: "repairBackup",
@@ -99,10 +105,6 @@ export const SETTING_DEFINITIONS = Object.freeze({
   [SETTINGS.showVisualEffects]: defineSetting("interface", {
     refresh: "runtime"
   }),
-  [SETTINGS.debugWindowSize]: defineSetting("interface", {
-    defaultValue: false,
-    refresh: "runtime"
-  }),
   [SETTINGS.pinWindow]: defineSetting("interface", {
     defaultValue: false,
     placement: "internal",
@@ -137,14 +139,33 @@ export const SETTING_DEFINITIONS = Object.freeze({
     refresh: "none"
   }),
   [SETTINGS.showActivityPicker]: defineSetting("itemUse"),
+  [SETTINGS.showItemDescriptions]: defineSetting("itemUse", {
+    refresh: "runtime"
+  }),
   [SETTINGS.showItemDetails]: defineSetting("itemUse"),
   [SETTINGS.showActionTypes]: defineSetting("itemUse"),
   [SETTINGS.showCombatSkills]: defineSetting("quickAccess"),
   [SETTINGS.showModeNavigation]: defineSetting("interface", {
-    defaultValue: false
+    defaultValue: false,
+    placement: "internal"
   }),
+  [SETTINGS.showShortcuts]: defineSetting("interface"),
   [SETTINGS.showSearch]: defineSetting("quickAccess"),
   [SETTINGS.showFavorites]: defineSetting("quickAccess"),
+  [SETTINGS.showCompanions]: defineSetting("companions", {
+    placement: "companions"
+  }),
+  [SETTINGS.showCompanionEffects]: defineSetting("companions", {
+    placement: "companions"
+  }),
+  [SETTINGS.companionVisionPan]: defineSetting("companions", {
+    placement: "companions",
+    refresh: "none"
+  }),
+  [SETTINGS.companionAutoFocus]: defineSetting("companions", {
+    placement: "companions",
+    refresh: "none"
+  }),
   [SETTINGS.gmEnabled]: defineSetting("gm", {
     placement: "gm",
     gmOnly: true,
@@ -152,31 +173,34 @@ export const SETTING_DEFINITIONS = Object.freeze({
     refresh: "reopen"
   }),
   [SETTINGS.gmFollowTurn]: defineSetting("gm", {
-    placement: "gm",
+    placement: "internal",
+    gmOnly: true
+  }),
+  [SETTINGS.gmShowItemDetails]: defineSetting("gm", {
+    placement: "internal",
     gmOnly: true
   }),
   [SETTINGS.gmShowAttackDetails]: defineSetting("gm", {
-    placement: "gm",
+    placement: "internal",
     gmOnly: true
   }),
   [SETTINGS.gmHideSearch]: defineSetting("gm", {
     placement: "gm",
     gmOnly: true
   }),
+  [SETTINGS.gmFilterActions]: defineSetting("gm", {
+    placement: "internal",
+    gmOnly: true,
+    defaultValue: true
+  }),
   [SETTINGS.gmActionTypesOnly]: defineSetting("gm", {
-    placement: "gm",
+    placement: "internal",
     gmOnly: true
   }),
   [SETTINGS.gmHighlightDead]: defineSetting("gm", {
     placement: "gm",
     gmOnly: true,
     defaultValue: false
-  }),
-  [SETTINGS.gmAutoRemoveDead]: defineSetting("gm", {
-    placement: "gm",
-    gmOnly: true,
-    defaultValue: false,
-    refresh: "none"
   }),
   [SETTINGS.gmOpenOnCombat]: defineSetting("gm", {
     placement: "gm",
@@ -191,7 +215,7 @@ export const SETTING_DEFINITIONS = Object.freeze({
     refresh: "none"
   }),
   [SETTINGS.gmAutoAdvance]: defineSetting("gm", {
-    placement: "gm",
+    placement: "internal",
     gmOnly: true,
     defaultValue: false
   }),
@@ -205,7 +229,48 @@ export const SETTING_DEFINITIONS = Object.freeze({
 
 export const getSettingDefinitions = () => SETTING_DEFINITIONS;
 export const getGmSettingGroups = () => ({
-  gm: definitionsBy(getSettingDefinitions(), definition => definition.gmOnly)
+  gmWindow: [
+    SETTINGS.gmEnabled,
+    SETTINGS.gmOpenOnCombat,
+    SETTINGS.gmCloseAfterCombat
+  ],
+  gmSelection: [
+    "gmSelectionMode",
+    SETTINGS.gmIncludePlayerNpcs,
+    SETTINGS.gmHighlightDead
+  ],
+  gmActions: ["gmActionDisplay", SETTINGS.gmHideSearch, "gmCardDetails"]
+});
+
+export const getSettingsViewDefinitions = () => ({
+  ...SETTING_DEFINITIONS,
+  gmCardDetails: {
+    gmOnly: true,
+    type: String,
+    choices: {
+      compact: "ADVENTURER_HUD.Settings.gmCardDetails.Compact",
+      attack: "ADVENTURER_HUD.Settings.gmCardDetails.Attack",
+      full: "ADVENTURER_HUD.Settings.gmCardDetails.Full"
+    }
+  },
+  gmSelectionMode: {
+    gmOnly: true,
+    type: String,
+    choices: {
+      manual: "ADVENTURER_HUD.Settings.gmSelectionMode.Manual",
+      turn: "ADVENTURER_HUD.Settings.gmSelectionMode.Turn",
+      next: "ADVENTURER_HUD.Settings.gmSelectionMode.Next"
+    }
+  },
+  gmActionDisplay: {
+    gmOnly: true,
+    type: String,
+    choices: {
+      all: "ADVENTURER_HUD.Settings.gmActionDisplay.All",
+      types: "ADVENTURER_HUD.Settings.gmActionDisplay.Types",
+      items: "ADVENTURER_HUD.Settings.gmActionDisplay.Items"
+    }
+  }
 });
 
 const definitionsBy = (definitions, predicate) =>
@@ -248,3 +313,10 @@ export const getSettingDefaults = () =>
       definition.default
     ])
   );
+
+export const getCompanionSettingGroups = () => ({
+  companions: definitionsBy(
+    getSettingDefinitions(),
+    definition => definition.placement === "companions"
+  )
+});

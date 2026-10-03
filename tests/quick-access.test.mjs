@@ -4,12 +4,12 @@ import test, { beforeEach } from "node:test";
 import { escapeHTML, itemRendererFixture } from "./helpers/rendering.mjs";
 
 import { createHudActions } from "../scripts/hud/actions.js";
-import { createItemPanelRenderer } from "../scripts/hud/item-panels.js";
+import { createItemPanelRenderer } from "../scripts/hud/items/item-panels.js";
 import { createHudComponents } from "../scripts/hud/components.js";
 import {
   matchesItemSearch,
   usableActivities
-} from "../scripts/hud/quick-access.js";
+} from "../scripts/hud/items/quick-access.js";
 import { dnd5eAdapter } from "../scripts/dnd5e/index.js";
 
 restoreGlobalsAfterEach();
@@ -48,6 +48,7 @@ test("features follow Actions and activate through the existing item cards", () 
   const { renderer, hudState } = itemRendererFixture({
     items: [feature],
     adapter: {
+      itemActivities: () => [{ activation: { type: "bonus" } }],
       combatItems: (_actor, category) =>
         category === "features"
           ? available
@@ -72,6 +73,62 @@ test("features follow Actions and activate through the existing item cards", () 
   available = [];
   renderer.combatActions();
   assert.equal(hudState.combatCategory, null);
+});
+
+test("search sorting evaluates availability once per matched item and stays fresh", () => {
+  let calls = 0;
+  let emptyId = "first";
+  const first = { id: "first", name: "First" };
+  const second = { id: "second", name: "Second" };
+  const third = { id: "third", name: "Third" };
+  const { renderer } = itemRendererFixture({
+    adapter: {
+      itemUseState: item => {
+        calls++;
+        return { reason: item.id === emptyId ? "Quick.NoCharges" : null };
+      }
+    }
+  });
+  const items = [first, second, third];
+  assert.deepEqual(renderer.searchItems(items), [second, third, first]);
+  assert.equal(calls, 3);
+  emptyId = "second";
+  assert.deepEqual(renderer.searchItems(items), [first, third, second]);
+  assert.equal(calls, 6);
+  assert.deepEqual(items, [first, second, third]);
+});
+
+test("spell cards share a lazy usage index only within their current render", () => {
+  let builds = 0;
+  const usedIndexes = [];
+  const spells = [
+    { id: "one", type: "spell" },
+    { id: "two", type: "spell" }
+  ];
+  const { renderer } = itemRendererFixture({
+    adapter: {
+      itemUsageTargets: () => {
+        builds++;
+        return new Map();
+      },
+      itemUsageTarget: (_actor, item, index) => {
+        usedIndexes.push(index);
+        return { item, activityId: null };
+      }
+    }
+  });
+  const render = () =>
+    spells.map(item => renderer.combatItemButton(item)).join("");
+  renderer.withUsageTargets(() => "No spell cards");
+  assert.equal(builds, 0);
+  renderer.withUsageTargets(render);
+  assert.equal(builds, 1);
+  assert.equal(usedIndexes[0], usedIndexes[1]);
+  renderer.withUsageTargets(render);
+  assert.equal(builds, 2);
+  assert.notEqual(usedIndexes[0], usedIndexes[2]);
+  renderer.combatItemButton(spells[0]);
+  assert.equal(usedIndexes.at(-1), null);
 });
 
 test("combat skills follow features, reuse skill cards, and disappear when disabled", () => {
@@ -165,7 +222,7 @@ test("hidden item details skip attack and damage calculations", () => {
   }
 });
 
-test("multi-activity cards show a chooser and activity favorites", () => {
+test("multi-activity cards show a chooser and hide saved stars until editing", () => {
   const activities = [
     { id: "attack", name: "Attack", use() {} },
     { id: "save", name: "Save", use() {} }
@@ -197,12 +254,44 @@ test("multi-activity cards show a chooser and activity favorites", () => {
   const html = renderer.combatItemButton(item);
   assert.match(html, /data-action="useactivity"/);
   assert.match(html, /data-activity-id="attack"/);
-  assert.match(html, /ws-item-favorite ws-active/);
+  assert.doesNotMatch(html, /ws-item-favorite ws-active/);
+  hudState.favoriteEdit = true;
+  assert.match(renderer.combatItemButton(item), /data-action="removefavorite"/);
   assert.match(renderer.favoriteSection(), /Staff: Attack/);
   hudState.favoritesExpanded = false;
   assert.match(renderer.favoriteSection(), /aria-expanded="false"/);
   assert.doesNotMatch(renderer.favoriteSection(), /Staff: Attack/);
   assert.match(renderer.searchControl(), /value="staff"/);
+});
+
+test("compact favorites use the displayed item for descriptions and expose activity removal in editing", () => {
+  const item = { id: "spell", name: "Spell", type: "spell", system: {} };
+  const source = { id: "wand" };
+  const { renderer, hudState } = itemRendererFixture({
+    items: [item],
+    hudState: {
+      favoriteEntries: [{ itemId: "spell", activityId: null }],
+      favoritesExpanded: true
+    },
+    adapter: { itemUsageTarget: () => ({ item: source, activityId: "cast" }) },
+    visibility: { favorites: true }
+  });
+  let html = renderer.favoriteSection();
+  assert.match(html, /data-description-item-id="spell"/);
+  assert.match(html, /data-action="useactivity"\s+data-item-id="wand"/);
+  assert.doesNotMatch(
+    html,
+    /ws-item-description|data-action="(?:togglefavorite|removefavorite)"/
+  );
+  hudState.favoriteEdit = true;
+  html = renderer.favoriteSection();
+  assert.match(html, /data-action="removefavorite" data-item-id="spell"/);
+  hudState.favoriteEntries = [{ itemId: "spell", activityId: "blast" }];
+  html = renderer.favoriteSection();
+  assert.match(
+    html,
+    /data-action="removefavorite" data-item-id="spell" data-activity-id="blast"/
+  );
 });
 
 test("favorite activity cards request attack and damage for that activity", () => {
@@ -649,7 +738,10 @@ test("native availability keeps empty-charge overrides usable and disabled favor
   const html = renderer.favoriteSection();
   assert.match(html, /Wand: Hidden/);
   assert.match(html, /disabled aria-disabled="true"/);
-  assert.match(html, /title="Quick.ActivityUnavailable"/);
+  assert.match(
+    html,
+    /title="Quick.ActivityUnavailable\nCombat.OpenDescriptionHint"/
+  );
   assert.doesNotMatch(html, /data-favorite-drag-handle|draggable=/);
   item.canUse = false;
   assert.equal(dnd5eAdapter.itemUseState(item).reason, "Quick.ItemUnavailable");
@@ -690,7 +782,7 @@ test("empty favorites are hidden and depleted items retain their order with hove
   const html = renderer.favoriteSection();
   assert.ok(html.indexOf("Empty") < html.indexOf("Ready"));
   assert.doesNotMatch(html, /class="ws-item-unavailable"/);
-  assert.match(html, /title="Quick.NoCharges"/);
+  assert.match(html, /title="Quick.NoCharges\nCombat.OpenDescriptionHint"/);
   assert.match(html, /0\/7/);
   assert.doesNotMatch(html, /Combat.ResourceCost/);
   assert.match(html, /ws-unavailable-card/);

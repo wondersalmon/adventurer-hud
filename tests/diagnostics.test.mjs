@@ -22,7 +22,7 @@ test("empty diagnostic export explains the absence of errors and still downloads
       data = JSON.parse(value);
     }
   };
-  const C = menus.get("integrity").type;
+  const C = menus.get("troubleshooting").type;
   const app = new C();
   app.t = key => key;
   await C.DEFAULT_OPTIONS.actions.export.call(app);
@@ -45,7 +45,7 @@ test("export waits for the native downloader before reporting a result", async (
         resolveDownload = resolve;
       })
   };
-  const C = menus.get("integrity").type;
+  const C = menus.get("troubleshooting").type;
   const app = new C();
   app.t = key => key;
   const pending = C.DEFAULT_OPTIONS.actions.export.call(app);
@@ -67,7 +67,7 @@ for (const outcome of ["rejection", "refusal"]) {
         return false;
       }
     };
-    const C = menus.get("integrity").type;
+    const C = menus.get("troubleshooting").type;
     const app = new C();
     await C.DEFAULT_OPTIONS.actions.export.call(app);
     assert.equal(notifications.length, 1);
@@ -161,10 +161,15 @@ test("diagnostics deduplicate bursts, bound the log and do not include world doc
   assert.equal(report.events.length, 1);
   assert.equal(report.events[0].count, 20);
   assert.equal(notifications.length, 1);
-  assert.equal(report.events[0].message, "Failed https://example.test/file");
+  assert.equal(report.events[0].message, undefined);
+  assert.equal(
+    diagnosticReport({ includeErrorText: true }).events[0].message,
+    "Failed [url]"
+  );
   assert.equal(report.environment.foundry, "14.test");
   assert.equal(report.environment.module, "test");
-  assert.ok(report.events[0].stack.includes("Error:"));
+  assert.equal(report.events[0].stack, undefined);
+  assert.ok(Array.isArray(report.events[0].frames));
   report.events[0].count = 0;
   assert.equal(diagnosticReport().events[0].count, 20);
   for (let index = 0; index < 110; index++)
@@ -186,7 +191,7 @@ test("settings export delegates a readable report to the native Foundry download
       saved = args;
     }
   };
-  const C = menus.get("integrity").type;
+  const C = menus.get("troubleshooting").type;
   const app = new C();
   app.report = {
     issues: [
@@ -201,8 +206,8 @@ test("settings export delegates a readable report to the native Foundry download
   const [data, mime, filename] = saved;
   assert.equal(mime, "application/json");
   assert.match(filename, /^adventurer-hud-diagnostics-.*\.json$/);
-  assert.equal(JSON.parse(data).schemaVersion, 1);
-  assert.deepEqual(JSON.parse(data).integrity, app.report);
+  assert.equal(JSON.parse(data).schemaVersion, 2);
+  assert.deepEqual(JSON.parse(data).integrity.issues, app.report.issues);
   assert.ok(data.includes("\n  "));
   const context = await app._prepareContext();
   const source = await readFile(
@@ -221,7 +226,7 @@ test("repair and export failures reach both the journal and the user", async t =
   const { menus, notifications } = installSettings({
     values: { showSearch: "broken" }
   });
-  const C = menus.get("integrity").type;
+  const C = menus.get("troubleshooting").type;
   const app = new C();
   app.report = {
     issues: [{ code: "InvalidSetting", detail: "showSearch", repairable: true }]

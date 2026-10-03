@@ -1,3 +1,4 @@
+import { recordDiagnostic, diagnosticsRecording } from "../../diagnostics.js";
 export function createCombatSpellRenderer({
   actor,
   adapter,
@@ -42,6 +43,18 @@ export function createCombatSpellRenderer({
     const filtered = hudState.preparedSpellsOnly
       ? items.filter(item => adapter.isPreparedSpell(item))
       : items;
+    if (diagnosticsRecording())
+      recordDiagnostic(
+        "hud.cards.filter",
+        {
+          category: "spells",
+          reason: "prepared-only",
+          preparedOnly: hudState.preparedSpellsOnly,
+          requested: items.length,
+          processed: filtered.length
+        },
+        { detailed: true }
+      );
     const levels = new Map();
 
     for (const item of new Map(

@@ -246,16 +246,11 @@ test("D&D adapter delegates roll actions to the owning documents", async () => {
     ["skill", { skill: "ath", event }],
     ["tool", { tool: "thief", event }],
     ["death", { event }],
-    [
-      "initiative",
-      { createCombatants: false },
-      { advantage: true, disadvantage: false, event }
-    ],
+    ["initiative", { createCombatants: false }, { advantage: true, event }],
     [
       "initiative",
       { createCombatants: false },
       {
-        advantage: false,
         disadvantage: true,
         event: disadvantageEvent
       }

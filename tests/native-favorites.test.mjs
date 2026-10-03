@@ -63,3 +63,97 @@ test("sheet favorite updates refresh HUD stars and order without reopening", asy
   assert.deepEqual(fixture.notifications, []);
   await app.close();
 });
+
+test("header editing reveals removal controls and repeated removal never re-adds a favorite", async () => {
+  const f = await hudFixture();
+  for (const id of ["a", "b"])
+    f.actor.items.set(id, { id, name: id, type: "feat", system: {} });
+  f.actor.system.favorites = [
+    { type: "item", id: ".Item.a", sort: 1 },
+    { type: "item", id: ".Item.b", sort: 2 }
+  ];
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  const header = () =>
+    app.element.querySelector('[data-action="togglefavoriteedit"]');
+  const removals = () =>
+    app.element.querySelectorAll(
+      '.ws-favorites [data-action="removefavorite"]'
+    );
+  assert.equal(header().getAttribute("aria-pressed"), "false");
+  assert.equal(removals().length, 0);
+  assert.equal(app.element.querySelectorAll(".ws-item-description").length, 0);
+  const target = { dataset: { itemId: "a" } };
+  await app.hudActions.removefavorite(null, target);
+  assert.equal(f.actor.system.favorites.length, 2);
+  await app.hudActions.togglefavoriteedit();
+  assert.equal(header().getAttribute("aria-pressed"), "true");
+  assert.equal(removals().length, 2);
+  await Promise.all([
+    app.hudActions.removefavorite(null, target),
+    app.hudActions.removefavorite(null, target)
+  ]);
+  assert.deepEqual(
+    f.actor.system.favorites.map(entry => entry.id),
+    [".Item.b"]
+  );
+  assert.equal(removals().length, 1);
+  assert.equal(header().getAttribute("aria-pressed"), "true");
+  await app.close();
+  await f.api.open(f.actor);
+  assert.equal(
+    __adventurerHud.app.element
+      .querySelector('[data-action="togglefavoriteedit"]')
+      .getAttribute("aria-pressed"),
+    "false"
+  );
+  assert.equal(
+    __adventurerHud.app.element.querySelectorAll(
+      '[data-action="removefavorite"]'
+    ).length,
+    0
+  );
+  assert.deepEqual(f.notifications, []);
+  await __adventurerHud.app.close();
+});
+
+test("ownership and favorite visibility cancel editing in an open HUD", async () => {
+  const f = await hudFixture();
+  f.actor.items.set("a", { id: "a", name: "a", type: "feat", system: {} });
+  f.actor.system.favorites = [{ type: "item", id: ".Item.a" }];
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  await app.hudActions.togglefavoriteedit();
+  f.actor.isOwner = false;
+  f.hooks.callAll("updateActor", f.actor, { ownership: {} });
+  f.flushFrames();
+  assert.equal(
+    app.element.querySelector('[data-action="togglefavoriteedit"]'),
+    null
+  );
+  await app.hudActions.removefavorite(null, { dataset: { itemId: "a" } });
+  assert.equal(f.actor.system.favorites.length, 1);
+  f.actor.isOwner = true;
+  f.hooks.callAll("updateActor", f.actor, { ownership: {} });
+  f.flushFrames();
+  assert.equal(
+    app.element
+      .querySelector('[data-action="togglefavoriteedit"]')
+      .getAttribute("aria-pressed"),
+    "false"
+  );
+  await app.hudActions.togglefavoriteedit();
+  await game.settings.set("adventurer-hud", "showFavorites", false);
+  assert.equal(
+    app.element.querySelector('[data-action="togglefavoriteedit"]'),
+    null
+  );
+  await game.settings.set("adventurer-hud", "showFavorites", true);
+  assert.equal(
+    app.element
+      .querySelector('[data-action="togglefavoriteedit"]')
+      .getAttribute("aria-pressed"),
+    "false"
+  );
+  await app.close();
+});

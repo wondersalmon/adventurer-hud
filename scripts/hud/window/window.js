@@ -10,12 +10,10 @@ import {
 } from "./geometry.js";
 import {
   flushWindowGeometry,
-  getSetting,
   getWindowGeometry,
-  saveWindowGeometry,
-  setSetting,
-  SETTINGS
-} from "../settings.js";
+  saveWindowGeometry
+} from "../../window-geometry.js";
+import { getSetting, setSetting, SETTINGS } from "../../settings-access.js";
 
 function windowControls(t, gmActive) {
   return [
@@ -42,11 +40,6 @@ function windowControls(t, gmActive) {
           }
         ]
       : []),
-    {
-      icon: "fa-solid fa-arrow-rotate-left",
-      label: t("Window.ResetHint"),
-      action: "resetwindow"
-    },
     { icon: "fa-solid fa-gear", label: t("Settings.Open"), action: "settings" }
   ];
 }
@@ -180,6 +173,7 @@ export function createHudWindow({
       return activateHudWindow({
         ...options,
         app,
+        t,
         gmActive,
         pinned,
         pinSetting,
@@ -190,8 +184,6 @@ export function createHudWindow({
         theme: getSetting(SETTINGS.theme),
         reuse: Boolean(reusedApp),
         visualEffectsEnabled: getSetting(SETTINGS.showVisualEffects),
-        showWindowSize: getSetting(SETTINGS.debugWindowSize),
-        windowSizeLabel: t("Window.DimensionsHint"),
         setPinned,
         setCloseOnEscape: value => {
           closeOnEscape = Boolean(value);

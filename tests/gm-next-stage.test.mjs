@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { dnd5eAdapter as adapter } from "../scripts/dnd5e/index.js";
-import { registerGmLifecycle } from "../scripts/hud/gm-lifecycle.js";
+import { registerGmLifecycle } from "../scripts/hud/gm/gm-lifecycle.js";
 import { hudFixture, waitFor } from "./helpers/hud.mjs";
 import { createHudActions } from "../scripts/hud/actions.js";
 
@@ -89,7 +89,7 @@ import {
   addSceneCreatures,
   removeDeadCreatures,
   moveToCreature
-} from "../scripts/hud/gm-scene.js";
+} from "../scripts/hud/gm/gm-scene.js";
 import {
   fragment,
   itemCollection,
@@ -313,6 +313,72 @@ test("removal deletes only defeated GM NPC tokens, never zero-HP living NPCs or 
   assert.equal(calls.length, 1);
 });
 
+test("removal protects offline owners even when Combatant.players omits them", async () => {
+  installSettings({ isGM: true });
+  const scene = { id: "scene" };
+  globalThis.canvas = { scene };
+  const player = { id: "owner", active: false, isGM: false };
+  game.users = new Map([[player.id, player]]);
+  let deletes = 0;
+  const pet = {
+    id: "pet",
+    sceneId: scene.id,
+    defeated: true,
+    players: [],
+    token: {
+      id: "pet",
+      parent: scene,
+      actor: {
+        type: "npc",
+        isOwner: true,
+        testUserPermission: user => user === player
+      },
+      delete: () => deletes++
+    }
+  };
+  const combat = { turns: [pet] };
+  assert.deepEqual(deadCreatures(combat), []);
+  await removeDeadCreatures(combat, [pet.id]);
+  assert.equal(deletes, 0);
+  // A complete player list also protects ownership without a user collection.
+  game.users = new Map();
+  pet.players = [player];
+  assert.deepEqual(deadCreatures(combat), []);
+});
+
+test("removal rechecks ownership before deleting each queued token", async () => {
+  installSettings({ isGM: true });
+  const scene = { id: "scene" };
+  globalThis.canvas = { scene };
+  const player = { id: "owner", active: false, isGM: false };
+  game.users = new Map([[player.id, player]]);
+  const removed = [];
+  let owned = false;
+  const creature = id => ({
+    id,
+    sceneId: scene.id,
+    defeated: true,
+    players: [],
+    token: {
+      id,
+      parent: scene,
+      actor: {
+        type: "npc",
+        isOwner: true,
+        testUserPermission: () => id === "second" && owned
+      },
+      async delete() {
+        removed.push(id);
+        owned = true;
+        return this;
+      }
+    }
+  });
+  const combat = { turns: [creature("first"), creature("second")] };
+  await removeDeadCreatures(combat, ["first", "second"]);
+  assert.deepEqual(removed, ["first"]);
+});
+
 test("ping and centering use the chosen scene token without implicit targeting", async () => {
   installSettings({ isGM: true });
   const calls = [];
@@ -468,6 +534,21 @@ test("GM Features follows native consumption and replacement of a synthetic Acto
     app.element.querySelector(".ws-combat-item-list").textContent,
     /2\/2/
   );
+  assert.equal(game.settings.get("adventurer-hud", "gmFilterActions"), true);
+  f.current.set("gmFilterActions", false);
+  f.hooks.callAll("adventurerHudSettingChanged", "gmFilterActions");
+  f.flushFrames();
+  assert.equal(app.element.querySelector('[data-action="combatfilter"]'), null);
+  assert.equal(
+    app.element.querySelectorAll(
+      '[data-action="useitem"][data-item-id="feature"]'
+    ).length,
+    1
+  );
+  f.current.set("gmFilterActions", true);
+  f.hooks.callAll("adventurerHudSettingChanged", "gmFilterActions");
+  f.flushFrames();
+  assert.ok(app.element.querySelector('[data-action="combatfilter"]'));
   feature.system.uses.spent = 2;
   f.hooks.callAll("dnd5e.postActivityConsumption", { item: feature });
   f.flushFrames();
@@ -494,58 +575,21 @@ test("GM Features follows native consumption and replacement of a synthetic Acto
   await app.close();
 });
 
-test("automatic removal reacts only to a dead creature in the selected combat and honors the preference", async () => {
+test("GM lifecycle never registers automatic token removal, even with a legacy saved preference", () => {
   const f = installSettings({
     isGM: true,
-    values: { gmEnabled: true, gmAutoRemoveDead: false }
-  });
-  globalThis.CONFIG = {};
-  const calls = [];
-  globalThis.canvas = {
-    scene: {
-      id: "scene",
-      deleteEmbeddedDocuments: async (_type, ids) => calls.push(ids)
-    }
-  };
-  const actor = { type: "npc", isOwner: true, uuid: "Actor.npc" };
-  const entry = {
-    id: "npc",
-    sceneId: "scene",
-    tokenId: "npc",
-    token: { actor },
-    defeated: true,
-    players: []
-  };
-  const combat = {
-    id: "battle",
-    scene: canvas.scene,
-    started: true,
-    turns: [entry],
-    combatants: itemCollection([])
-  };
-  game.combats = itemCollection([combat]);
-  Object.assign(entry.token, {
-    id: entry.tokenId,
-    parent: canvas.scene,
-    uuid: "Scene.scene.Token.npc",
-    delete: async () => {
-      calls.push(["npc"]);
-      return entry.token;
-    }
+    values: { gmEnabled: true, gmAutoRemoveDead: true }
   });
   const callbacks = new Map();
   registerGmLifecycle({
     hooks: { on: (name, callback) => callbacks.set(name, callback) },
-    openHud() {},
-    getState: () => ({ preset: "gm", gm: { combatId: combat.id } })
+    openHud() {}
   });
-  await callbacks.get("updateActor")(actor);
-  assert.deepEqual(calls, []);
-  f.current.set("gmAutoRemoveDead", true);
-  await callbacks.get("updateActor")({ uuid: "Actor.unrelated" });
-  assert.deepEqual(calls, []);
-  await callbacks.get("updateActor")(actor);
-  assert.deepEqual(calls, [["npc"]]);
+  assert.equal(f.registrations.has("gmAutoRemoveDead"), false);
+  assert.deepEqual(
+    [...callbacks.keys()],
+    ["createCombat", "deleteCombat", "updateCombat"]
+  );
 });
 
 test("Remove defeated confirms, uses the scene queue, and preserves combatants when token deletion is cancelled", async () => {
@@ -628,7 +672,7 @@ test("explicit turn arrows select the native current NPC even when following is 
   ]);
 });
 
-test("manual and automatic removal share a queue and recheck deleted combatants", async () => {
+test("concurrent manual removals share a queue and recheck deleted combatants", async () => {
   installSettings({ isGM: true });
   globalThis.canvas = { scene: { id: "scene" } };
   const calls = [];

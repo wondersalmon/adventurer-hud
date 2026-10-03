@@ -38,10 +38,12 @@ for (const template of ["settings.hbs", "reset-settings.hbs"]) {
       );
       assert.equal(root.children.length, 1);
       assert.equal(root.querySelectorAll('button[type="submit"]').length, 1);
-      assert.equal(
-        root.querySelector("button[data-action]").getAttribute("type"),
-        "button"
-      );
+      if (template === "reset-settings.hbs")
+        assert.equal(
+          root.querySelector("button[data-action]").getAttribute("type"),
+          "button"
+        );
+      else assert.equal(root.querySelector('[data-action="reset"]'), null);
       if (template === "settings.hbs") {
         assert.equal(root.querySelectorAll("input[checked]").length, 1);
         assert.equal(

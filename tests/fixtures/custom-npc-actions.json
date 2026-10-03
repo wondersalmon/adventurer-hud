@@ -1,0 +1,915 @@
+[
+  {
+    "name": "Humongous Fungus Troll",
+    "items": [
+      {
+        "id": "8UyYLytNFvZrAvIx",
+        "name": "False Appearance",
+        "type": "feat",
+        "system": {
+          "uses": {
+            "max": "",
+            "recovery": [],
+            "spent": 0
+          },
+          "activities": []
+        }
+      },
+      {
+        "id": "QH5CUJR2W8ZlVz6y",
+        "name": "Regeneration",
+        "type": "feat",
+        "system": {
+          "uses": {
+            "max": "",
+            "recovery": [],
+            "spent": 0
+          },
+          "activities": [
+            {
+              "id": "zBeZyEi23fGBQ0eh",
+              "name": "",
+              "type": "heal",
+              "activation": {
+                "condition": "",
+                "override": false,
+                "type": "turnStart"
+              },
+              "uses": {
+                "max": "",
+                "recovery": [],
+                "spent": 0
+              },
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "hcNs1p5JHpYFghV8",
+        "name": "Rotting Aura",
+        "type": "feat",
+        "system": {
+          "uses": {
+            "max": "",
+            "recovery": [],
+            "spent": 0
+          },
+          "activities": [
+            {
+              "id": "sHsv1Rewe0WyvvOs",
+              "name": "",
+              "type": "damage",
+              "activation": {
+                "condition": "",
+                "override": false,
+                "type": ""
+              },
+              "uses": {
+                "max": "",
+                "recovery": [],
+                "spent": 0
+              },
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "sO7ivm0HgxxY8L0v",
+        "name": "Grasping Tendrils",
+        "type": "weapon",
+        "system": {
+          "uses": {
+            "max": "",
+            "recovery": [],
+            "spent": 0
+          },
+          "activities": [
+            {
+              "id": "X2gs6b7FcHSJJpc1",
+              "name": "",
+              "type": "attack",
+              "activation": {
+                "condition": "",
+                "override": false,
+                "type": "epic"
+              },
+              "uses": {
+                "max": "",
+                "recovery": [],
+                "spent": 0
+              },
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "zR9GukN94sqolEkG",
+        "name": "Entangling Mycelia",
+        "type": "feat",
+        "system": {
+          "uses": {
+            "max": "",
+            "recovery": [],
+            "spent": 0
+          },
+          "activities": [
+            {
+              "id": "6hdHHTtW5dvGUBCO",
+              "name": "Recharge Epic Action (When Bloodied)",
+              "type": "utility",
+              "activation": {
+                "condition": "When the humongous fungus troll is bloodied",
+                "override": false,
+                "type": ""
+              },
+              "uses": {
+                "max": "",
+                "recovery": [],
+                "spent": 0
+              },
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": [
+                  {
+                    "scaling": {},
+                    "target": "",
+                    "type": "itemUses",
+                    "value": "-1"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "W1kgk0R4znzJFJf0",
+              "name": "",
+              "type": "save",
+              "activation": {
+                "condition": "",
+                "override": false,
+                "type": "epic"
+              },
+              "uses": {
+                "max": "",
+                "recovery": [],
+                "spent": 0
+              },
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": [
+                  {
+                    "scaling": {},
+                    "target": "",
+                    "type": "itemUses",
+                    "value": "1"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "xS0kiOcSVzR4WZYN",
+        "name": "Spawn Trolling",
+        "type": "feat",
+        "system": {
+          "uses": {
+            "max": "1",
+            "recovery": [
+              {
+                "period": "turnStart",
+                "type": "recoverAll"
+              }
+            ],
+            "spent": 0
+          },
+          "activities": [
+            {
+              "id": "hygN40f1dMGBrLEA",
+              "name": "",
+              "type": "summon",
+              "activation": {
+                "condition": "",
+                "override": false,
+                "type": "epic"
+              },
+              "uses": {
+                "max": "",
+                "recovery": [],
+                "spent": 0
+              },
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": [
+                  {
+                    "scaling": {},
+                    "target": "",
+                    "type": "itemUses",
+                    "value": "1"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "CefkKOtB3RRUtBQB",
+        "name": "Epic Boss",
+        "type": "feat",
+        "system": {
+          "uses": {
+            "max": "",
+            "recovery": [],
+            "spent": 0
+          },
+          "activities": []
+        }
+      },
+      {
+        "id": "sfiJiDdbwF6SAUdL",
+        "name": "Epic Resistance",
+        "type": "feat",
+        "system": {
+          "uses": {
+            "max": "",
+            "recovery": [],
+            "spent": 0
+          },
+          "activities": [
+            {
+              "id": "sTl0ec3s7Ga2OiVS",
+              "name": "",
+              "type": "utility",
+              "activation": {
+                "condition": "",
+                "override": false,
+                "type": "epic"
+              },
+              "uses": {
+                "max": "",
+                "recovery": [],
+                "spent": 0
+              },
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "bGfRDJM3rR1sAoJ1",
+        "name": "Spore Slam",
+        "type": "weapon",
+        "system": {
+          "uses": {
+            "max": "",
+            "recovery": [],
+            "spent": 0
+          },
+          "activities": [
+            {
+              "id": "J5hnXrOLed5wSkBh",
+              "name": "",
+              "type": "attack",
+              "activation": {
+                "condition": "",
+                "override": false,
+                "type": "epic"
+              },
+              "uses": {
+                "max": "",
+                "recovery": [],
+                "spent": 0
+              },
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": []
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "Llyvessa",
+    "items": [
+      {
+        "id": "7xkk5FuNBATLCTuV",
+        "name": "Scimitar",
+        "type": "weapon",
+        "system": {
+          "uses": {
+            "max": "",
+            "recovery": [],
+            "spent": 0
+          },
+          "activities": [
+            {
+              "id": "dnd5eactivity000",
+              "name": "",
+              "type": "attack",
+              "activation": {
+                "type": "action",
+                "value": 1,
+                "condition": "",
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "max": "",
+                "recovery": []
+              },
+              "consumption": {
+                "targets": [],
+                "scaling": {
+                  "allowed": false,
+                  "max": ""
+                },
+                "spellSlot": true
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "hzpdKv96UE9akP5b",
+        "name": "Longbow",
+        "type": "weapon",
+        "system": {
+          "uses": {
+            "max": "",
+            "recovery": [],
+            "spent": 0
+          },
+          "activities": [
+            {
+              "id": "dnd5eactivity000",
+              "name": "",
+              "type": "attack",
+              "activation": {
+                "type": "action",
+                "value": 1,
+                "condition": "",
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "max": "",
+                "recovery": []
+              },
+              "consumption": {
+                "targets": [],
+                "scaling": {
+                  "allowed": false,
+                  "max": ""
+                },
+                "spellSlot": true
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "5ys5XEleXK92rfKL",
+        "name": "Deadly Sharpshooter",
+        "type": "feat",
+        "system": {
+          "uses": {
+            "max": "",
+            "spent": 0,
+            "recovery": []
+          },
+          "activities": []
+        }
+      },
+      {
+        "id": "O5sdsV3r4qwJziKZ",
+        "name": "Elf Glamour",
+        "type": "feat",
+        "system": {
+          "uses": {
+            "max": "1",
+            "spent": 0,
+            "recovery": [
+              {
+                "period": "day",
+                "type": "recoverAll"
+              }
+            ]
+          },
+          "activities": [
+            {
+              "id": "6f8rvGPoFdZFXyUM",
+              "name": "",
+              "type": "save",
+              "activation": {
+                "type": "",
+                "value": null,
+                "override": false,
+                "condition": "When targeted by an attack, power, or spell."
+              },
+              "uses": {
+                "spent": 0,
+                "recovery": [],
+                "max": ""
+              },
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": [
+                  {
+                    "type": "itemUses",
+                    "value": "1",
+                    "target": "",
+                    "scaling": {}
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "1YoPc86zLzeTTGSq",
+        "name": "Mind Link",
+        "type": "feat",
+        "system": {
+          "uses": {
+            "max": "",
+            "spent": 0,
+            "recovery": []
+          },
+          "activities": []
+        }
+      },
+      {
+        "id": "fOKGjbhK9rTVu1CQ",
+        "name": "Shared Condition",
+        "type": "feat",
+        "system": {
+          "uses": {
+            "max": "",
+            "recovery": [],
+            "spent": 0
+          },
+          "activities": [
+            {
+              "id": "dnd5eactivity000",
+              "name": "",
+              "type": "utility",
+              "activation": {
+                "type": "reaction",
+                "value": 1,
+                "condition": "When gaining a condition.",
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "max": "",
+                "recovery": []
+              },
+              "consumption": {
+                "targets": [],
+                "scaling": {
+                  "allowed": false,
+                  "max": ""
+                },
+                "spellSlot": true
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "0JE9M7IEkll0LLay",
+        "name": "Multiattack",
+        "type": "feat",
+        "system": {
+          "uses": {
+            "max": "",
+            "recovery": [],
+            "spent": 0
+          },
+          "activities": [
+            {
+              "id": "dnd5eactivity000",
+              "name": null,
+              "type": "utility",
+              "activation": {
+                "type": "action",
+                "value": 1,
+                "condition": "",
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "max": "",
+                "recovery": []
+              },
+              "consumption": {
+                "targets": [],
+                "scaling": {
+                  "allowed": false,
+                  "max": ""
+                },
+                "spellSlot": true
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "wHOtX5qLBo5hcVSy",
+        "name": "Psychic Shot",
+        "type": "feat",
+        "system": {
+          "uses": {
+            "max": "1",
+            "recovery": [
+              {
+                "period": "recharge",
+                "formula": "5",
+                "type": "recoverAll"
+              }
+            ],
+            "spent": 0
+          },
+          "activities": [
+            {
+              "id": "dnd5eactivity000",
+              "name": "",
+              "type": "utility",
+              "activation": {
+                "type": "action",
+                "value": 1,
+                "condition": "",
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "max": "",
+                "recovery": []
+              },
+              "consumption": {
+                "targets": [
+                  {
+                    "type": "itemUses",
+                    "value": "1",
+                    "scaling": {}
+                  }
+                ],
+                "scaling": {
+                  "allowed": false,
+                  "max": ""
+                },
+                "spellSlot": true
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "gfGEh9l7cqrSPY4E",
+        "name": "Jaunt",
+        "type": "feat",
+        "system": {
+          "uses": {
+            "max": "1",
+            "recovery": [
+              {
+                "period": "day",
+                "type": "recoverAll"
+              }
+            ],
+            "spent": 0
+          },
+          "activities": [
+            {
+              "id": "dnd5eactivity000",
+              "name": "",
+              "type": "utility",
+              "activation": {
+                "type": "bonus",
+                "value": 1,
+                "condition": "",
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "max": "",
+                "recovery": []
+              },
+              "consumption": {
+                "targets": [
+                  {
+                    "type": "itemUses",
+                    "value": "1",
+                    "target": "",
+                    "scaling": {}
+                  }
+                ],
+                "scaling": {
+                  "allowed": false,
+                  "max": ""
+                },
+                "spellSlot": true
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "J4MPh58Vlx3ggjJH",
+        "name": "Control Projectiles",
+        "type": "feat",
+        "system": {
+          "uses": {
+            "max": "3",
+            "recovery": [
+              {
+                "period": "day",
+                "type": "recoverAll"
+              }
+            ],
+            "spent": 0
+          },
+          "activities": [
+            {
+              "id": "laUJmTH4mkCZBHXO",
+              "name": "",
+              "type": "utility",
+              "activation": {
+                "type": "reaction",
+                "value": null,
+                "override": false,
+                "condition": "A creature they can see makes an attack."
+              },
+              "uses": {
+                "spent": 0,
+                "recovery": [],
+                "max": ""
+              },
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": [
+                  {
+                    "type": "itemUses",
+                    "value": "1",
+                    "target": "",
+                    "scaling": {}
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "VPXtsy1lN9nV4iGg",
+        "name": "Villain Party Actions",
+        "type": "feat",
+        "system": {
+          "uses": {
+            "spent": 0,
+            "recovery": [],
+            "max": ""
+          },
+          "activities": []
+        }
+      },
+      {
+        "id": "DKmrnslEidUTeONU",
+        "name": "Leaves Fall on the Moon",
+        "type": "feat",
+        "system": {
+          "uses": {
+            "spent": 0,
+            "recovery": [
+              {
+                "period": "initiative",
+                "type": "recoverAll"
+              }
+            ],
+            "max": "1"
+          },
+          "activities": [
+            {
+              "id": "IFYgMxkbaHImd4Ov",
+              "name": "",
+              "type": "save",
+              "activation": {
+                "type": "villain",
+                "value": null,
+                "override": false,
+                "condition": ""
+              },
+              "uses": {
+                "spent": 0,
+                "recovery": [],
+                "max": ""
+              },
+              "consumption": {
+                "scaling": {
+                  "allowed": false
+                },
+                "spellSlot": true,
+                "targets": [
+                  {
+                    "type": "itemUses",
+                    "value": "1",
+                    "scaling": {}
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "QV3RPlJRwHEEHohO",
+        "name": "Studded Leather Armor",
+        "type": "equipment",
+        "system": {
+          "uses": {
+            "max": "",
+            "spent": 0,
+            "recovery": []
+          },
+          "activities": []
+        }
+      },
+      {
+        "id": "9Y783MW2w2Db1YT5",
+        "name": "Brace (Ranged)",
+        "type": "feat",
+        "system": {
+          "uses": {
+            "max": "1",
+            "recovery": [
+              {
+                "period": "sr",
+                "type": "recoverAll"
+              }
+            ],
+            "spent": 0
+          },
+          "activities": [
+            {
+              "id": "dnd5eactivity000",
+              "name": null,
+              "type": "utility",
+              "activation": {
+                "type": "special",
+                "value": null,
+                "condition": "",
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "max": "",
+                "recovery": []
+              },
+              "consumption": {
+                "targets": [
+                  {
+                    "type": "itemUses",
+                    "target": "",
+                    "value": "1",
+                    "scaling": {
+                      "mode": "",
+                      "formula": ""
+                    }
+                  }
+                ],
+                "scaling": {
+                  "allowed": false,
+                  "max": ""
+                },
+                "spellSlot": true
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "1jrqZdjnmtHrrq1N",
+        "name": "Hamstring Shot",
+        "type": "feat",
+        "system": {
+          "uses": {
+            "max": "1",
+            "recovery": [
+              {
+                "period": "sr",
+                "type": "recoverAll"
+              }
+            ],
+            "spent": 0
+          },
+          "activities": [
+            {
+              "id": "dnd5eactivity000",
+              "name": "",
+              "type": "attack",
+              "activation": {
+                "type": "action",
+                "value": 1,
+                "condition": "",
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "max": "",
+                "recovery": []
+              },
+              "consumption": {
+                "targets": [
+                  {
+                    "type": "itemUses",
+                    "value": "1",
+                    "target": "",
+                    "scaling": {}
+                  }
+                ],
+                "scaling": {
+                  "allowed": false,
+                  "max": ""
+                },
+                "spellSlot": true
+              }
+            },
+            {
+              "id": "dnd5eactivity100",
+              "name": "",
+              "type": "save",
+              "activation": {
+                "type": "special",
+                "value": 1,
+                "condition": "",
+                "override": false
+              },
+              "uses": {
+                "spent": 0,
+                "max": "",
+                "recovery": []
+              },
+              "consumption": {
+                "targets": [],
+                "scaling": {
+                  "allowed": false,
+                  "max": ""
+                },
+                "spellSlot": true
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+]

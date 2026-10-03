@@ -1,8 +1,8 @@
 // @ts-check
-import { gmWindowTitle, renderGmCombatHeader } from "./gm-combat.js";
-import { createHudWindow } from "./window.js";
+import { gmWindowTitle, renderGmCombatHeader } from "./gm/gm-combat.js";
+import { createHudWindow } from "./window/window.js";
 import { createRefreshScheduler, refreshHudShell } from "./refresh.js";
-import { createGmSelection } from "./gm-selection.js";
+import { createGmSelection } from "./gm/gm-selection.js";
 import { createHudRollRunner } from "./roll-runner.js";
 import { createHudActions } from "./actions.js";
 import { readHudVisibility } from "./visibility.js";
@@ -76,7 +76,7 @@ export async function openEmptyGmHud(
     readVisibility: readHudVisibility,
     visibility: readHudVisibility(),
     onSearchInput: () => {},
-    onCombatChange,
+    onCombatChange: gmSelection.scheduleCombatChange,
     onCombatSelection: gmSelection.selectCombat
   });
 }

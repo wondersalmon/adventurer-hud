@@ -2,22 +2,36 @@
 
 [About the module](../README.md) · [Player HUD](player-guide.md) · [Русский](gm-guide.ru.md)
 
-Press **Shift+R** to open or close the HUD. GMs use GM mode by default. The **⋮** menu switches to the character panel and back without changing your permissions. If no character is available or you cancel the picker, GM mode stays active.
+Press **Shift+R** to open or close the GM panel. Use **⋮** to switch to the character panel; the pin locks the window's position and size. GM and player modes have separate display settings.
 
-The pin locks position and size; GM and player panels remember them separately. Escape does not close the HUD by default; allow this in additional settings. The window title shows the scene, round and selected creature.
+![GM panel](../media/gm-w.gif)
 
-The panel opens when combat is created if automatic opening is enabled. Before starting, setup buttons are immediately available: add NPCs or scene tokens, roll initiative and start combat. Monsters form a grid on the left; player characters added to combat appear on the right. Reset initiative before starting if needed. The setup block disappears once combat begins.
+## Preparing and running combat
 
-During preparation, both lists can collapse. Right-click a card to reset only that participant's initiative. In combat, the left list shows the full initiative order, with player characters marked by an icon and color. Beside the monster's name are reroll, reset and, when defeated, a skull to remove its token. The group roll stays on the bottom bar. End turn advances the current combat turn even when another creature is selected.
+During preparation, add chosen creatures or all creatures on the scene, roll initiative and start combat. The main button rolls only missing results. **Other initiative options** contains selected-creature rolls, rerolls and reset. If the scene has several encounters, select the intended one in the panel: its participants and combat commands apply to that encounter.
 
-Select a creature to see its HP, AC, movement, saves and actions. Legendary resources appear when it has them. Items and abilities use normal D&D 5e mechanics. The sheet button opens the creature's full sheet.
+Select a participant to open their actions, including player characters. Switching cards lets you inspect a creature; previous/next turn and ending the current turn advance combat. Token navigation and ping help locate creatures on the map.
 
-By default, GM mode hides search and shows only action types, with spells alongside other actions. Turn off **Hide search in GM mode** or **Only action types in GM mode** in GM settings to bring back search and the Weapons, Spells and Features tabs.
+**Automatic creature selection** offers manual selection, following the current turn, or selecting the next NPC after ending a turn from the HUD. When following turns, player turns keep the last NPC card. Manual selection pauses following; **Follow turn** enables it again.
 
-**Follow turn** automatically selects the current NPC. Choosing a creature yourself turns following off; you can turn it back on. Previous, next and End turn control the initiative order. Assign shortcuts for them in Foundry's control settings.
+Removing defeated NPCs is a manual operation that deletes tokens while keeping creatures in the Actor directory. Companions with player owners are excluded from the group removal list.
 
-Click **HP** to enter damage, healing or temporary HP. The token button selects the creature and moves the camera; ping points it out to players. Removing dead creatures deletes their encounter tokens from the current scene and keeps Actor directory entries. Automatic removal is a separate GM setting.
+## Creature actions and features
 
-If something breaks, open **Check integrity → Download error report** in the module settings. Do this before reloading: the file includes errors from this tab and version information to help troubleshoot.
+The card shows health, AC, movement, saves, conditions and resources. Click **HP** to enter damage `-7`, healing `+5` or an absolute value; open the creature's sheet for full editing. Abilities use the normal D&D 5e mechanics and dialogs.
 
-![Wide GM panel](../media/gm-w.gif)
+Choose a single action list or grouping in GM settings. Grouping uses activity activation types, including **Epic Actions**, **Villain Actions**, legendary actions and reactions. **Features** shows entries with an activation by default, including Epic Actions. Enable **Show passive features** in that tab to switch to Darkvision and other passive traits; the choice is remembered for this character. A custom section name in another sheet does not create an action type: a custom category needs a corresponding system activity activation type.
+
+If an ability is missing, check its item and activities in the full sheet, then HUD grouping and filters. The single list is useful for checking creatures with unusual abilities. Card details and search are configured independently of the player panel.
+
+## Players' companions
+
+Grant ownership of the Actor or an individual token so a player can see the creature in **Companions**. Token-only ownership grants access to that instance; placement from the directory requires Actor ownership and Foundry permission to create tokens. Configure the prototype token in advance: the player places it using the button beside the creature in **All**.
+
+For familiar sight, enable token vision and configure its range and senses. Both character and familiar must be on the current scene. During combat, add the character to the current encounter: senses can be activated on their turn. The eye adds a vision source while keeping the character selected; walls and configured senses continue to determine visibility. See the [player guide](player-guide.md#familiar-senses) for use and duration.
+
+Placing a companion does not add it to combat: add its token as a participant to enable initiative controls. Track summoning spell costs and the Bonus Action for shared senses through your normal game procedures.
+
+## Settings and help
+
+For an intermittent problem, choose **Record a problem**, reproduce it, then **The problem happened — stop** and **Download report**. Recording stops automatically after 10 minutes. You can preview the report and add an optional expected/actual result. It contains recent HUD actions, anonymous references and technical context; raw error text is excluded unless you enable it. Review that optional text before sharing. Nothing is uploaded automatically; reloading clears this tab's history.

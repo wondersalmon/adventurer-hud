@@ -7,6 +7,29 @@ import type {
   EmptyGmOpenContext,
   HudAdapter
 } from "../types/hud.js";
+import type {
+  CompanionActions,
+  CompanionNavigation,
+  CompanionEntry
+} from "../types/hud.js";
+
+declare const companionActions: CompanionActions;
+companionActions.opencompanion?.(null, {
+  dataset: { companionUuid: "Actor.owl" }
+});
+// @ts-expect-error Navigation always identifies the owner with a UUID string.
+const invalidNavigation: CompanionNavigation = { ownerUuid: 42 };
+void invalidNavigation;
+// @ts-expect-error Native input events must not be replaced by a string.
+companionActions.initiative?.("Alt", { dataset: {} });
+// @ts-expect-error Entries require exact-token choices and scene presence.
+const invalidEntry: CompanionEntry = {
+  uuid: "Actor.owl",
+  actor: null,
+  token: null,
+  reason: null
+};
+void invalidEntry;
 
 declare const actor: ActorOpenContext;
 declare const emptyGm: EmptyGmOpenContext;
