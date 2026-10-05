@@ -1,3 +1,5 @@
+import { synchronizeStatusLayout } from "../scripts/hud/window/status-layout.js";
+import { applyPlayerLayout } from "../scripts/hud/window/responsive-layout.js";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { createCombatSpellRenderer } from "../scripts/hud/items/combat-spells.js";
@@ -31,13 +33,18 @@ const t = key =>
     key
   ] || key;
 
-test("inventory weight and gold stay readable with large amounts in both themes", async ({
+test("inventory weight and all coin types stay readable and distinct in both themes", async ({
   page
 }) => {
   const labels = {
     "Inventory.Weight": "Вес / лимит",
-    "Inventory.Gold": "Золото",
-    "Inventory.GoldUnit": "зм"
+    "Inventory.Currency": "Монеты",
+    ...Object.fromEntries(
+      ["cp", "sp", "ep", "gp", "pp"].flatMap((type, index) => [
+        [`Inventory.Coin.${type}.Name`, type],
+        [`Inventory.Coin.${type}.Unit`, ["мм", "см", "эм", "зм", "пм"][index]]
+      ])
+    )
   };
   const format = new Intl.NumberFormat("ru", { maximumFractionDigits: 2 });
   const html = renderInventorySummary({
@@ -45,7 +52,10 @@ test("inventory weight and gold stay readable with large amounts in both themes"
       weight: 123456.7,
       maxWeight: 987654.3,
       units: "кг",
-      gold: 1234567890123
+      coins: ["cp", "sp", "ep", "gp", "pp"].map(type => ({
+        type,
+        value: 1234567890123
+      }))
     },
     t: key => labels[key],
     escapeHTML,
@@ -60,14 +70,24 @@ test("inventory weight and gold stay readable with large amounts in both themes"
         expect(
           await stat.evaluate(node => node.scrollWidth <= node.clientWidth + 1)
         ).toBe(true);
-        const strong = await stat.locator("strong").boundingBox();
         const box = await stat.boundingBox();
-        expect(strong.x + strong.width).toBeLessThanOrEqual(
-          box.x + box.width + 1
-        );
+        for (const value of await stat.locator("strong").all()) {
+          const strong = await value.boundingBox();
+          expect(strong.x + strong.width).toBeLessThanOrEqual(
+            box.x + box.width + 1
+          );
+        }
       }
       await expect(page.locator(".ws-inventory-weight")).toContainText("кг");
-      await expect(page.locator(".ws-inventory-gold")).toContainText("зм");
+      await expect(page.locator(".ws-inventory-currency")).toContainText("зм");
+      const colors = await page
+        .locator(".ws-coin")
+        .evaluateAll(nodes => nodes.map(node => getComputedStyle(node).color));
+      expect(new Set(colors).size).toBe(5);
+      for (const coin of await page.locator(".ws-coin").all())
+        expect(
+          await coin.evaluate(node => node.scrollWidth <= node.clientWidth + 1)
+        ).toBe(true);
     }
   }
 });
@@ -76,7 +96,9 @@ test("refresh restores the exact repeated button for keyboard activation", async
   page
 }) => {
   await page.addScriptTag({
-    content: `${captureHudDomState.toString()}\n${restoreHudDomState.toString()}`
+    content: `${synchronizeStatusLayout.toString()}
+${applyPlayerLayout.toString()}
+${captureHudDomState.toString()}\n${restoreHudDomState.toString()}`
   });
   for (const attribute of [
     "data-proficient",
@@ -385,12 +407,17 @@ test("spell heading and slots stay visible and are replaced by the next level", 
       spellLevel: item => item.level
     },
     combatItemButton: () => '<div style="height:70px">Spell</div>',
+    escapeHTML,
     hudState: {},
     t,
     tf: (_key, { level }) => `LEVEL ${level}`
   });
   const items = [1, 2, 3].flatMap(level =>
-    Array.from({ length: 12 }, () => ({ level }))
+    Array.from({ length: 12 }, (_, index) => ({
+      level,
+      id: `spell-${level}-${index}`,
+      name: `Spell ${index}`
+    }))
   );
   await page.setContent(
     `<style>${css}</style><div class="ws-rolls-dialog" style="width:320px"><div class="window-content" style="height:240px;padding:0"><div class="ws-shell"><div class="ws-view"><div class="ws-combat-item-list">${render(items)}</div></div></div></div></div>`
@@ -489,7 +516,7 @@ for (const width of [270, 320, 450]) {
   }
 }
 
-test("five conditions and overflow button fit the narrow HUD", async ({
+test("effects fill one row and reserve room for the overflow counter during resizing", async ({
   page
 }) => {
   const ids = Array.from({ length: 13 }, (_, i) => "status" + i);
@@ -509,10 +536,52 @@ test("five conditions and overflow button fit the narrow HUD", async ({
       combatStatuses() +
       "</div></div></div>"
   );
-  const buttons = await page.locator(".ws-active-conditions > *").all();
-  expect(buttons).toHaveLength(6);
-  const boxes = await Promise.all(buttons.map(button => button.boundingBox()));
-  expect(new Set(boxes.map(box => Math.round(box.y))).size).toBe(1);
+  await page.addScriptTag({ content: synchronizeStatusLayout.toString() });
+  let previousCount = 0;
+  for (const width of [270, 320, 450, 700]) {
+    await page.locator(".ws-rolls-dialog").evaluate((node, width) => {
+      node.style.width = width + "px";
+      synchronizeStatusLayout(document);
+    }, width);
+    const values = await page.locator(".ws-combat-statuses").evaluate(panel => {
+      const row = panel.querySelector(".ws-active-conditions");
+      const more = panel.querySelector(".ws-status-more");
+      const icons = [...row.querySelectorAll(".ws-status")];
+      const boxes = [...icons, ...(more.hidden ? [] : [more])].map(node =>
+        node.getBoundingClientRect()
+      );
+      const gap = parseFloat(getComputedStyle(row).columnGap);
+      const used =
+        boxes.reduce((sum, box) => sum + box.width, 0) +
+        gap * (boxes.length - 1);
+      return {
+        count: icons.length,
+        overflow: panel.querySelectorAll(".ws-status-extra .ws-status").length,
+        counter: more.textContent,
+        hidden: more.hidden,
+        used,
+        width: row.clientWidth,
+        ys: boxes.map(box => Math.round(box.y)),
+        extraHidden: panel.querySelector(".ws-status-extra").hidden
+      };
+    });
+    expect(values.count).toBeGreaterThanOrEqual(previousCount);
+    expect(values.count + values.overflow).toBe(13);
+    expect(new Set(values.ys).size).toBe(1);
+    expect(values.used).toBeLessThanOrEqual(values.width);
+    if (values.overflow) {
+      expect(values.counter).toBe("+" + values.overflow);
+      expect(values.width - values.used).toBeLessThan(35);
+      expect(values.extraHidden).toBe(true);
+    } else expect(values.hidden).toBe(true);
+    previousCount = values.count;
+  }
+  await page.locator(".ws-rolls-dialog").evaluate(node => {
+    node.style.width = "270px";
+    node.querySelector(".ws-status-more").setAttribute("aria-expanded", "true");
+    synchronizeStatusLayout(document);
+  });
+  await expect(page.locator(".ws-status-extra")).toBeVisible();
 });
 
 test("font setting scales combat text", async ({ page }) => {
@@ -645,7 +714,7 @@ test("item description gestures preserve left-click modifiers and work on deplet
 test("favorite cards reclaim both side columns and removal controls fit in editing", async ({
   page
 }) => {
-  const { renderer, hudState } = itemRendererFixture({
+  const { renderer } = itemRendererFixture({
     items: [
       { id: "a", name: "Shortbow", type: "feat" },
       { id: "b", name: "Flurry of Blows", type: "feat" }
@@ -661,26 +730,23 @@ test("favorite cards reclaim both side columns and removal controls fit in editi
     visibility: { favorites: true }
   });
   for (const width of [270, 320, 600]) {
-    hudState.favoriteEdit = false;
     await page.setContent(
       `<style>${css}</style><div class="ws-rolls-dialog ws-font-extralarge" style="width:${width}px">${renderer.favoriteSection()}</div>`
     );
-    await expect(
-      page.locator('[data-action="removefavorite"], .ws-item-description')
-    ).toHaveCount(0);
+    await expect(page.locator('[data-action="removefavorite"]')).toHaveCount(2);
     const compact = await page.locator(".ws-combat-item").first().boundingBox();
     const card = await page
       .locator(".ws-combat-item-card")
       .first()
       .boundingBox();
-    expect(compact.width).toBeCloseTo(card.width, 0);
-    hudState.favoriteEdit = true;
+    await expect(page.locator(".ws-item-open")).toHaveCount(2);
+    expect(card.width - compact.width).toBeCloseTo(36, 0);
     await page.locator(".ws-rolls-dialog").evaluate((node, html) => {
       node.innerHTML = html;
     }, renderer.favoriteSection());
     await expect(page.locator('[data-action="removefavorite"]')).toHaveCount(2);
     const editing = await page.locator(".ws-combat-item").first().boundingBox();
-    expect(compact.width - editing.width).toBeGreaterThanOrEqual(35);
+    expect(compact.width).toBeCloseTo(editing.width, 0);
     expect(
       await page
         .locator(".ws-combat-item-card")

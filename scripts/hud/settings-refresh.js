@@ -11,7 +11,7 @@ export function applyHudSettingChange({
     return;
   }
 
-  if (!app?.rendered) return;
+  if (!app?.rendered || app.hudStowed) return;
 
   if (strategy === "runtime") {
     app.applySetting?.(key, value);
@@ -37,13 +37,13 @@ export function applyHudSettingChanges({
   for (const [key, value] of changes) {
     const strategy = strategyFor(key);
     strategies.add(strategy);
-    if (strategy === "runtime" && app?.rendered) {
+    if (strategy === "runtime" && app?.rendered && !app.hudStowed) {
       app.applySetting?.(key, value);
     }
   }
 
   if (strategies.has("controls")) refreshControls();
-  if (!app?.rendered) return;
+  if (!app?.rendered || app.hudStowed) return;
   if (strategies.has("reopen")) reopen();
   else if (strategies.has("content")) app.refreshFromSettings?.();
 }

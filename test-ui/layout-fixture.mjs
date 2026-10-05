@@ -165,6 +165,13 @@ export async function layoutFixture(
       }
     };
   });
+  const multiActivity = items[21];
+  const firstActivity = [...multiActivity.system.activities.values()][0];
+  multiActivity.system.activities.set("alternative", {
+    ...firstActivity,
+    id: "alternative",
+    name: "Альтернативное действие"
+  });
   items.push({
     id: "class",
     name: "Воин / Волшебник",
@@ -193,7 +200,14 @@ export async function layoutFixture(
   const bodies = {};
   for (const scenario of [
     "player-main",
+    "player-main-no-favorites",
     "player-combat",
+    "player-combat-footer",
+    "player-main-footer",
+    "player-combat-spells",
+    "player-combat-inventory",
+    "player-combat-skills",
+    "player-combat-edit",
     "player-skills",
     "player-tools",
     "player-spells",
@@ -259,6 +273,8 @@ export async function layoutFixture(
       scenario === "gm-defeated" ? entries[0] : controller?.sync();
     const visibility = {
       ...readHudVisibility(),
+      playerFooter: scenario.endsWith("-footer"),
+      ...(scenario === "player-main-no-favorites" ? { favorites: false } : {}),
       ...(companion ? { favorites: false } : {}),
       ...(gm
         ? {
@@ -275,10 +291,19 @@ export async function layoutFixture(
     const state = createHudState({
       companionsExpanded: scenario.startsWith("player-companions"),
       currentView:
-        companion || scenario.startsWith("player-companions")
+        companion ||
+        scenario.startsWith("player-companions") ||
+        scenario.startsWith("player-main")
           ? "main"
           : scenario.replace("player-", ""),
-      combatCategory: scenario.endsWith("spells") ? "spells" : "features",
+      combatCategory:
+        scenario === "player-combat-inventory"
+          ? "inventory"
+          : scenario === "player-combat-skills"
+            ? "skills"
+            : scenario.endsWith("spells")
+              ? "spells"
+              : "features",
       combatAbilitiesExpanded: true,
       gmSpeedsExpanded: true,
       gmLegendaryExpanded: true,
@@ -468,7 +493,7 @@ export async function layoutFixture(
     bodies[scenario] = (
       gm ||
       scenario === "companion-actions" ||
-      scenario === "player-combat" ||
+      scenario.startsWith("player-combat") ||
       scenario === "player-companions-combat"
         ? presentation.combatHTML()
         : presentation.normalHTML()

@@ -1,3 +1,4 @@
+import { hudElementHidden } from "./window/hud-layout.js";
 export function createActorHeader(context) {
   const {
     actor,
@@ -5,6 +6,7 @@ export function createActorHeader(context) {
     canRollActor = false,
     combatModeAvailable,
     escapeHTML,
+    formatMod = String,
     t,
     tf,
     visibility
@@ -46,8 +48,13 @@ export function createActorHeader(context) {
         <i class="fa-solid fa-moon"></i><span>${t("Actor.LongRestShort")}</span>
       </button>
     </div>`;
-  const actorHeader = (extra = "") => {
+  const actorHeader = (extra = "", rests = "") => {
     const summary = classSummary();
+    const proficiency = adapter.combatStats?.(actor)?.proficiencyBonus;
+    const proficiencyControl =
+      proficiency == null
+        ? ""
+        : `<small class="ws-actor-proficiency" title="${t("Combat.ProficiencyBonus")}" aria-label="${escapeHTML(`${t("Combat.ProficiencyBonus")} ${proficiency}`)}">${t("Combat.ProficiencyBonusShort")} <b>${escapeHTML(proficiency === "—" ? "—" : formatMod(proficiency))}</b></small>`;
 
     return `
       <div class="ws-actor-header">
@@ -61,15 +68,11 @@ export function createActorHeader(context) {
 
         <button type="button" class="ws-actor-identity ws-actor-sheet-button ws-button ${context.isCompanionTurn?.() ? "ws-companion-turn" : ""}" data-action="gmsheet" data-open-actor-sheet title="${t("Actor.OpenSheet")}${context.isCompanionTurn?.() ? ` · ${t("Companions.Turn")}` : ""}">
           <strong>${escapeHTML(actor.name)}</strong>
-          ${
-            summary
-              ? `<span title="${escapeHTML(summary)}">${escapeHTML(summary)}</span>`
-              : ""
-          }
+          <span class="ws-actor-summary">${summary ? `<span class="ws-actor-class" title="${escapeHTML(summary)}">${escapeHTML(summary)}</span>` : ""}${proficiencyControl}</span>
         </button>
 
-        ${extra}
-        ${context.tokenControl?.() ?? ""}
+        <div class="ws-actor-inspiration-slot">${rests ? `<span data-hud-home-slot="rests" hidden></span>${rests}` : ""}</div>
+        <div class="ws-actor-quick-controls">${extra}${context.tokenControl?.() ?? ""}</div>
       </div>
     `;
   };
@@ -121,7 +124,8 @@ export function createActorHeader(context) {
     `;
   };
   const shortcutHint = () => {
-    if (!visibility.shortcuts) return "";
+    if (!visibility.shortcuts || hudElementHidden(context.hudState, "hints"))
+      return "";
     return `
       <div
         class="ws-shortcuts"
@@ -131,6 +135,7 @@ export function createActorHeader(context) {
         <span><kbd>Shift</kbd> ${t("Shortcuts.Fast")}</span>
         <span><kbd>Alt</kbd> ${t("Shortcuts.Advantage")}</span>
         <span><kbd>Ctrl</kbd> ${t("Shortcuts.Disadvantage")}</span>
+        <span><kbd>Ctrl + ${t("Shortcuts.LeftClick")}</kbd> ${t("Shortcuts.RemoveEffect")}</span>
       </div>
     `;
   };

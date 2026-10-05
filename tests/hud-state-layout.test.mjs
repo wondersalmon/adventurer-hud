@@ -16,20 +16,16 @@ import {
 
 test("panel layout is restored per actor and ignores transient state", () => {
   const state = createHudState({
-    combatAbilitiesExpanded: true,
     conditionsExpanded: true,
     combatCategory: "spells",
     currentView: "inventory",
     searchQuery: "sword",
-    favoriteEdit: true,
+    hudEditing: true,
     openActivityItemId: "item-1"
   });
   const stored = { "Actor.hero": panelStateSnapshot(state) };
   assert.deepEqual(panelStateForActor(stored, "Actor.hero"), {
-    abilitiesExpanded: true,
-    combatAbilitiesExpanded: true,
     conditionsExpanded: true,
-    actionMenuOpen: false,
     favoritesExpanded: true,
     preparedSpellsOnly: true,
     showPassiveFeatures: false,
@@ -54,9 +50,17 @@ test("panel layout is restored per actor and ignores transient state", () => {
     ).combatCategory,
     "features"
   );
+  state.combatCategory = "inventory";
+  assert.equal(
+    panelStateForActor(
+      { "Actor.hero": panelStateSnapshot(state) },
+      "Actor.hero"
+    ).combatCategory,
+    "inventory"
+  );
   assert.equal(stored["Actor.hero"].searchQuery, undefined);
   assert.equal(stored["Actor.hero"].openActivityItemId, undefined);
-  assert.equal(stored["Actor.hero"].favoriteEdit, undefined);
+  assert.equal(stored["Actor.hero"].hudEditing, undefined);
   assert.deepEqual(
     panelStateForActor(
       { "Actor.hero": { combatCategory: "invalid" } },
@@ -87,9 +91,9 @@ test("legacy companion tab selection migrates to expansion without overriding a 
 
 test("manual mode is limited to exploration and combat", () => {
   const state = createHudState({ currentView: "skills" });
-  assert.equal(state.abilitiesExpanded, true);
+  assert.equal(state.abilitiesExpanded, undefined);
   assert.equal(state.proficientSkillsOnly, true);
-  assert.equal(state.combatAbilitiesExpanded, false);
+  assert.equal(state.combatAbilitiesExpanded, undefined);
   assert.equal(state.conditionsExpanded, false);
   assert.equal(state.combatCategory, null);
   setForcedMode(state, "combat");

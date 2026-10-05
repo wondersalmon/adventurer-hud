@@ -9,7 +9,7 @@ import { dnd5eAdapter } from "../scripts/dnd5e/index.js";
 
 restoreGlobalsAfterEach();
 
-test("inventory summary uses native carrying capacity and weight units and shows actual gold coins", t => {
+test("inventory summary uses native carrying capacity and shows every nonzero coin denomination", t => {
   installSettings();
   globalThis.CONFIG = {
     DND5E: {
@@ -25,14 +25,20 @@ test("inventory summary uses native carrying capacity and weight units and shows
     system: {
       attributes: { encumbrance: { value: 43.7, max: 480 } },
       abilities: { str: { value: 8 } },
-      currency: { gp: 37, pp: 100, sp: 200, cp: 50 }
+      currency: { gp: 37, pp: 100, sp: 200, cp: 50, ep: 3 }
     }
   };
   assert.deepEqual(dnd5eAdapter.inventorySummary(actor), {
     weight: 43.7,
     maxWeight: 480,
     units: "pounds",
-    gold: 37
+    coins: [
+      { type: "pp", value: 100 },
+      { type: "gp", value: 37 },
+      { type: "ep", value: 3 },
+      { type: "sp", value: 200 },
+      { type: "cp", value: 50 }
+    ]
   });
   const get = game.settings.get;
   t.mock.method(game.settings, "get", (module, key) =>
@@ -43,7 +49,13 @@ test("inventory summary uses native carrying capacity and weight units and shows
     weight: 17.5,
     maxWeight: 240,
     units: "kg",
-    gold: 37
+    coins: [
+      { type: "pp", value: 100 },
+      { type: "gp", value: 37 },
+      { type: "ep", value: 3 },
+      { type: "sp", value: 200 },
+      { type: "cp", value: 50 }
+    ]
   });
 });
 
@@ -55,10 +67,13 @@ test("inventory summary keeps unknown weight distinct from zero and accepts unli
     weight: null,
     maxWeight: null,
     units: "lb",
-    gold: 0
+    coins: []
   });
   actor.system.attributes = { encumbrance: { value: 0, max: Infinity } };
-  actor.system.currency = { gp: NaN };
+  actor.system.currency = { gp: NaN, cp: -1, sp: 0, ep: "4", pp: Infinity };
+  assert.deepEqual(dnd5eAdapter.inventorySummary(actor).coins, [
+    { type: "ep", value: 4 }
+  ]);
   assert.equal(dnd5eAdapter.inventorySummary(actor).weight, 0);
   assert.equal(dnd5eAdapter.inventorySummary(actor).maxWeight, Infinity);
   actor.system.attributes.encumbrance = { value: NaN, max: -1 };
@@ -77,13 +92,24 @@ test("inventory weight and gold refresh with actor and item changes and stay ind
   const weight = () =>
     app.element.querySelector(".ws-inventory-weight strong > span").textContent;
   const gold = () =>
-    app.element.querySelector(".ws-inventory-gold strong > span").textContent;
+    app.element.querySelector(".ws-coin-gp > span").textContent;
   assert.equal(weight(), "43.7 / 180");
   assert.equal(gold(), "1,250");
   f.actor.system.currency.gp = 45;
   f.hooks.callAll("updateActor", f.actor, { "system.currency.gp": 45 });
   f.flushFrames();
   assert.equal(gold(), "45");
+  f.actor.system.currency.cp = 7;
+  f.hooks.callAll("updateActor", f.actor, { "system.currency.cp": 7 });
+  f.flushFrames();
+  assert.equal(
+    app.element.querySelector(".ws-coin-cp > span").textContent,
+    "7"
+  );
+  f.actor.system.currency.cp = 0;
+  f.hooks.callAll("updateActor", f.actor, { "system.currency.cp": 0 });
+  f.flushFrames();
+  assert.equal(app.element.querySelector(".ws-coin-cp"), null);
   // Foundry has already prepared the new carried weight when item hooks fire.
   f.actor.system.attributes.encumbrance.value = 18;
   f.hooks.callAll(

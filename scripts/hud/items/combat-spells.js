@@ -1,11 +1,13 @@
 import { recordDiagnostic, diagnosticsRecording } from "../../diagnostics.js";
+import { itemLayoutKey, renderItemLayout } from "./item-layout.js";
 export function createCombatSpellRenderer({
   actor,
   adapter,
   combatItemButton,
   hudState,
   t,
-  tf
+  tf,
+  escapeHTML
 }) {
   const spellSlots = level => {
     if (level <= 0) {
@@ -70,19 +72,17 @@ export function createCombatSpellRenderer({
       .sort(([a], [b]) => a - b)
       .map(
         ([level, spells]) => `
-            <section class="ws-spell-level">
-              <div class="ws-spell-level-heading">
+            <details class="ws-spell-level" data-spell-level="${level}" open>
+              <summary class="ws-spell-level-heading">
                 <strong>${
                   level === 0
                     ? t("Combat.Cantrips")
                     : tf("Combat.SpellLevel", { level })
                 }</strong>
                 <div class="ws-spell-slot-pools">${spellSlots(level)}</div>
-              </div>
-              <div class="ws-combat-item-grid">
-                ${spells.map(item => combatItemButton(item)).join("")}
-              </div>
-            </section>
+              </summary>
+              ${renderItemLayout({ scope: `spells:${level}`, hudState, escapeHTML, t, entries: spells.map(item => ({ key: itemLayoutKey(item), name: item.name, html: combatItemButton(item) })) })}
+            </details>
           `
       )
       .join("");

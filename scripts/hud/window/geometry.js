@@ -1,12 +1,13 @@
+export const PLAYER_WINDOW_DEFAULTS = Object.freeze({
+  left: 0,
+  top: 710,
+  width: 640,
+  height: 500
+});
+
 export function defaultGmWindowGeometry(viewport) {
-  const width = Math.min(
-    Math.max(270, Math.round(viewport.width * 0.78)),
-    Math.max(270, viewport.width - 32)
-  );
-  const height = Math.min(
-    Math.max(180, Math.round(viewport.height * 0.45)),
-    Math.max(180, viewport.height - 32)
-  );
+  const width = Math.min(1120, Math.max(270, viewport.width));
+  const height = Math.min(450, Math.max(180, viewport.height));
   return {
     width,
     height,
@@ -16,28 +17,29 @@ export function defaultGmWindowGeometry(viewport) {
 
 export function bottomWindowPosition(rect, viewport) {
   return {
-    left: Math.max(0, Math.round((viewport.width - rect.width) / 2)),
-    top: Math.max(0, viewport.height - rect.height - 16)
+    left: 0,
+    top: Math.max(0, viewport.height - rect.height)
   };
 }
 
 export function playerWindowPosition(rect, viewport) {
   return {
-    left: 0,
-    top: Math.max(
-      0,
-      viewport.height -
-        rect.height -
-        Math.max(16, Math.round(viewport.height * 0.09))
+    left: PLAYER_WINDOW_DEFAULTS.left,
+    top: Math.min(
+      PLAYER_WINDOW_DEFAULTS.top,
+      Math.max(0, viewport.height - rect.height)
     )
   };
 }
 
 export function defaultPlayerWindowGeometry(viewport) {
-  const width = Math.min(320, Math.max(270, viewport.width - 16));
+  const width = Math.min(
+    PLAYER_WINDOW_DEFAULTS.width,
+    Math.max(270, viewport.width)
+  );
   const height = Math.min(
-    Math.max(350, Math.round(viewport.height * 0.52)),
-    Math.max(350, viewport.height - 32)
+    PLAYER_WINDOW_DEFAULTS.height,
+    Math.max(350, viewport.height)
   );
   return {
     width,
@@ -61,13 +63,13 @@ export function normalizeWindowGeometry(
   const width = Number.isFinite(savedWidth)
     ? Math.min(
         Math.max(minimumWidth, savedWidth),
-        Math.max(minimumWidth, viewportWidth - 16)
+        Math.max(minimumWidth, viewportWidth)
       )
     : defaultWidth;
   const height = Number.isFinite(savedHeight)
     ? Math.min(
         Math.max(minimumHeight, savedHeight),
-        Math.max(minimumHeight, viewportHeight - 16)
+        Math.max(minimumHeight, viewportHeight)
       )
     : null;
 
@@ -98,9 +100,25 @@ export function storedWindowGeometry(position) {
   };
 }
 
-export function centeredWindowPosition(rect, viewport) {
-  return {
-    left: Math.max(0, Math.round((viewport.width - rect.width) / 2)),
-    top: Math.max(0, Math.round((viewport.height - rect.height) / 2))
-  };
+/** Snap moved axes to the viewport without changing window dimensions. */
+export function snapWindowPosition(
+  position,
+  current,
+  viewport,
+  threshold = 12
+) {
+  const next = { ...position };
+  for (const [axis, size] of [
+    ["left", "width"],
+    ["top", "height"]
+  ]) {
+    if (!Number.isFinite(next[axis])) continue;
+    const end = Math.max(
+      0,
+      viewport[size] - (next[size] ?? current?.[size] ?? 0)
+    );
+    if (Math.abs(next[axis]) <= threshold) next[axis] = 0;
+    else if (Math.abs(next[axis] - end) <= threshold) next[axis] = end;
+  }
+  return next;
 }

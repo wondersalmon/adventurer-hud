@@ -2,6 +2,10 @@ import { checkIntegrity, repairSavedData } from "./integrity.js";
 import { createModuleTranslator } from "./localization.js";
 import { MODULE_ID } from "./module-id.js";
 import { SETTINGS, getSettingDefinitions } from "./settings-schema.js";
+import { SettingsSaveError } from "./settings-access.js";
+import { settingsBackup, restoreSettingsBackup } from "./settings-backup.js";
+import { flushWindowGeometry } from "./window-geometry.js";
+import { replacePanelPreferences } from "./hud/panel-preferences.js";
 import {
   diagnosticReport,
   exportDiagnosticReport,
@@ -42,6 +46,96 @@ export function createIntegrityApplication({
             content: `<p>${this.t("Troubleshooting.ResetPositionsHint")}</p>`
           });
           if (accepted) await resetWindowPositions?.();
+        },
+        resetplayerwindow: async function () {
+          if (
+            await foundry.applications.api.DialogV2.confirm({
+              window: { title: this.t("Troubleshooting.ResetPlayerWindow") },
+              content: `<p>${this.t("Troubleshooting.ResetWindowHint")}</p>`
+            })
+          )
+            await resetWindowPositions?.("player");
+        },
+        resetgmwindow: async function () {
+          if (!game.user?.isGM) return;
+          if (
+            await foundry.applications.api.DialogV2.confirm({
+              window: { title: this.t("Troubleshooting.ResetGmWindow") },
+              content: `<p>${this.t("Troubleshooting.ResetWindowHint")}</p>`
+            })
+          )
+            await resetWindowPositions?.("gm");
+        },
+        resetall: async function () {
+          if (
+            await foundry.applications.api.DialogV2.confirm({
+              window: { title: this.t("Troubleshooting.ResetAll") },
+              content: `<p>${this.t("Troubleshooting.ResetAllHint")}</p>`
+            })
+          ) {
+            await flushWindowGeometry();
+            await replacePanelPreferences(async () => {
+              const { saveChangedSettings, getSettingDefaults } =
+                await import("./settings-access.js");
+              await saveChangedSettings(
+                [
+                  ...Object.entries(getSettingDefaults()),
+                  [SETTINGS.proficientSkillsOnly, true],
+                  [SETTINGS.panelStates, {}]
+                ],
+                { rollbackOnError: true }
+              );
+              await resetWindowPositions?.("all");
+            });
+          }
+        },
+        backupsettings: async function () {
+          try {
+            const backup = await settingsBackup();
+            foundry.utils.saveDataToFile(
+              JSON.stringify(backup, null, 2),
+              "application/json",
+              "adventurer-hud-settings.json"
+            );
+          } catch (error) {
+            reportFailure("settings.backup", error, { t: this.t });
+          }
+        },
+        restoresettings: async function () {
+          const text = await foundry.applications.api.DialogV2.prompt({
+            window: { title: this.t("Troubleshooting.RestoreSettings") },
+            content: `<p>${this.t("Troubleshooting.RestoreHint")}</p><input type="file" name="backup" accept=".json,application/json" aria-label="${this.t("Troubleshooting.BackupFile")}">`,
+            ok: {
+              label: this.t("Troubleshooting.RestoreSettings"),
+              callback: async (_event, button) => {
+                const file = button.form.elements.backup.files[0];
+                if (!file || file.size > 2_000_000)
+                  throw new Error("backup-invalid");
+                return file.text();
+              }
+            },
+            rejectClose: false
+          }).catch(() => {
+            ui.notifications.warn(this.t("Troubleshooting.BackupInvalid"));
+          });
+          if (typeof text !== "string") return;
+          try {
+            await restoreSettingsBackup(text);
+            ui.notifications.info(this.t("Troubleshooting.BackupRestored"));
+            await this.render({ force: true });
+          } catch (error) {
+            const key =
+              error instanceof SettingsSaveError
+                ? error.rollbackFailedKeys.length
+                  ? "Troubleshooting.RestorePartial"
+                  : "Troubleshooting.RestoreRolledBack"
+                : "Troubleshooting.BackupInvalid";
+            ui.notifications.warn(this.t(key));
+            reportFailure("settings.restore", error, {
+              level: "warn",
+              notify: false
+            });
+          }
         },
         record: async function () {
           this.readDiagnosticInput();
@@ -155,6 +249,7 @@ export function createIntegrityApplication({
 
     async runCheck() {
       if (this.busy) return;
+      this.readDiagnosticInput();
       this.busy = true;
       this.failure = false;
       this.repaired = 0;
@@ -171,6 +266,13 @@ export function createIntegrityApplication({
     }
 
     async _prepareContext() {
+      this.expandedSections ??= {};
+      for (const section of this.element?.querySelectorAll?.(
+        "[data-troubleshooting-section]"
+      ) ?? [])
+        this.expandedSections[section.dataset.troubleshootingSection] =
+          section.open;
+
       const { t, tf } = await createModuleTranslator({
         language: game.settings.get(MODULE_ID, SETTINGS.language),
         i18n: game.i18n
@@ -187,6 +289,20 @@ export function createIntegrityApplication({
       });
       const serialized = JSON.stringify(diagnostics, null, 2);
       return {
+        expandedSections: this.expandedSections,
+        expandedSectionAttributes: Object.fromEntries(
+          Object.entries(this.expandedSections).map(([key, open]) => [
+            key,
+            open ? "open" : ""
+          ])
+        ),
+        recordingSectionLabel: t("Troubleshooting.Recording"),
+        reportSectionLabel: t("Troubleshooting.Report"),
+        integritySectionLabel: t("Troubleshooting.Integrity"),
+        resetsLabel: t("Troubleshooting.Resets"),
+        reportHelpLabel: t("Troubleshooting.ReportHelp"),
+        recordingHint: t("Troubleshooting.RecordingHint"),
+        saveHint: t("Troubleshooting.SaveHint"),
         intro: t("Integrity.Intro"),
         recording: diagnostics.summary.recording,
         recordLabel: t("Diagnostics.Record"),
@@ -219,6 +335,13 @@ export function createIntegrityApplication({
         resetSettingsLabel: t("Troubleshooting.ResetSettings"),
         resetGmLabel: t("Troubleshooting.ResetGm"),
         resetPositionsLabel: t("Troubleshooting.ResetPositions"),
+        resetPlayerWindowLabel: t("Troubleshooting.ResetPlayerWindow"),
+        resetGmWindowLabel: t("Troubleshooting.ResetGmWindow"),
+        resetAllLabel: t("Troubleshooting.ResetAll"),
+        backupLabel: t("Troubleshooting.BackupSettings"),
+        restoreLabel: t("Troubleshooting.RestoreSettings"),
+        backupSectionLabel: t("Troubleshooting.BackupSection"),
+        backupHint: t("Troubleshooting.BackupHint"),
         isGM: Boolean(game.user?.isGM),
         diagnosticsHint: tf("Diagnostics.Hint", {
           count: diagnosticReport().events.length
@@ -226,7 +349,7 @@ export function createIntegrityApplication({
         exportLabel: t("Diagnostics.Export"),
         checkLabel: t(this.report ? "Integrity.CheckAgain" : "Integrity.Check"),
         repairLabel: t("Integrity.Repair"),
-        closeLabel: t("Settings.Cancel"),
+        closeLabel: t("Window.Close"),
         busy: this.busy,
         canRepair: !this.busy && issues.some(issue => issue.repairable),
         summary: t(
@@ -253,6 +376,7 @@ export function createIntegrityApplication({
               : [
                     SETTINGS.panelStates,
                     SETTINGS.windowGeometry,
+                    SETTINGS.windowModeSizes,
                     SETTINGS.gmWindowGeometry,
                     SETTINGS.proficientSkillsOnly
                   ].includes(issue.detail)

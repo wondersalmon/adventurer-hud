@@ -79,6 +79,13 @@ export function createGmActions({
       return performAndRefresh(async () => {
         const combat = gmController.getCombat();
         if (!combat) return;
+        if (!gmController.isGM()) return;
+        if (target.dataset.reroll !== "true") {
+          if (target.dataset.scope === "all")
+            return combat.rollAll({ updateTurn: true });
+          if (target.dataset.scope === "npc")
+            return combat.rollNPC({ updateTurn: true });
+        }
         const entries = gmController
           .roster()
           .filter(

@@ -5,7 +5,6 @@ import test from "node:test";
 
 import { openActorPicker } from "../scripts/hud/actor-picker.js";
 import {
-  centeredWindowPosition,
   normalizeWindowGeometry,
   storedWindowGeometry
 } from "../scripts/hud/window/geometry.js";
@@ -499,7 +498,7 @@ test("window geometry is clamped, serialized, and centered", () => {
         viewportWidth: 1000
       }
     ),
-    { left: 730, top: 0, width: 270, height: 784 }
+    { left: 730, top: 0, width: 270, height: 800 }
   );
   assert.deepEqual(storedWindowGeometry({ left: 10, top: 20, width: 330 }), {
     left: 10,
@@ -507,11 +506,4 @@ test("window geometry is clamped, serialized, and centered", () => {
     width: 330
   });
   assert.equal(storedWindowGeometry({ left: "invalid", top: 0 }), null);
-  assert.deepEqual(
-    centeredWindowPosition(
-      { width: 400, height: 300 },
-      { width: 1000, height: 700 }
-    ),
-    { left: 300, top: 200 }
-  );
 });

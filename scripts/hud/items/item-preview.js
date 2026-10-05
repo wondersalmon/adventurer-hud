@@ -153,10 +153,17 @@ export function createItemPreview({
       if (enabled()) void show(card);
     }, delay);
   };
-  const cardFor = target => target?.closest?.("[data-description-item-id]");
+  const cardFor = target =>
+    target?.closest?.(".ws-item-side-actions")
+      ? null
+      : target?.closest?.("[data-description-item-id]");
   const enter = event => {
     if (event.type === "focusin" && restoringFocus) return;
     if (popup?.contains(event.target)) return clearTimer();
+    if (event.target?.closest?.(".ws-item-side-actions")) {
+      if (!pinned) close();
+      return;
+    }
     schedule(cardFor(event.target));
   };
   const leave = event => {
@@ -174,10 +181,6 @@ export function createItemPreview({
       const focus = anchor;
       close();
       restoreFocus(focus);
-    } else if (event.key === "F2" && cardFor(event.target)) {
-      event.preventDefault();
-      event.stopPropagation();
-      void show(cardFor(event.target), true);
     }
   };
   const changed = () => {

@@ -4,6 +4,7 @@ import { createCompanionActions } from "./companion-actions.js";
 import { createCompanionRosterSession } from "./companion-roster-session.js";
 import {
   companionOnScene,
+  companionIsFamiliar,
   resolveCompanion,
   worldDocument
 } from "./companions.js";
@@ -21,8 +22,9 @@ export function renderFamiliarVision({ active, ownerName, t, tf, escapeHTML }) {
   return `<div class="ws-familiar-vision" role="status"><span><i class="fa-solid fa-eye" aria-hidden="true"></i>${label}<small>${t("Companions.VisionDuration")}</small></span><button type="button" class="ws-button" data-action="companionvisionstop" title="${back}" aria-label="${back}"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i></button></div>`;
 }
 
-/** @param {{companion?: boolean, ownerName: string, tf: import('../../../types/hud.js').Format, escapeHTML: (value: unknown) => string, t: import('../../../types/hud.js').Translate, entries?: import('../../../types/hud.js').CompanionEntry[], currentUuid?: string | null}} options */
+/** @param {{combatMode?: boolean, companion?: boolean, ownerName: string, tf: import('../../../types/hud.js').Format, escapeHTML: (value: unknown) => string, t: import('../../../types/hud.js').Translate, entries?: import('../../../types/hud.js').CompanionEntry[], currentUuid?: string | null}} options */
 export function renderCompanionNavigation({
+  combatMode = true,
   companion = false,
   ownerName,
   tf,
@@ -38,7 +40,7 @@ export function renderCompanionNavigation({
       .map(entry => {
         const name =
           entry.token?.name ?? entry.actor?.name ?? t("Companions.Unavailable");
-        const isTurn = companionInitiative(entry).isTurn;
+        const isTurn = combatMode && companionInitiative(entry).isTurn;
         const hint = `${name}${isTurn ? ` · ${t("Companions.Turn")}` : ""}`;
         return `<button type="button" class="ws-companion-switch ws-button ${isTurn ? "ws-companion-turn" : ""}" data-action="opencompanion" data-companion-uuid="${escapeHTML(entry.uuid)}" title="${escapeHTML(hint)}" aria-label="${escapeHTML(hint)}" ${entry.actor ? "" : "disabled"}><img src="${escapeHTML(entry.token?.texture?.src ?? entry.actor?.img ?? "icons/svg/mystery-man.svg")}" alt=""><span>${escapeHTML(name)}</span></button>`;
       })
@@ -146,6 +148,7 @@ export async function createCompanionPanel(options) {
         escapeHTML
       }) +
       renderCompanionNavigation({
+        combatMode: options.currentMode?.() === "combat",
         companion: Boolean(companion),
         ownerName: owner.name,
         tf,
@@ -158,9 +161,14 @@ export async function createCompanionPanel(options) {
       renderCompanionSection({
         expanded: hudState.companionsExpanded,
         count:
-          hudState.companionFilter === "all"
-            ? roster.entries.length
-            : roster.entries.filter(companionOnScene).length,
+          hudState.companionFilter === "familiars" &&
+          getSetting(SETTINGS.familiarVision2024) &&
+          roster.entries.some(entry => companionIsFamiliar(owner, entry))
+            ? roster.entries.filter(entry => companionIsFamiliar(owner, entry))
+                .length
+            : hudState.companionFilter === "all"
+              ? roster.entries.length
+              : roster.entries.filter(companionOnScene).length,
         visible:
           !companion &&
           getSetting(SETTINGS.showCompanions) &&
@@ -168,6 +176,7 @@ export async function createCompanionPanel(options) {
         t,
         body: hudState.companionsExpanded
           ? renderCompanionList({
+              combatMode: options.currentMode?.() === "combat",
               entries: roster.entries,
               owner,
               adapter,

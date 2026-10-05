@@ -64,7 +64,7 @@ export function createItemActions({
       );
     },
     removefavorite: function (_event, target) {
-      if (!visibility.favorites || !hudState.favoriteEdit || !canAct()) return;
+      if (!visibility.favorites || !canAct()) return;
       return removeFavoriteEntry(
         target.dataset.itemId,
         target.dataset.activityId ?? null

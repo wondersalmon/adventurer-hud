@@ -1,14 +1,14 @@
 # GM HUD
 
-[About the module](../README.md) · [Player HUD](player-guide.md) · [Русский](gm-guide.ru.md)
+[About the module](../README.md) · [Player HUD](player-guide.md) · [Companions](companions-guide.md) · [Version 2.0](release-2.0.md) · [Русский](gm-guide.ru.md)
 
-Press **Shift+R** to open or close the GM panel. Use **⋮** to switch to the character panel; the pin locks the window's position and size. GM and player modes have separate display settings.
+Enable **Use GM panel** in GM settings, then press **Shift+R** to open or close it. Use **⋮** to switch to the character panel; the pin locks the window's position and size. GM and player modes have separate display settings.
 
 ![GM panel](../media/gm-w.gif)
 
 ## Preparing and running combat
 
-During preparation, add chosen creatures or all creatures on the scene, roll initiative and start combat. The main button rolls only missing results. **Other initiative options** contains selected-creature rolls, rerolls and reset. If the scene has several encounters, select the intended one in the panel: its participants and combat commands apply to that encounter.
+During preparation, add chosen creatures or all creatures on the scene, roll initiative and start combat. The preparation buttons roll all participants or only NPCs through Foundry, preserving existing initiative results. The same all/NPC buttons are available in the combat toolbar (under More on narrow panels). **Other initiative options** contains selected-creature rolls, rerolls and reset. If the scene has several encounters, select the intended one in the panel: its participants and combat commands apply to that encounter.
 
 Select a participant to open their actions, including player characters. Switching cards lets you inspect a creature; previous/next turn and ending the current turn advance combat. Token navigation and ping help locate creatures on the map.
 
@@ -24,13 +24,7 @@ Choose a single action list or grouping in GM settings. Grouping uses activity a
 
 If an ability is missing, check its item and activities in the full sheet, then HUD grouping and filters. The single list is useful for checking creatures with unusual abilities. Card details and search are configured independently of the player panel.
 
-## Players' companions
-
-Grant ownership of the Actor or an individual token so a player can see the creature in **Companions**. Token-only ownership grants access to that instance; placement from the directory requires Actor ownership and Foundry permission to create tokens. Configure the prototype token in advance: the player places it using the button beside the creature in **All**.
-
-For familiar sight, enable token vision and configure its range and senses. Both character and familiar must be on the current scene. During combat, add the character to the current encounter: senses can be activated on their turn. The eye adds a vision source while keeping the character selected; walls and configured senses continue to determine visibility. See the [player guide](player-guide.md#familiar-senses) for use and duration.
-
-Placing a companion does not add it to combat: add its token as a participant to enable initiative controls. Track summoning spell costs and the Bonus Action for shared senses through your normal game procedures.
+Ownership, token setup, summons and shared senses are covered in the [companions guide](companions-guide.md).
 
 ## Settings and help
 

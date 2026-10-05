@@ -3,10 +3,18 @@ import { dnd5eConfig } from "./config.js";
 import { dnd5eItems } from "./item-adapter.js";
 import { dnd5eResources } from "./resources.js";
 import { dnd5eRolls } from "./rolls.js";
+import {
+  familiarSourceItem,
+  familiarCasterIncapacitated,
+  useFamiliarSenses
+} from "./familiar.js";
 import { npcResource, npcTraits, movementSummary, npcMovement } from "./npc.js";
 
 export const dnd5eAdapter = {
   id: "dnd5e",
+  familiarSourceItem,
+  familiarCasterIncapacitated,
+  useFamiliarSenses,
   npcResource,
   npcTraits,
   movementSummary,

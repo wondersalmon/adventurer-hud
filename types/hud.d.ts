@@ -53,6 +53,7 @@ export type CompanionActions = Partial<
   >
 >;
 export interface CompanionPanelOptions {
+  currentMode?: () => string;
   owner: any;
   companion: CompanionEntry | null;
   actorContext: ActorContext;
@@ -73,7 +74,7 @@ export type OpenHud = (
   actor?: ActorContext["actor"] | null,
   navigation?: CompanionNavigation | null
 ) => Promise<void>;
-export type RefreshRegion = "full" | "actions";
+export type RefreshRegion = "full" | "actions" | "search";
 export interface RefreshScheduler {
   schedule(region?: RefreshRegion): void;
   flush(): void;
@@ -122,17 +123,24 @@ export type EmptyGmOpenContext = HudOpenContext & {
 export interface SessionCallbacks {
   openHud: OpenHud;
 }
+export type ItemLayouts = Record<string, { order: string[]; hidden: string[] }>;
+export interface ItemLayoutEntry {
+  key: string;
+  name: string;
+  html: string;
+}
 export interface HudState {
-  abilitiesExpanded: boolean;
-  combatAbilitiesExpanded: boolean;
+  explorationSkillsCollapsed: boolean;
   combatCategory: string | null;
   conditionsExpanded: boolean;
-  actionMenuOpen: boolean;
   currentView: string;
   favoritesExpanded: boolean;
-  favoriteEdit: boolean;
+  itemLayouts: ItemLayouts;
+  hudLayouts: ItemLayouts;
+  hudEditing: boolean;
+  itemHiddenExpanded: string | null;
   companionsExpanded: boolean;
-  companionFilter: "scene" | "all";
+  companionFilter: "scene" | "all" | "familiars";
   forcedMode: "regular" | "combat" | null;
   inventoryCategory: string;
   preparedSpellsOnly: boolean;
@@ -142,7 +150,6 @@ export interface HudState {
   searchQuery: string;
   openActivityItemId: string | null;
   favoriteEntries: ({ itemId: string; activityId: string } | null)[];
-  statusDescriptions: Map<string, string>;
   gmSpeedsExpanded?: boolean;
   gmLegendaryExpanded?: boolean;
 }
@@ -152,6 +159,7 @@ export interface HudActionsOptions {
   canRollActor: boolean;
   canStartMutation?: () => boolean;
   focusActorToken?: () => Promise<void>;
+  pingActorToken?: () => Promise<void>;
   canRollDeathSave?: () => boolean;
   combatModeAvailable?: () => boolean;
   currentMode?: () => string;
@@ -160,6 +168,7 @@ export interface HudActionsOptions {
   gmCombatantId?: string;
   openGmSelection?: () => Promise<unknown>;
   onGmCombatChange?: (options?: { follow?: boolean }) => void;
+  onPlayerTurnEnded?: () => unknown;
   hudState?: HudState;
   openHpDialog?: () => unknown;
   performAndRefresh?: (callback: () => unknown) => Promise<unknown>;

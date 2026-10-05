@@ -738,7 +738,8 @@ test("GM initiative roll skips existing results while reroll includes them and s
   installSettings({ isGM: true });
   const calls = [];
   const combat = {
-    rollInitiative: async (ids, options) => calls.push([ids, options])
+    rollInitiative: async (ids, options) => calls.push([ids, options]),
+    rollAll: async options => calls.push([["b"], options])
   };
   const actions = createHudActions({
     gmCombatantId: "a",
@@ -862,4 +863,37 @@ test("combat setup uses native documents and adds only unoccupied GM NPC tokens"
   assert.deepEqual(await addGmCreatures(combat), []);
   assert.deepEqual(await addSceneCreatures(combat), []);
   assert.equal(calls.length, 3);
+});
+
+test("preparation all/NPC buttons delegate the complete encounter to native APIs and reject player access", async () => {
+  installSettings({ isGM: true });
+  const calls = [];
+  const combat = {
+    rollAll: async options => calls.push(["all", options]),
+    rollNPC: async options => calls.push(["npc", options])
+  };
+  const actions = createHudActions({
+    gmController: {
+      isGM: () => game.user.isGM,
+      getCombat: () => combat,
+      roster: () => {
+        throw new Error("must not substitute filtered HUD roster");
+      }
+    },
+    performAndRefresh: callback => callback()
+  });
+  for (const scope of ["all", "npc"])
+    await actions.gmrollinitiative(null, {
+      dataset: { scope, reroll: "false" }
+    });
+  assert.deepEqual(calls, [
+    ["all", { updateTurn: true }],
+    ["npc", { updateTurn: true }]
+  ]);
+  game.user.isGM = false;
+  for (const scope of ["all", "npc"])
+    await actions.gmrollinitiative(null, {
+      dataset: { scope, reroll: "false" }
+    });
+  assert.equal(calls.length, 2);
 });

@@ -1,4 +1,5 @@
-const VISIBLE_STATUS_LIMIT = 5;
+import { activeEffectSummaries } from "./effect-summaries.js";
+
 const statusPriority = kind => {
   if (kind === "concentrating") return 0;
   if (kind === "bloodied") return 1;
@@ -18,43 +19,8 @@ export function createCombatStatusRenderer({
     return adapter.statusDefinitions?.() ?? [];
   };
 
-  const activeStatuses = () => {
-    const configured = configuredStatuses();
-    const byId = new Map(configured.map(status => [status.id, status]));
-    const statuses = new Map();
-
-    for (const id of actor.statuses ?? []) {
-      const status = byId.get(id) ?? { id, name: id };
-      statuses.set(id, status);
-    }
-
-    for (const effect of typeof actor.allApplicableEffects === "function"
-      ? actor.allApplicableEffects()
-      : (actor.effects ?? [])) {
-      const effectStatuses = [...(effect.statuses ?? [])];
-
-      if (effect.disabled || effect.isSuppressed || !effectStatuses.length) {
-        continue;
-      }
-
-      for (const id of effectStatuses) {
-        const configuredStatus = byId.get(id) ?? {};
-        statuses.set(id, {
-          ...configuredStatus,
-          id,
-          name: configuredStatus.name ?? configuredStatus.label ?? effect.name,
-          img:
-            configuredStatus.img ??
-            configuredStatus.icon ??
-            effect.img ??
-            effect.icon,
-          description: effect.description ?? configuredStatus.description
-        });
-      }
-    }
-
-    return [...statuses.values()];
-  };
+  const activeStatuses = () =>
+    activeEffectSummaries(actor, configuredStatuses());
 
   const combatStatuses = () => {
     const kinds = new Map();
@@ -92,23 +58,10 @@ export function createCombatStatusRenderer({
 
     const statusMarkup = status => {
       const label = statusLabel(status);
-      const summary =
-        hudState.statusDescriptions?.get(status.id) ?? status.description;
-      let description = "";
-      if (summary) {
-        const node = globalThis.document?.createElement?.("div");
-        if (node) {
-          node.innerHTML = String(summary);
-          description = node.textContent.replace(/\s+/g, " ").trim();
-        } else
-          description = String(summary)
-            .replace(/<[^>]*>/g, "")
-            .replace(/\s+/g, " ")
-            .trim();
-        if (description.length > 300)
-          description = `${description.slice(0, 297)}…`;
-      }
-      const tooltip = description ? `${label}\n${description}` : label;
+      const uuid = status.reference ?? status.uuid;
+      const tooltip = uuid
+        ? `<section class="loading" data-uuid="${escapeHTML(uuid)}"><i class="fas fa-spinner fa-spin-pulse"></i></section>`
+        : label;
       const kind = statusKind(status);
       const classes = [
         "ws-status",
@@ -118,21 +71,20 @@ export function createCombatStatusRenderer({
         .filter(Boolean)
         .join(" ");
       return `
-        <span class="${classes}" role="img" aria-label="${escapeHTML(tooltip)}" title="${escapeHTML(tooltip)}">
+        <span class="${classes}" role="img" tabindex="0" aria-label="${escapeHTML(label)}" data-status-id="${escapeHTML(status.id)}" data-tooltip="${escapeHTML(tooltip)}" ${uuid ? 'data-tooltip-class="dnd5e2 dnd5e-tooltip effect-tooltip" data-tooltip-direction="RIGHT"' : ""}>
           <img src="${escapeHTML(statusIcon(status))}" alt="">
         </span>
       `;
     };
-    const remaining = statuses.slice(VISIBLE_STATUS_LIMIT);
     const expanded = Boolean(hudState.conditionsExpanded);
 
     return `
         <div class="ws-combat-statuses">
           <div class="ws-active-conditions">
-            ${statuses.slice(0, VISIBLE_STATUS_LIMIT).map(statusMarkup).join("")}
-            ${remaining.length ? `<button type="button" class="ws-status-more ws-button ${remaining.some(status => newStatusIds.has(status.id)) ? "ws-status-new" : ""}" data-action="toggleconditions" aria-expanded="${expanded}" aria-label="${t(expanded ? "Combat.HideConditions" : "Combat.ShowMoreConditions")}" title="${t(expanded ? "Combat.HideConditions" : "Combat.ShowMoreConditions")}">${expanded ? "−" : `+${remaining.length}`}</button>` : ""}
+            ${statuses.map(statusMarkup).join("")}
+            <button type="button" class="ws-status-more ws-button ${newStatusIds.size ? "ws-status-new" : ""}" data-action="toggleconditions" hidden aria-expanded="${expanded}" aria-label="${t(expanded ? "Combat.HideConditions" : "Combat.ShowMoreConditions")}" title="${t(expanded ? "Combat.HideConditions" : "Combat.ShowMoreConditions")}">${expanded ? "−" : `+${statuses.length}`}</button>
           </div>
-          ${expanded && remaining.length ? `<div class="ws-status-extra">${remaining.map(statusMarkup).join("")}</div>` : ""}
+          <div class="ws-status-extra" hidden></div>
         </div>
       `;
   };

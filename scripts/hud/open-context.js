@@ -113,7 +113,9 @@ export async function prepareHudOpenContext({
       state.companionNavigation?.ownerUuid === linkedContext.owner.uuid);
   const reusedApp =
     state.app?.rendered &&
-    ((gmActive && state.preset === "gm") || reuseCompanion)
+    ((gmActive && state.preset === "gm") ||
+      reuseCompanion ||
+      (state.app.hudStowed && !gmActive && state.preset === "player"))
       ? state.app
       : null;
   const session = {};
@@ -132,7 +134,7 @@ export async function prepareHudOpenContext({
     : null;
   if (state.app?.rendered && !reusedApp) {
     await flushWindowGeometry();
-    await state.app.close();
+    await state.app.close({ hudForce: true });
   }
 
   recordDiagnostic(

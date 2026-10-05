@@ -85,11 +85,8 @@ export function createCombatItemCardRenderer({
     const isWeapon = role === "weapon";
     const preparation = isSpell ? adapter.spellPreparation?.(item) : null;
     const canPrepare = Boolean(preparation?.canPrepare);
-    const showFavorite =
-      visibility.favorites &&
-      ((inFavorites && hudState.favoriteEdit) ||
-        (!offersActivities && (!favorite || hudState.favoriteEdit)));
-    const hasSideActions = canPrepare || showFavorite;
+    const showFavorite = visibility.favorites;
+    const hasSideActions = true;
     const descriptionHint = t("Combat.OpenDescriptionHint");
     const activityName = activityId
       ? adapter
@@ -175,15 +172,14 @@ export function createCombatItemCardRenderer({
         } ${hasSideActions ? "ws-has-side-actions" : ""}"
           data-description-item-id="${escapeHTML(item.id)}"
           ${useState.blocked && !passive ? `tabindex="0" role="group" aria-label="${escapeHTML(name)}"` : ""}
-          title="${escapeHTML(descriptionHint)}">
+          >
           <button
             type="button"
             class="ws-combat-item ws-button ${unavailableLabel ? "ws-item-depleted" : ""}"
             data-action="${passive ? "openitem" : usageActivityId ? "useactivity" : "useitem"}"
             data-item-id="${escapeHTML(usageItem.id)}"
-            title="${escapeHTML([unavailableLabel, descriptionHint].filter(Boolean).join("\n"))}"
+            title="${escapeHTML(unavailableLabel)}"
             aria-label="${escapeHTML(name)}"
-            aria-description="${escapeHTML(descriptionHint)}"
             ${useState.blocked && !passive ? 'disabled aria-disabled="true"' : ""}
             ${usageActivityId ? `data-activity-id="${escapeHTML(usageActivityId)}"` : ""}
           >
@@ -267,6 +263,7 @@ export function createCombatItemCardRenderer({
           ${
             hasSideActions
               ? `<div class="ws-item-side-actions">
+            <button type="button" class="ws-item-open ws-button" data-action="openitem" data-item-id="${escapeHTML(item.id)}" title="${escapeHTML(descriptionHint)}" aria-label="${t("Combat.OpenItem")}"><i class="fa-solid fa-book-open" aria-hidden="true"></i></button>
             ${
               showFavorite
                 ? `<button type="button" class="ws-item-favorite ws-button ${favorite ? "ws-active" : ""}" data-action="${favorite || inFavorites ? "removefavorite" : "togglefavorite"}" data-item-id="${escapeHTML(item.id)}" ${activityId ? `data-activity-id="${escapeHTML(activityId)}"` : ""} title="${t(favorite || inFavorites ? "Quick.RemoveFavorite" : "Quick.AddFavorite")}" aria-label="${t(favorite || inFavorites ? "Quick.RemoveFavorite" : "Quick.AddFavorite")}" ${actor.isOwner === false ? "disabled" : ""}><i class="fa-${favorite ? "solid" : "regular"} fa-star"></i></button>`
@@ -289,7 +286,7 @@ export function createCombatItemCardRenderer({
                       );
                       return `<div class="ws-activity-option">
                         <button type="button" class="ws-button" data-action="useactivity" data-item-id="${escapeHTML(item.id)}" data-activity-id="${escapeHTML(activity.id)}">${escapeHTML(activity.name ?? item.name)}</button>
-                        ${visibility.favorites && (!selected || hudState.favoriteEdit) ? `<button type="button" class="ws-button ws-item-favorite ${selected ? "ws-active" : ""}" data-action="${selected ? "removefavorite" : "togglefavorite"}" data-item-id="${escapeHTML(item.id)}" data-activity-id="${escapeHTML(activity.id)}" title="${t(selected ? "Quick.RemoveFavorite" : "Quick.AddFavorite")}" aria-label="${t(selected ? "Quick.RemoveFavorite" : "Quick.AddFavorite")}" ${actor.isOwner === false ? "disabled" : ""}><i class="fa-${selected ? "solid" : "regular"} fa-star"></i></button>` : ""}
+                        ${visibility.favorites ? `<button type="button" class="ws-button ws-item-favorite ${selected ? "ws-active" : ""}" data-action="${selected ? "removefavorite" : "togglefavorite"}" data-item-id="${escapeHTML(item.id)}" data-activity-id="${escapeHTML(activity.id)}" title="${t(selected ? "Quick.RemoveFavorite" : "Quick.AddFavorite")}" aria-label="${t(selected ? "Quick.RemoveFavorite" : "Quick.AddFavorite")}" ${actor.isOwner === false ? "disabled" : ""}><i class="fa-${selected ? "solid" : "regular"} fa-star"></i></button>` : ""}
                       </div>`;
                     })
                     .join("")}

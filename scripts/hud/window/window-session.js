@@ -9,11 +9,17 @@ import {
   diagnosticsRecording
 } from "../../diagnostics.js";
 import { bindItemDescriptionInteractions } from "../items/item-interactions.js";
+import { bindItemLayoutInteractions } from "../items/item-layout-interactions.js";
 import { synchronizeHudTheme, watchHudTheme } from "../theme.js";
 import { createItemPreview } from "../items/item-preview.js";
+import { watchPlayerLayout } from "./responsive-layout.js";
+import { synchronizeHudLayout, bindHudLayoutDrag } from "./hud-layout.js";
+import { bindHudAxisResize } from "./axis-resize.js";
 
 export async function activateHudWindow({
   actor,
+  isActorCurrent = () => true,
+  layoutState,
   adapter,
   t = key => key,
   app,
@@ -86,13 +92,36 @@ export async function activateHudWindow({
     synchronizeHudTheme(app.element, value);
   };
 
+  const updateWindowSize = () => {
+    const header = app.element?.querySelector(".window-header");
+    let badge = header?.querySelector(".ws-window-size");
+    if (!header || disposed || !getSetting(SETTINGS.debugWindowSize)) {
+      badge?.remove();
+      return;
+    }
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "ws-window-size";
+      header.querySelector(".window-title")?.after(badge);
+    }
+    const width = Math.round(Number(app.position?.width) || 0);
+    const height = Math.round(Number(app.position?.height) || 0);
+    badge.textContent = `${width} × ${height}`;
+    badge.title = t("Settings.debugWindowSize.Name");
+  };
+  app.updateHudWindowSize = updateWindowSize;
+
   app.applySetting = (key, value) => {
+    if ([SETTINGS.twoColumnWidth, SETTINGS.playerColumnRatio].includes(key))
+      app.syncHudLayout?.();
+    if (key === SETTINGS.debugWindowSize) updateWindowSize();
     if (key === SETTINGS.showItemDescriptions && !value) itemPreview?.close();
     if (key === SETTINGS.closeOnEscape) setCloseOnEscape?.(Boolean(value));
     if (key === SETTINGS.theme) syncTheme(value);
     if (key === pinSetting) {
       setPinned(Boolean(value));
       app.updatePinControl();
+      app.syncHudLayout?.();
     }
     if (key === SETTINGS.showVisualEffects) {
       effectsEnabled = Boolean(value);
@@ -113,6 +142,7 @@ export async function activateHudWindow({
     app.element.querySelector(".window-title").textContent = title;
     restoreHudDomState(app.element, domState);
   } else await app.render({ force: true });
+  await app.revealHud?.();
   for (const name of Array.from(app.element.classList)) {
     if (name.startsWith("ws-font-")) app.element.classList.remove(name);
   }
@@ -124,12 +154,38 @@ export async function activateHudWindow({
   setPinned?.(pinned);
   app.updatePinControl();
   syncTheme(theme);
+  updateWindowSize();
+  const layout = watchPlayerLayout(
+    app,
+    () => getSetting(SETTINGS.twoColumnWidth),
+    {
+      readRatio: () => getSetting(SETTINGS.playerColumnRatio),
+      saveRatio: value => {
+        void setSetting(SETTINGS.playerColumnRatio, value).catch(error =>
+          reportFailure("hud.columns.save", error)
+        );
+      },
+      isPinned: () => app.hudPinState?.() ?? false,
+      afterSync: () => {
+        if (layoutState) synchronizeHudLayout(app.element, layoutState, t);
+      }
+    }
+  );
+  app.syncHudLayout = layout.sync;
   const unwatchTheme = watchHudTheme(app.element, () =>
     getSetting(SETTINGS.theme)
   );
   syncEffects();
 
   const sessionElement = app.element;
+  const unbindDiceTray = bindHudDiceTray({
+    app,
+    actor,
+    t,
+    isActive: () =>
+      !disposed && app.rendered && !app.hudStowed && isActorCurrent()
+  });
+  const unbindAxisResize = bindHudAxisResize(app, t);
   const showRecording = () => {
     if (disposed) return;
     const previous = sessionElement?.querySelector(
@@ -188,6 +244,7 @@ export async function activateHudWindow({
     openItem: (event, target) => app.hudActions?.openitem?.(event, target)
   });
   const onContextMenu = event => {
+    if (disposed || !app.rendered) return;
     const target = event.target?.closest?.("[data-reset-initiative-id]");
     if (disposed || !app.rendered || !gmActive || !target) return;
     event.preventDefault();
@@ -195,10 +252,42 @@ export async function activateHudWindow({
     void app.hudActions?.gmresetcombatantinitiative?.(event, target);
   };
   app.element.addEventListener("contextmenu", onContextMenu);
+  const unbindItemLayout = bindItemLayoutInteractions({
+    element: sessionElement,
+    isActive: () => !disposed && app.rendered && !app.hudStowed,
+    move: (event, target) => app.hudActions?.dropitemlayout?.(event, target)
+  });
+  const unbindHudLayout = bindHudLayoutDrag({
+    element: sessionElement,
+    isActive: () =>
+      !disposed &&
+      app.rendered &&
+      !app.hudStowed &&
+      Boolean(layoutState?.hudEditing),
+    move: (event, target) =>
+      app.hudActions?.hudblockmove?.call(app, event, target)
+  });
+  const onStatusClick = event => {
+    const status = event.target?.closest?.("[data-status-id]");
+    if (
+      disposed ||
+      app.hudStowed ||
+      !status ||
+      !event.ctrlKey ||
+      event.button > 0
+    )
+      return;
+    event.preventDefault();
+    event.stopPropagation();
+    void app.hudActions?.removestatus?.(event, status);
+  };
+  app.element.addEventListener("click", onStatusClick, true);
 
   if (!reuse)
     app.addEventListener("position", () => {
       app.storeHudPosition?.(app.position);
+      app.updateHudWindowSize?.();
+      app.syncHudLayout?.();
     });
   app.storeHudPosition = storePosition;
 
@@ -299,6 +388,10 @@ export async function activateHudWindow({
   app.disposeHudSession = () => {
     if (disposed) return;
     disposed = true;
+    layout.dispose();
+    app.syncHudLayout = null;
+    app.updateHudWindowSize = null;
+    sessionElement.querySelector(".ws-window-size")?.remove();
     unwatchTheme();
     unwatchDiagnostics();
     sessionElement.querySelector("[data-diagnostic-recording]")?.remove();
@@ -307,6 +400,7 @@ export async function activateHudWindow({
       { listeners: 0, timers: 0 },
       { detailed: true }
     );
+    sessionElement.classList.remove("ws-actor-turn");
     onDispose?.();
     effectsEnabled = false;
     refreshScheduler.cancel();
@@ -316,7 +410,12 @@ export async function activateHudWindow({
     sessionElement.removeEventListener?.("change", onChange);
     sessionElement.removeEventListener?.("dblclick", onDoubleClick);
     sessionElement.removeEventListener?.("contextmenu", onContextMenu);
+    sessionElement.removeEventListener?.("click", onStatusClick, true);
     unbindItemDescriptions();
+    unbindItemLayout();
+    unbindHudLayout();
+    unbindAxisResize();
+    unbindDiceTray();
     itemPreview?.dispose();
   };
   if (!reuse)
@@ -341,4 +440,46 @@ export async function activateHudWindow({
       },
       { once: true }
     );
+}
+
+// Optional tray code is needed only when its player-toolbar button is opened.
+export function bindHudDiceTray({
+  app,
+  actor,
+  t,
+  isActive,
+  load = () => import("../dice-tray.js")
+}) {
+  const root = app.element;
+  let disposed = false,
+    loading = null,
+    unbind = null;
+  const current = () => !disposed && app.element === root && isActive();
+  const open = event => {
+    const button = event.target?.closest?.('[data-dice-tray="toggle"]');
+    if (!button || !root.contains(button) || !current() || !actor?.isOwner)
+      return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (loading) return;
+    loading = Promise.resolve()
+      .then(load)
+      .then(({ bindDiceTray }) => {
+        if (!current() || !actor.isOwner || !button.isConnected) return;
+        unbind = bindDiceTray({ app, actor, t, isActive: current });
+        root.removeEventListener("click", open, true);
+        button.click();
+      })
+      .catch(error => reportFailure("hud.dice-tray.load", error))
+      .finally(() => {
+        loading = null;
+      });
+  };
+  root.addEventListener("click", open, true);
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    root.removeEventListener("click", open, true);
+    unbind?.();
+  };
 }

@@ -1,6 +1,5 @@
 import {
   installSettings,
-  installDom,
   restoreGlobalsAfterEach
 } from "./helpers/foundry.mjs";
 import assert from "node:assert/strict";
@@ -78,7 +77,7 @@ import { createRegularRenderer } from "../scripts/hud/regular.js";
 
 restoreGlobalsAfterEach();
 
-test("statuses display safely without an action to remove them", () => {
+test("statuses expose safe native tooltip labels and right-click identity", () => {
   const originalConfig = globalThis.CONFIG;
   const originalGame = globalThis.game;
   globalThis.CONFIG = { statusEffects: [] };
@@ -107,17 +106,24 @@ test("statuses display safely without an action to remove them", () => {
     });
 
     const html = renderer.combatStatuses();
-    assert.match(html, /title="Marked &quot;dangerous&quot; &lt;effect&gt;"/);
+    assert.match(
+      html,
+      /aria-label="Marked &quot;dangerous&quot; &lt;effect&gt;"/
+    );
+    assert.match(html, /data-status-id="custom"/);
     assert.match(html, /role="img"/);
     assert.doesNotMatch(html, /data-action="removestatus"/);
-    assert.doesNotMatch(html, /<button/);
+    assert.equal(
+      fragment(html).querySelector(".ws-status-more").hasAttribute("hidden"),
+      true
+    );
   } finally {
     globalThis.CONFIG = originalConfig;
     globalThis.game = originalGame;
   }
 });
 
-test("conditions collapse after five icons", () => {
+test("conditions retain native priority and all icons for adaptive overflow", () => {
   const previousConfig = globalThis.CONFIG;
   const previousGame = globalThis.game;
   globalThis.CONFIG = {
@@ -156,17 +162,17 @@ test("conditions collapse after five icons", () => {
     });
 
     const collapsed = renderer.combatStatuses();
-    assert.equal((collapsed.match(/class="ws-status(?: |")/g) ?? []).length, 5);
+    assert.equal((collapsed.match(/class="ws-status(?: |")/g) ?? []).length, 9);
     assert.match(collapsed, /data-action="toggleconditions"/);
-    assert.match(collapsed, />\+4<\/button>/);
+    assert.match(collapsed, />\+9<\/button>/);
     assert.match(collapsed, /ws-status-concentrating/);
     assert.match(collapsed, /ws-status-bloodied/);
     assert.ok(
       collapsed.indexOf("Concentrating") < collapsed.indexOf("Condition 0")
     );
     assert.ok(collapsed.indexOf("Bloodied") < collapsed.indexOf("Condition 0"));
-    assert.doesNotMatch(collapsed, /Condition 3/);
-    assert.doesNotMatch(collapsed, /Condition 6/);
+    assert.match(collapsed, /Condition 3/);
+    assert.match(collapsed, /Condition 6/);
     assert.doesNotMatch(collapsed, /ws-status-new/);
 
     hudState.conditionsExpanded = true;
@@ -238,7 +244,7 @@ test("new conditions flash only after the first render", () => {
   }
 });
 
-test("checks and saves share one collapsible block in both modes", () => {
+test("checks and saves stay open together in both modes regardless of old collapse preferences", () => {
   const hudState = {
     abilitiesExpanded: true,
     combatAbilitiesExpanded: false
@@ -247,6 +253,7 @@ test("checks and saves share one collapsible block in both modes", () => {
     abilities: [["str", "STR", "fa-hand-fist"]],
     actor: {},
     adapter: {
+      combatStats: () => ({ proficiencyBonus: 3 }),
       abilityData: () => ({ mod: 2 }),
       abilityTotal: data => data.mod
     },
@@ -265,15 +272,16 @@ test("checks and saves share one collapsible block in both modes", () => {
 
   const regular = components.abilitiesSection();
   const combat = components.abilitiesSection("combat");
-  assert.match(regular, /aria-expanded="true"/);
   assert.match(regular, /data-type="check"/);
   assert.match(regular, /data-type="save"/);
   assert.ok(
     regular.indexOf('data-type="save"') < regular.indexOf('data-type="check"')
   );
   assert.equal((regular.match(/ws-ability-card-title/g) ?? []).length, 1);
-  assert.match(combat, /aria-expanded="false"/);
-  assert.doesNotMatch(combat, /data-action="ability"/);
+  assert.doesNotMatch(combat, /hidden|toggleabilities/);
+  assert.match(combat, /data-type="save"/);
+  assert.match(combat, /data-type="check"/);
+  assert.match(combat, /data-action="ability"/);
 });
 
 test("combat item categories start closed and show only the selected list", () => {
@@ -285,7 +293,7 @@ test("combat item categories start closed and show only the selected list", () =
     searchQuery: ""
   };
   const renderer = createItemPanelRenderer({
-    actor: {},
+    actor: { items: new Map() },
     adapter: {
       combatItems: (_actor, category) => (category === "weapons" ? [item] : []),
       itemActivities: () => [],
@@ -524,7 +532,7 @@ test("combat places abilities below stats and statuses and features in the actio
         statuses: new Set(["prone"]),
         effects: []
       },
-      actorHeader: () => "<div>Header</div>",
+      actorHeader: extra => `<div>Header${extra}</div>`,
       adapter: {
         statusDefinitions: () => globalThis.CONFIG.statusEffects,
         combatStats: () => ({
@@ -556,18 +564,17 @@ test("combat places abilities below stats and statuses and features in the actio
     assert.doesNotMatch(html, /data-action="endturn"/);
     assert.ok(html.indexOf("Header") < html.indexOf("Abilities"));
     assert.ok(
-      html.indexOf("ws-combat-stats") < html.indexOf("ws-combat-statuses")
+      html.indexOf("ws-health-stack") < html.indexOf("ws-combat-statuses") &&
+        html.indexOf("ws-combat-statuses") < html.indexOf("ws-combat-stats")
     );
     assert.ok(html.indexOf("Abilities") > html.indexOf("ws-combat-stats"));
-    assert.match(
-      html,
-      /Combat.ProficiencyBonusShort<\/span>\s*<strong>3<\/strong>/
-    );
+    assert.doesNotMatch(html, /ws-player-proficiency/);
     assert.match(html, /ws-health-fill[^>]+width: 50%;/);
     assert.match(html, /ws-health-temp-fill[^>]+width: 30%/);
     assert.match(html, /Combat.HalfHP/);
     assert.ok(html.indexOf("Abilities") < html.indexOf("ws-combat-actions"));
-    assert.ok(html.indexOf("ws-combat-actions") < html.indexOf("Shortcuts"));
+    assert.ok(html.indexOf("Abilities") < html.indexOf("Shortcuts"));
+    assert.ok(html.indexOf("Shortcuts") < html.indexOf("ws-combat-actions"));
     assert.match(
       html,
       /data-action="combatfilter" data-category="features" aria-expanded="false"/
@@ -579,12 +586,13 @@ test("combat places abilities below stats and statuses and features in the actio
     globalThis.game.combat = { started: true, combatant };
     const criticalHtml = renderer.combatHTML();
     assert.match(criticalHtml, /Combat.CriticalHP/);
-    assert.match(criticalHtml, /ws-combat-heading ws-current-turn/);
+    assert.match(criticalHtml, /ws-header-end-turn/);
+    assert.doesNotMatch(criticalHtml, /ws-combat-heading ws-current-turn/);
     assert.doesNotMatch(criticalHtml, /Labels.Combat/);
     assert.match(criticalHtml, /data-action="endturn"/);
     assert.ok(
-      criticalHtml.indexOf("Combat.YourTurn") <
-        criticalHtml.indexOf('data-action="endturn"')
+      criticalHtml.indexOf('data-action="endturn"') <
+        criticalHtml.indexOf("ws-health-stack")
     );
     globalThis.game.combat.combatant = { id: "other" };
     assert.doesNotMatch(renderer.combatHTML(), /data-action="endturn"/);
@@ -658,8 +666,8 @@ test("exploration places the shared HP bar below the actor header", () => {
     legend: () => "",
     modeNavigation: () => "",
     restControls: controls => controls,
-    searchControl: () => "",
-    searchItems: items => items,
+    globalSearchPanel: () => "",
+    sortItems: items => items,
     shortcutHint: () => "",
     skillsHTML: () => "",
     spellFilterHTML: () => "",
@@ -675,15 +683,22 @@ test("exploration places the shared HP bar below the actor header", () => {
   assert.match(markup, /ws-regular-health/);
   assert.doesNotMatch(markup, /INITIATIVE_CONTROL/);
   initiative = "INITIATIVE_CONTROL";
-  assert.match(renderer.normalHTML(), /INITIATIVE_CONTROL/);
+  assert.doesNotMatch(renderer.normalHTML(), /INITIATIVE_CONTROL/);
 });
 
-test("regular renderer builds only the selected view and reads current tools", () => {
+test("exploration keeps character information beside the selected view and reads current tools", () => {
   let inventoryReads = 0;
   const hudState = { currentView: "skills", proficientSkillsOnly: true };
   const toolState = { tools: [], normalTools: [], instruments: [] };
   const renderer = createRegularRenderer({
-    actorHeader: () => assert.fail("main view rendered"),
+    actorHeader: () => "CHARACTER_HEADER",
+    combatInitiative: () => "",
+    inspirationControl: () => "",
+    modeNavigation: () => "",
+    combatItems: () => [],
+    healthPanel: () => "HEALTH",
+    abilitiesSection: () => "ABILITIES",
+    favoriteSection: () => "FAVORITES",
     back: () => "BACK",
     hudState,
     inventoryItems: () => {
@@ -696,15 +711,25 @@ test("regular renderer builds only the selected view and reads current tools", (
     spellFilterHTML: () => "FILTER",
     skillFilterHTML: () => "FILTER",
     t: key => key,
-    toolSection: (_label, _icon, items) =>
-      items.map(item => item.name).join(""),
-    toolState,
+    trainedToolsHTML: () =>
+      toolState.instruments.map(item => item.name).join(""),
     visibility: {}
   });
 
-  assert.match(renderer.normalHTML(), /SKILLS/);
+  const skills = renderer.normalHTML();
+  assert.match(skills, /SKILLS/);
+  assert.match(skills, /CHARACTER_HEADER/);
+  assert.match(skills, /HEALTH/);
+  assert.match(skills, /ABILITIES/);
+  assert.match(skills, /FAVORITES/);
+  assert.match(
+    skills,
+    /aria-expanded="true" aria-controls="ws-exploration-content-skills"/
+  );
+  assert.match(skills, /ws-exploration-detail-nav/);
+  assert.match(skills, /data-view="skills" aria-current="page"/);
   assert.equal(inventoryReads, 0);
-  hudState.currentView = "tools";
+  hudState.currentView = "skills";
   toolState.tools = [{ name: "Flute" }];
   toolState.instruments = toolState.tools;
   assert.match(renderer.normalHTML(), /Flute/);
@@ -745,6 +770,8 @@ test("adapter-provided ability markup is escaped", () => {
     ],
     actor: {},
     adapter: {
+      combatStats: () => ({ proficiencyBonus: 3 }),
+      combatStats: () => ({ proficiencyBonus: 3 }),
       abilityData: () => ({ mod: 2 }),
       abilityTotal: data => data.mod
     },
@@ -782,43 +809,52 @@ test("inline death save appears at zero HP and death replaces the roll", () => {
   assert.doesNotMatch(render({ hp: 0, failure: 3 }), /data-action="death"/);
 });
 
-test("condition tooltips include localized summaries and safe brief custom descriptions", () => {
+test("condition tooltips use native rule references and include effects without statuses", () => {
   globalThis.game = { i18n: { localize: key => key } };
-  const { document: doc } = installDom();
-  globalThis.document = doc;
   const renderer = createCombatRenderer({
     actor: {
-      statuses: new Set(["poisoned", "custom"]),
+      statuses: new Set(["poisoned"]),
       effects: [
         {
-          statuses: new Set(["custom"]),
-          name: "Custom",
-          description: "<p>Special &amp; safe.</p><img src=x onerror=alert(1)>"
+          id: "custom",
+          uuid: "Actor.test.ActiveEffect.custom",
+          statuses: new Set(),
+          name: "Bless",
+          description: "Manual description"
+        },
+        {
+          id: "disabled",
+          statuses: new Set(),
+          name: "Disabled",
+          disabled: true
         }
       ]
     },
     adapter: {
-      statusDefinitions: () => [{ id: "poisoned", name: "Poisoned" }]
+      statusDefinitions: () => [
+        {
+          id: "poisoned",
+          name: "Poisoned",
+          reference: "Compendium.rules.poisoned"
+        }
+      ]
     },
     escapeHTML,
-    hudState: {
-      statusDescriptions: new Map([
-        ["poisoned", "Checks and attacks have disadvantage."]
-      ])
-    },
-    t: key => key,
-    visibility: { conditions: true }
+    hudState: {},
+    t: key => key
   });
   const root = fragment(renderer.combatStatuses());
-  assert.equal(
-    root.querySelector('[title^="Poisoned"]').title,
-    "Poisoned\nChecks and attacks have disadvantage."
+  assert.match(
+    root.querySelector('[data-status-id="poisoned"]').dataset.tooltip,
+    /Compendium.rules.poisoned/
   );
-  assert.equal(
-    root.querySelector('[title^="Custom"]').title,
-    "Custom\nSpecial & safe."
+  assert.match(
+    root.querySelector('[aria-label="Bless"]').dataset.tooltip,
+    /Actor.test.ActiveEffect.custom/
   );
-  assert.equal(root.querySelector("[onerror]"), null);
+  assert.equal(root.querySelector('[aria-label="Disabled"]'), null);
+  assert.doesNotMatch(root.innerHTML, /Manual description/);
+  assert.equal(root.querySelector(".ws-status[title]"), null);
 });
 
 test("GM keeps weapons without activities and still separates legendary-only items", () => {
@@ -911,7 +947,7 @@ test("GM unfiltered actions include missing activities and special abilities onc
   for (const id of ["multi", "legend", "spell"]) {
     assert.equal(
       root.querySelectorAll(
-        `[data-action="${id === "multi" ? "openitem" : "useitem"}"][data-item-id="${id}"]`
+        `.ws-combat-item[data-action="${id === "multi" ? "openitem" : "useitem"}"][data-item-id="${id}"]`
       ).length,
       1
     );

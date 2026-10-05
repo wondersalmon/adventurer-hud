@@ -1,7 +1,6 @@
 // @ts-check
 import { createHudState, setRegularView, syncHudPreferences } from "./state.js";
 import { createHudActions } from "./actions.js";
-import { createLatestRefresh } from "./async-refresh.js";
 import { createGmSelection } from "./gm/gm-selection.js";
 import { createHpDialogController } from "./hp-dialog.js";
 import { syncHealthAppearance as syncHealthAppearanceClass } from "./health-feedback.js";
@@ -16,8 +15,9 @@ import {
 } from "../dnd5e/favorites.js";
 import { createHudPresentation } from "./presentation.js";
 import { createPanelPreferences } from "./panel-preferences.js";
+import { pruneItemLayouts } from "./items/item-layout.js";
 import { createHudWindow } from "./window/window.js";
-import { syncFavoriteEditControl } from "./window/window-controls.js";
+import { syncHeaderEditControl } from "./window/window-controls.js";
 import { readHudVisibility } from "./visibility.js";
 import { getSetting, SETTINGS } from "../settings-access.js";
 import { actorActionCooldown } from "./action-cooldown.js";
@@ -91,11 +91,20 @@ export async function openActorHud(
   });
   const hudState = createHudState({
     ...panelPreferences.initialState,
-    favoriteEntries: favoriteEntries(actor),
-    statusDescriptions: await adapter.statusDescriptions(actor)
+    favoriteEntries: favoriteEntries(actor)
   });
   if (companionOwner && !companion) hudState.companionsExpanded = true;
   const savePanelState = () => panelPreferences.save(hudState);
+  const cleanItemLayouts = () => {
+    if (!Object.keys(hudState.itemLayouts).length) return;
+    const items = [...actor.items.values()].map(item => ({
+      id: item.id,
+      activityIds: adapter.itemActivities(item).map(activity => activity.id)
+    }));
+    if (pruneItemLayouts(hudState, items))
+      void savePanelState().catch(() => {});
+  };
+  cleanItemLayouts();
   const companions =
     !gmActive && (actor.type === "character" || companion)
       ? await createCompanionPanel({
@@ -115,6 +124,7 @@ export async function openActorHud(
             state.companionNavigation?.ownerTokenUuid ??
             (!companion ? actorContext.ownerTokenUuid : null),
           savePanelState,
+          currentMode: () => currentMode(),
           closeHud: () => app?.close()
         })
       : null;
@@ -143,6 +153,7 @@ export async function openActorHud(
     canRollDeathSave,
     currentMode,
     combatHTML,
+    globalSearchPanel,
     combatActions,
     availableViews,
     normalHTML,
@@ -184,25 +195,46 @@ export async function openActorHud(
       .querySelectorAll(".ws-view")
       .forEach(element => element.classList.add("ws-hidden"));
 
-    app.element.querySelector(`#ws-${view}`)?.classList.remove("ws-hidden");
+    const visible =
+      app.element.querySelector(".ws-player-layout") ??
+      app.element.querySelector(`#ws-${view}`);
+    visible?.classList.remove("ws-hidden");
   };
 
-  const syncHealthAppearance = () =>
+  const syncHealthAppearance = () => {
     syncHealthAppearanceClass(
       app?.element,
       adapter.combatStats(actor).hp,
       true
     );
+    app?.element?.classList.toggle(
+      "ws-actor-turn",
+      currentMode() === "combat" && getCombatState().isTurn
+    );
+  };
 
   /** @param {import('../../types/hud.js').RefreshRegion | null} region */
   const refreshHud = (region = null) => {
     if (!isSessionCurrent()) return;
+    app?.closeDiceTray?.();
+    if (
+      region !== "search" &&
+      (hudState.hudEditing ||
+        Object.values(hudState.hudLayouts).some(
+          preference =>
+            preference.order.includes("search") ||
+            preference.order.includes("hints")
+        ))
+    )
+      region = null;
+    cleanItemLayouts();
     hudState.favoriteEntries = favoriteEntries(actor);
-    app?.updateFavoriteEditControl?.();
+    app?.updateHudEditControl?.();
     if (!visibility.modeNavigation || !combatModeAvailable()) {
       hudState.forcedMode = null;
     }
     syncHealthAppearance();
+    hudWindow.syncMode(currentMode());
     refreshHudView({
       app,
       availableViews,
@@ -212,11 +244,13 @@ export async function openActorHud(
       renderers: {
         actions: combatActions,
         combat: combatHTML,
-        regular: normalHTML
+        regular: normalHTML,
+        search: globalSearchPanel
       },
       setView,
       title: dialogTitle()
     });
+    if (region !== "search") app?.syncHudLayout?.();
   };
 
   const refreshScheduler = createRefreshScheduler(refreshHud);
@@ -231,17 +265,17 @@ export async function openActorHud(
   });
   const { reopen: reopenGmSelection, onCombatChange: onGmCombatChange } =
     gmSelection;
-  const refreshStatuses = createLatestRefresh({
-    load: () => adapter.statusDescriptions(actor),
-    isCurrent: () => app?.rendered && isSessionCurrent(),
-    apply: descriptions => {
-      hudState.statusDescriptions = descriptions;
-      refreshScheduler.schedule();
-    },
-    onError: error => {
-      reportFailure("hud.status.refresh", error, { level: "warn", t });
+  let playerWasCombatant = Boolean(getCombatState().combatant);
+  const onPlayerCombatChange = () => {
+    if (!isSessionCurrent()) return;
+    const joined = Boolean(getCombatState().combatant);
+    if (joined && !playerWasCombatant) {
+      hudState.forcedMode = null;
+      hudState.currentView = "main";
+      void savePanelState().catch(() => {});
     }
-  });
+    playerWasCombatant = joined;
+  };
   const { performRoll, performAndRefresh } = createHudRollRunner({
     canStartMutation,
     getApp: () => app,
@@ -257,7 +291,7 @@ export async function openActorHud(
 
   const updateSearch = query => {
     hudState.searchQuery = query;
-    refreshHud(currentMode() === "combat" ? "actions" : null);
+    refreshHud("search");
   };
 
   const toggleFavoriteEntry = (itemId, activityId) =>
@@ -282,12 +316,21 @@ export async function openActorHud(
     DialogV2,
     t,
     title: dialogTitle(),
-    content
+    content,
+    currentMode
   });
   const actions = createHudActions({
     actor,
     adapter,
     canStartMutation,
+    pingActorToken: async () => {
+      if (!isSessionCurrent()) return;
+      const warning = await focusHudToken(actorContext, {
+        ping: true,
+        pan: false
+      });
+      if (warning && isSessionCurrent()) ui.notifications.warn(t(warning));
+    },
     focusActorToken: async () => {
       if (!isSessionCurrent()) return;
       await companions?.stopVision({ pan: false });
@@ -304,6 +347,9 @@ export async function openActorHud(
     gmCombatantId: gmCombatant?.id,
     openGmSelection: reopenGmSelection,
     onGmCombatChange,
+    onPlayerTurnEnded: companion
+      ? () => companions?.actions.companionback?.(null, { dataset: {} })
+      : undefined,
     hudState,
     openHpDialog,
     performAndRefresh,
@@ -333,20 +379,27 @@ export async function openActorHud(
   // =========================================================
 
   app = hudWindow.create(actions);
+  const unsubscribePreferences = panelPreferences.subscribe(hudState, () => {
+    if (isSessionCurrent()) app.refreshFromSettings?.();
+  });
   await hudWindow.activate({
+    layoutState: hudState,
     adapter,
     onDispose: () => {
+      unsubscribePreferences();
       disposed = true;
       hpDialog.dispose();
       companions?.dispose();
       app.stopFamiliarVision = null;
       app.getFamiliarVisionOwnerTokenUuid = null;
-      app.updateFavoriteEditControl = null;
-      app.element
-        ?.querySelector('[data-action="togglefavoriteedit"]')
-        ?.remove();
+      app.updateHudEditControl = null;
+      app.hudEditingState = null;
+      app.element?.classList.remove("ws-hud-editing");
+      app.element?.querySelector(".ws-hud-edit-badge")?.remove();
+      app.element?.querySelector('[data-action="togglehudedit"]')?.remove();
     },
     actor,
+    isActorCurrent,
     isCurrentCombatant: actorContext.isCurrentCombatant,
     isPlayersTurn: () => getCombatState().isTurn,
     readVisibility,
@@ -369,27 +422,28 @@ export async function openActorHud(
     refreshHud,
     refreshScheduler,
     onToolsChange: refreshTools,
-    onStatusChange: refreshStatuses,
-    onCombatChange: gmActive ? gmSelection.scheduleCombatChange : null,
+    onStatusChange: () => refreshScheduler.schedule(),
+    onCombatChange: gmActive
+      ? gmSelection.scheduleCombatChange
+      : onPlayerCombatChange,
     onCombatSelection: gmActive ? gmSelection.selectCombat : null,
     visibility
   });
 
-  app.updateFavoriteEditControl = () => {
-    const enabled = visibility.favorites && actor.isOwner && !companion;
-    if (!enabled) hudState.favoriteEdit = false;
-    syncFavoriteEditControl({
+  syncHealthAppearance();
+  app.hudEditingState = () => hudState.hudEditing;
+  app.updateHudEditControl = () =>
+    syncHeaderEditControl({
       document,
       header: app.element?.querySelector(".window-header"),
-      enabled,
-      editing: hudState.favoriteEdit,
-      label: t(
-        hudState.favoriteEdit ? "Quick.FinishEditing" : "Quick.EditFavorites"
-      )
+      enabled: actor.isOwner,
+      editing: hudState.hudEditing,
+      label: t(hudState.hudEditing ? "HudLayout.Done" : "HudLayout.Edit"),
+      action: "togglehudedit",
+      icon: "fa-pen-to-square",
+      besidePin: true
     });
-  };
-  syncHealthAppearance();
-  app.updateFavoriteEditControl();
+  app.updateHudEditControl();
   companions?.start();
   app.stopFamiliarVision = options => companions?.stopVision(options);
   app.getFamiliarVisionOwnerTokenUuid = () =>

@@ -1,4 +1,17 @@
 // @ts-check
+import { familiarSourceItem } from "../../dnd5e/familiar.js";
+
+/** @param {any} owner @param {import('../../../types/hud.js').CompanionEntry} entry */
+export function companionIsFamiliar(owner, entry) {
+  return Boolean(
+    [
+      entry.actor,
+      entry.token?.actor,
+      ...entry.tokenOptions.map(token => token.actor),
+      ...entry.sceneTokens.map(token => token.actor)
+    ].some(actor => actor && familiarSourceItem(owner, actor))
+  );
+}
 const actorUuid = /^Actor\.[^.]+$/;
 const tokenUuid = /^Scene\.[^.]+\.Token\.[^.]+$/;
 const supported = actor => ["character", "npc"].includes(actor?.type);

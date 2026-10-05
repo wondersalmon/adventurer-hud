@@ -3,7 +3,7 @@ import {
   diagnosticRef,
   diagnosticsRecording
 } from "../../diagnostics.js";
-import { itemAvailability, matchesItemSearch } from "./quick-access.js";
+import { itemAvailability } from "./quick-access.js";
 
 export function createItemCategories({
   actor,
@@ -25,13 +25,8 @@ export function createItemCategories({
   const combatItems = category =>
     adapter.combatItems(actor, category, { groupOtherActions: !visibility.gm });
 
-  const searchItems = items =>
-    (visibility.search
-      ? items.filter(item =>
-          matchesItemSearch(adapter, item, hudState.searchQuery)
-        )
-      : [...items]
-    )
+  const sortItems = items =>
+    [...items]
       .map(item => ({
         item,
         unavailable: Number(
@@ -148,7 +143,7 @@ export function createItemCategories({
   return {
     featureItems,
     combatItems,
-    searchItems,
+    sortItems,
     combatCategories,
     categoryLabel
   };

@@ -9,7 +9,8 @@ import {
 
 const REFRESH_PRIORITY = Object.freeze({
   actions: 1,
-  full: 2
+  search: 2,
+  full: 3
 });
 const renderedMarkup = new WeakMap();
 
@@ -17,6 +18,7 @@ export function refreshHudShell(shell, body) {
   if (!shell) return;
   if (renderedMarkup.get(shell) === body) return;
   const domState = captureHudDomState(shell);
+
   shell.innerHTML = body;
   renderedMarkup.set(shell, body);
   restoreHudDomState(shell, domState);
@@ -105,6 +107,28 @@ export function refreshHudView({
   if (!shell) return;
   const domState = captureHudDomState(shell);
 
+  if (
+    region === "search" &&
+    (!hudState.renderedMode || hudState.renderedMode === mode)
+  ) {
+    const panel = shell.querySelector(".ws-global-search");
+    if (panel) {
+      const template = document.createElement("template");
+      template.innerHTML = renderers.search();
+      const next = template.content.querySelector(".ws-search-results");
+      const previous = panel.querySelector(".ws-search-results");
+      const input = panel.querySelector('[data-action="searchitems"]');
+      if (input && input.value !== hudState.searchQuery)
+        input.value = hudState.searchQuery;
+      if (previous && next) previous.replaceWith(next);
+      else if (next) panel.append(next);
+      else previous?.remove();
+      renderedMarkup.delete(shell);
+      // Keep the input node, selection and IME session throughout typing.
+      return;
+    }
+  }
+
   if (hudState.renderedMode && hudState.renderedMode !== mode) {
     setRegularView(hudState, "main");
   }
@@ -141,7 +165,8 @@ export function refreshHudView({
   }
   hudState.renderedMode = mode;
   const windowTitle = app.element.querySelector(".window-title");
-  if (windowTitle) windowTitle.textContent = title;
+  if (windowTitle && windowTitle.textContent !== title)
+    windowTitle.textContent = title;
 
   if (mode === "regular") setView(hudState.currentView);
   else hudState.currentView = "main";

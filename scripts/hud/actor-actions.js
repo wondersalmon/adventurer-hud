@@ -4,12 +4,14 @@ export function createActorActions({
   adapter,
   canRollActor = false,
   focusActorToken,
+  pingActorToken,
   canRollDeathSave,
   getCombatState,
   gmController,
   gmCombatantId,
   openGmSelection,
   onGmCombatChange,
+  onPlayerTurnEnded,
   openHpDialog,
   performAndRefresh,
   performSceneAction = performAndRefresh,
@@ -17,8 +19,32 @@ export function createActorActions({
   t
 }) {
   const canAct = () => Boolean(actor?.isOwner ?? canRollActor);
+  let changingStatus = false;
   return {
     actorcenter: () => focusActorToken?.(),
+    actorping: () => pingActorToken?.(),
+    removestatus: function (event, target) {
+      if (
+        event?.type !== "click" ||
+        !event.ctrlKey ||
+        event.button > 0 ||
+        changingStatus
+      )
+        return;
+      if (!canAct()) return ui.notifications.warn(t("Warnings.NoPermission"));
+      return performAndRefresh(async () => {
+        changingStatus = true;
+        try {
+          const result = await adapter.removeStatus(
+            actor,
+            target.dataset.statusId
+          );
+          return result;
+        } finally {
+          changingStatus = false;
+        }
+      });
+    },
     initiative: async function (event) {
       if (!canAct()) {
         return ui.notifications.warn(t("Warnings.NoPermission"));
@@ -61,7 +87,19 @@ export function createActorActions({
       return performAndRefresh(async () => {
         const { combat, canEndTurn } = getCombatState();
         if (!canEndTurn) return;
-        return combat.nextTurn();
+        const before = {
+          id: combat.combatant?.id,
+          round: combat.round,
+          turn: combat.turn
+        };
+        const result = await combat.nextTurn();
+        if (
+          combat.combatant?.id !== before.id ||
+          combat.round !== before.round ||
+          combat.turn !== before.turn
+        )
+          await onPlayerTurnEnded?.();
+        return result;
       });
     },
     ability: async function (event, target) {

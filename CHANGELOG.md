@@ -1,5 +1,39 @@
 # Changelog
 
+## 2.0.0
+
+### HUD editor
+
+- One pen edits blocks, tabs and cards: drag/arrows, column placement, hiding and restoration, including inventory in both modes. Personal layouts preserve native item order and favorites.
+
+### Character search and dice tray
+
+- Movable search covers the entire character, including hidden categories and native rolls.
+- A compact bottom-toolbar tray rolls d2–d100, sets and formulas through native chat, with quick/highest/lowest gestures.
+
+### Familiar senses and backups
+
+- Optional Find Familiar (2024) mode verifies native summons, uses a native Bonus Action activity and adds a Familiars filter.
+- JSON backup/restore covers personal settings, editor layouts and windows, with rollback on failure.
+
+### Default two-column player layout
+
+- Character details and rolls on the left; favorites, companions, search and action categories on the right, with effects and quick controls below. Narrow windows use one column; saved layouts and preferences are preserved.
+
+### Window and controls
+
+- Compact character controls, fixed bottom toolbar, adjustable columns, edge snapping, axis resizing, separate mode sizes and slide mode enabled by default.
+- Separate category buttons at every width; clearer settings groups, full effect descriptions/removal and all coin denominations. Exploration companions no longer show combat initiative.
+
+### Fixes and quality of life
+
+- Restored layouts survive subsequent actions and queued writes; supported legacy backups round-trip.
+- Full reset includes the editor; window-only reset preserves layouts and native favorites.
+- Inventory uses the shared list editor; hidden active tabs close and GM fallback skips them.
+- Search focus/scroll, spell groups, companion transitions and cleanup retain their native/session contracts. Updated paired guides and a dedicated companions guide.
+
+See [2.0 details and upgrade notes](docs/release-2.0.md) ([Русский](docs/release-2.0.ru.md)). Existing preferences are preserved; resetting is optional.
+
 ## 1.4.1
 
 - **Companions:** a compact, collapsible list of owned creatures and characters, with **On scene** and **All** filters. Open their actions in the same window, switch between companions and return to your character by name. Sheets, HP, effects and turn highlights are available alongside individual and group initiative rolls. The group roll button disappears once all have rolled; companion preferences have their own settings submenu.

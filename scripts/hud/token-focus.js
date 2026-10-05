@@ -30,7 +30,7 @@ export function hudSceneTokens({ actor, token, ownerTokenUuid = null }) {
 
 export async function focusHudToken(
   context,
-  { releaseOthers = true, pan = true } = {}
+  { releaseOthers = true, pan = true, ping = false } = {}
 ) {
   const trace = beginDiagnostic("hud.token.focus", {
     actor: diagnosticRef(context.actor, "actor"),
@@ -61,6 +61,11 @@ export async function focusHudToken(
       (token.hidden && !game.user?.isGM)
     )
       return reject("Warnings.NoPermission");
+    if (ping) {
+      await canvas.ping(placeable.center);
+      trace.finish("completed", null, { ping: true, controlled: false });
+      return null;
+    }
     // An owned token can be outside the current token's vision. Native control
     // switches vision; force only bypasses canvas interaction visibility here.
     if (

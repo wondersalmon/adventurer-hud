@@ -1,6 +1,8 @@
 import { setForcedMode, setRegularView } from "./state.js";
+import { moveItemLayout } from "./items/item-layout.js";
+import { changeHudLayout } from "./window/hud-layout.js";
 import { getSetting, setSetting, SETTINGS } from "../settings-access.js";
-import { openSettings } from "../settings-navigation.js";
+import { openSettings, openTroubleshooting } from "../settings-navigation.js";
 
 /** @param {import('../../types/hud.js').HudActionsOptions} options */
 export function createViewActions({
@@ -15,11 +17,91 @@ export function createViewActions({
   setView,
   t,
   updateSearch,
-  visibility,
   togglePin
 }) {
   const canAct = () => Boolean(actor?.isOwner ?? canRollActor);
+  const itemLayout = target => target?.closest?.("[data-layout-scope]");
+  const moveItem = (target, direction) => {
+    const list = itemLayout(target);
+    if (!canAct() || !list || !hudState.hudEditing) return;
+    const keys = Array.from(
+      list.querySelectorAll(".ws-organized-entry"),
+      node => node.dataset.layoutKey
+    );
+    const key = target.dataset.layoutKey;
+    const destination = direction
+      ? keys[keys.indexOf(key) + direction]
+      : target.dataset.layoutTarget;
+    if (
+      !destination ||
+      !moveItemLayout(
+        hudState,
+        list.dataset.layoutScope,
+        key,
+        destination,
+        keys
+      )
+    )
+      return;
+    savePanelState?.();
+    refreshHud();
+  };
   return {
+    hudblockmove: function (_event, target) {
+      const root = this?.element ?? target?.closest?.(".ws-rolls-dialog");
+      if (canAct() && root && changeHudLayout(root, hudState, target)) {
+        savePanelState?.();
+        refreshHud();
+      }
+    },
+    hudblockhide: function (_event, target) {
+      const root = this?.element ?? target?.closest?.(".ws-rolls-dialog");
+      if (canAct() && root && changeHudLayout(root, hudState, target, true)) {
+        savePanelState?.();
+        refreshHud();
+      }
+    },
+    togglehudedit: function () {
+      if (!canAct()) return;
+      hudState.hudEditing = !hudState.hudEditing;
+      refreshHud();
+    },
+    togglehiddenitems: function (_event, target) {
+      const list = itemLayout(target);
+      if (!list) return;
+      hudState.itemHiddenExpanded =
+        hudState.itemHiddenExpanded === list.dataset.layoutScope
+          ? null
+          : list.dataset.layoutScope;
+      refreshHud();
+    },
+    toggleitemhidden: function (_event, target) {
+      const list = itemLayout(target),
+        key = target.dataset.layoutKey;
+      if (!canAct() || !hudState.hudEditing || !list || !key) return;
+      const scope = list.dataset.layoutScope;
+      const preference = hudState.itemLayouts[scope] ?? {
+        order: [],
+        hidden: []
+      };
+      hudState.itemLayouts[scope] = {
+        ...preference,
+        hidden: preference.hidden.includes(key)
+          ? preference.hidden.filter(value => value !== key)
+          : [...preference.hidden, key]
+      };
+      savePanelState?.();
+      refreshHud();
+    },
+    moveitemup: function (_event, target) {
+      moveItem(target, -1);
+    },
+    moveitemdown: function (_event, target) {
+      moveItem(target, 1);
+    },
+    dropitemlayout: function (_event, target) {
+      moveItem(target, 0);
+    },
     togglepreset: async () => {
       if (!game.user?.isGM) return;
       await setSetting(SETTINGS.gmEnabled, !getSetting(SETTINGS.gmEnabled));
@@ -49,12 +131,6 @@ export function createViewActions({
         hudState.combatCategory === target.dataset.category
           ? null
           : target.dataset.category;
-      hudState.actionMenuOpen = false;
-      savePanelState?.();
-      refreshHud("actions");
-    },
-    toggleactionmenu: function () {
-      hudState.actionMenuOpen = !hudState.actionMenuOpen;
       savePanelState?.();
       refreshHud("actions");
     },
@@ -80,23 +156,13 @@ export function createViewActions({
       hudState.proficientSkillsOnly = proficientOnly;
       refreshHud();
     },
-    toggleabilities: function () {
-      const key =
-        currentMode() === "combat"
-          ? "combatAbilitiesExpanded"
-          : "abilitiesExpanded";
-      hudState[key] = !hudState[key];
-      savePanelState?.();
+    togglespeeds: function () {
+      hudState.gmSpeedsExpanded = !hudState.gmSpeedsExpanded;
       refreshHud();
     },
     togglefavorites: function () {
       hudState.favoritesExpanded = !hudState.favoritesExpanded;
       savePanelState?.();
-      refreshHud();
-    },
-    togglefavoriteedit: function () {
-      if (!visibility.favorites || !canAct()) return;
-      hudState.favoriteEdit = !hudState.favoriteEdit;
       refreshHud();
     },
     toggleconditions: function () {
@@ -109,6 +175,9 @@ export function createViewActions({
     },
     settings: async function () {
       return openSettings();
+    },
+    troubleshooting: async function () {
+      return openTroubleshooting();
     },
     togglemodes: async function () {
       return setSetting(
@@ -131,7 +200,17 @@ export function createViewActions({
       return resetWindow();
     },
     view: function (_event, target) {
-      setView(target.dataset.view);
+      const collapse =
+        target.dataset.explorationSection === "true" &&
+        target.closest?.(".ws-player-columns") &&
+        (hudState.currentView === target.dataset.view ||
+          (target.dataset.view === "skills" &&
+            target.getAttribute?.("aria-expanded") === "true"));
+      if (target.dataset.view === "skills")
+        hudState.explorationSkillsCollapsed = Boolean(collapse);
+      const previousView = hudState.currentView;
+      setView(collapse ? "main" : target.dataset.view);
+      if (collapse && previousView === "main") refreshHud();
       savePanelState?.();
     }
   };

@@ -1,3 +1,4 @@
+import { PLAYER_WINDOW_DEFAULTS } from "./hud/window/geometry.js";
 export { openSettings, openGmSettings } from "./settings-navigation.js";
 import { MODULE_ID } from "./module-id.js";
 import {
@@ -26,19 +27,25 @@ export function registerSettings() {
       config: definition.placement === "basic",
       type: definition.type,
       ...(definition.choices ? { choices: definition.choices } : {}),
+      ...(definition.range ? { range: definition.range } : {}),
       default: definition.default,
       onChange: notifyChange(key)
     });
   }
 
-  for (const key of [SETTINGS.windowGeometry, SETTINGS.gmWindowGeometry]) {
+  for (const key of [
+    SETTINGS.windowGeometry,
+    SETTINGS.gmWindowGeometry,
+    SETTINGS.windowModeSizes
+  ]) {
     game.settings.register(MODULE_ID, key, {
       name: "Adventurer HUD window geometry",
       hint: "",
       scope: "client",
       config: false,
       type: Object,
-      default: {}
+      default:
+        key === SETTINGS.windowGeometry ? { ...PLAYER_WINDOW_DEFAULTS } : {}
     });
   }
 

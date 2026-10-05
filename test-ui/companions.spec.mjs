@@ -1,3 +1,5 @@
+import { synchronizeStatusLayout } from "../scripts/hud/window/status-layout.js";
+import { applyPlayerLayout } from "../scripts/hud/window/responsive-layout.js";
 import { test, expect } from "@playwright/test";
 import { layoutFixture } from "./layout-fixture.mjs";
 import {
@@ -84,7 +86,9 @@ test("refresh preserves each actual companion filter and its next keyboard actio
     `<style>${baseline}${css}</style><section class="ws-rolls-dialog" style="width:320px"><div class="ws-shell">${bodies["player-companions-all"]}</div></section>`
   );
   await page.addScriptTag({
-    content: `${captureHudDomState.toString()}\n${restoreHudDomState.toString()}`
+    content: `${synchronizeStatusLayout.toString()}
+${applyPlayerLayout.toString()}
+${captureHudDomState.toString()}\n${restoreHudDomState.toString()}`
   });
   await page.evaluate(() => {
     document.addEventListener("click", event => {
@@ -127,6 +131,11 @@ test("companion list and actions fit narrow panels in both themes and large text
         await page.setContent(
           `<style>${baseline}${css}</style><section class="ws-rolls-dialog ws-theme-${theme} ws-font-extralarge" style="width:${width}px"><header class="window-header"><b>${scenario.startsWith("companion-") ? "Действия спутника" : "Спутники"}</b></header><div class="window-content"><div class="ws-shell">${bodies[scenario]}</div></div></section>`
         );
+        await page.addScriptTag({
+          content:
+            synchronizeStatusLayout.toString() +
+            ";synchronizeStatusLayout(document);"
+        });
         expect(
           await page
             .locator(".ws-view")
@@ -146,7 +155,10 @@ test("companion list and actions fit narrow panels in both themes and large text
               const root = node
                 .closest(".ws-rolls-dialog")
                 .getBoundingClientRect();
-              return box.right <= root.right + 1 && box.left >= root.left - 1;
+              return (
+                !box.width ||
+                (box.right <= root.right + 1 && box.left >= root.left - 1)
+              );
             })
           )
         ).toBe(true);
@@ -162,7 +174,7 @@ test("companion list and actions fit narrow panels in both themes and large text
           ).toBe(true);
           const fonts = await page
             .locator(
-              '[data-action="toggleabilities"], [data-action="togglecompanions"]'
+              '[data-action="togglefavorites"], [data-action="togglecompanions"]'
             )
             .evaluateAll(nodes =>
               nodes.map(node => {
@@ -215,7 +227,19 @@ test("companion list and actions fit narrow panels in both themes and large text
           await expect(
             page.locator(".ws-companion-effects").first()
           ).toBeVisible();
-          await expect(page.locator(".ws-companion-initiative")).toHaveCount(2);
+          await expect(page.locator(".ws-companion-initiative")).toHaveCount(
+            count
+          );
+          await expect(
+            page.locator(".ws-companion-initiative").last()
+          ).toBeDisabled();
+          if (scenario.endsWith("-all"))
+            await expect(
+              page
+                .locator(".ws-companion-initiative")
+                .last()
+                .locator(".fa-dice-d20")
+            ).toBeVisible();
           await expect(
             page.locator('[data-action="togglecompanions"]')
           ).toHaveAttribute("aria-expanded", "true");
@@ -244,9 +268,9 @@ test("companion list and actions fit narrow panels in both themes and large text
         const combat =
           scenario.endsWith("-combat") || scenario === "companion-actions";
         if (combat) {
-          await expect(
-            page.locator('.ws-combat-stat[title="Бонус мастерства"] span')
-          ).toHaveText("БМ");
+          await expect(page.locator(".ws-actor-proficiency")).toHaveText(
+            /БМ [+-]?\d+/
+          );
           await expect(
             page.locator('[data-action="combatmode"]')
           ).toBeDisabled();

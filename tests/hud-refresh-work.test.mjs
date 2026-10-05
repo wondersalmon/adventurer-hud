@@ -148,10 +148,13 @@ test("refresh preserves the responsive GM menu state and its accessible disclosu
   );
 });
 
-test("GM refresh preserves the scroll positions used by each responsive layout", () => {
+test("refresh preserves the scroll positions used by player and GM responsive layouts", () => {
   const { document } = installDom();
   const shell = document.createElement("div");
   const selectors = [
+    "ws-player-layout",
+    "ws-player-info",
+    "ws-player-actions",
     "ws-gm-content",
     "ws-gm-combat",
     "ws-gm-body",
@@ -168,4 +171,24 @@ test("GM refresh preserves the scroll positions used by each responsive layout",
   refreshHudShell(shell, markup.replaceAll("Before", "After"));
   for (const [index, name] of selectors.entries())
     assert.equal(shell.querySelector(`.${name}`).scrollTop, 100 + index);
+});
+
+test("scroll restoration skips zero writes on replaced nodes but resets reused nodes", () => {
+  const { document } = installDom();
+  const root = document.createElement("div");
+  root.innerHTML = '<div class="ws-combat-item-list"></div>';
+  const previous = root.firstElementChild;
+  previous.scrollTop = 0;
+  const state = captureHudDomState(root);
+  root.innerHTML = '<div class="ws-combat-item-list"></div>';
+  let writes = 0;
+  Object.defineProperty(root.firstElementChild, "scrollTop", {
+    get: () => 0,
+    set: () => writes++
+  });
+  restoreHudDomState(root, state);
+  assert.equal(writes, 0);
+  const reusedState = captureHudDomState(root);
+  restoreHudDomState(root, reusedState);
+  assert.equal(writes, 1);
 });

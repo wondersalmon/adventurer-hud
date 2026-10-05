@@ -50,7 +50,7 @@ for (const directory of ["lang", "scripts", "styles", "templates"]) {
 }
 
 archive.glob(
-  "*-guide*.md",
+  "{*-guide*,release-2.0*}.md",
   { cwd: path.join(root, "docs") },
   { prefix: "docs" }
 );
@@ -64,10 +64,10 @@ await archive.finalize();
 await complete;
 
 const guides = (await readdir(path.join(root, "docs")))
-  .filter(file => /-guide.*\.md$/.test(file))
+  .filter(file => /(?:-guide.*|release-2\.0.*)\.md$/.test(file))
   .map(file => `docs/${file}`);
 const documents = await Promise.all(
-  ["README.md", "README.ru.md", ...guides].map(async file => [
+  ["README.md", "README.ru.md", "CHANGELOG.md", ...guides].map(async file => [
     file,
     await readFile(path.join(root, file), "utf8")
   ])

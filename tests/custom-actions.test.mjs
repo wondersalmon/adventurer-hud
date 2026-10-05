@@ -180,14 +180,14 @@ test("unknown category IDs and registered labels are escaped and cannot collide 
   assert.ok(prototypeName.textContent.includes("__proto__"));
 });
 
-test("player action menus group custom types into Special and the existing setting still hides them", () => {
+test("player action categories group custom types into Special and the existing setting still hides them", () => {
   const f = customNpcFixture("Humongous Fungus Troll", {
     visibility: { gm: false },
     hudState: { actionMenuOpen: true, combatCategory: "activation:epic" }
   });
   assert.ok(
     fragment(f.renderer.combatActions()).querySelector(
-      '.ws-action-menu [data-category="special"]'
+      '.ws-combat-filters [data-category="special"]'
     )
   );
   assert.equal(f.hudState.combatCategory, "special");
@@ -298,10 +298,10 @@ test("player Special combines time, custom and no-cost activities without pullin
   });
   const root = fragment(f.renderer.combatActions());
   assert.deepEqual(
-    [...root.querySelectorAll(".ws-action-menu [data-category]")].map(
+    [...root.querySelectorAll(".ws-combat-filters [data-category]")].map(
       e => e.dataset.category
     ),
-    ["action", "bonus", "reaction", "special"]
+    ["action", "bonus", "reaction", "special", "features", "inventory"]
   );
   const controls = [...root.querySelectorAll('[data-action="useactivity"]')];
   assert.equal(controls.length, types.length - 3 + 1);

@@ -23,7 +23,12 @@ const skipReleaseTests = !existsSync(
 
 const runRelease = (
   failure,
-  { testOnly = false, confirmation = "yes", previousRelease = false } = {}
+  {
+    testOnly = false,
+    benchmarkOnly = false,
+    confirmation = "yes",
+    previousRelease = false
+  } = {}
 ) => {
   const fixture = mkdtempSync(join(tmpdir(), "hud-release-"));
   mkdirSync(join(fixture, "dev"));
@@ -78,7 +83,7 @@ const runRelease = (
       $global:Calls.Add(@("confirmation"))
       return $env:RELEASE_TEST_CONFIRMATION
     }
-    try { ${testOnly ? "& ./dev/release.ps1 -Test" : "& ./dev/release.ps1 1.2.3"} }
+    try { ${benchmarkOnly ? "& ./dev/release.ps1 -BenchmarkOnly" : testOnly ? "& ./dev/release.ps1 -Test" : "& ./dev/release.ps1 1.2.3"} }
     catch { Write-Output ("ERROR:" + $_.Exception.Message) }
     Write-Output ("CALLS:" + (ConvertTo-Json -InputObject @($global:Calls.ToArray()) -Depth 5 -Compress))
   `
@@ -276,6 +281,30 @@ for (const options of [
         previousRelease: true
       });
       assert.equal(result.promoted, false);
+    }
+  );
+}
+
+for (const failure of [undefined, "benchmark"]) {
+  test(
+    `benchmark-only mode preserves baseline and runs only benchmark (${failure ?? "success"})`,
+    { skip: skipReleaseTests },
+    () => {
+      const result = runRelease(failure, {
+        benchmarkOnly: true,
+        previousRelease: true
+      });
+      assert.equal(result.calls.length, 1);
+      assert.equal(result.calls[0][0], "node");
+      assert.equal(result.usedPrevious, true);
+      assert.ok(result.benchmark.includes("--fail-on-severe-regression"));
+      assert.match(
+        result.benchmark[result.benchmark.indexOf("--out") + 1],
+        /benchmark-.*\.json$/
+      );
+      assert.equal(result.promoted, false);
+      if (failure) assert.match(result.output, /ERROR:Benchmark failed/);
+      else assert.doesNotMatch(result.output, /ERROR:/);
     }
   );
 }

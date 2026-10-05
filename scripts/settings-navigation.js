@@ -21,3 +21,9 @@ export function openGmSettings() {
     settings.openGmSettings()
   );
 }
+
+export function openTroubleshooting() {
+  return import("./settings-applications.js").then(settings =>
+    settings.openTroubleshooting()
+  );
+}

@@ -140,3 +140,22 @@ test("multiple hero tokens require an exact context or a single already selected
   assert.equal(await focusHudToken({ actor: f.actor, token: f.token }), null);
   assert.equal(f.calls.length, 4);
 });
+
+test("player ping delegates to native canvas without changing selection or camera and rejects lost ownership", async () => {
+  const f = fixture();
+  canvas.ping = async center => f.calls.push(["ping", center]);
+  assert.equal(
+    await focusHudToken(
+      { actor: f.actor, token: f.token },
+      { ping: true, pan: false }
+    ),
+    null
+  );
+  assert.deepEqual(f.calls, [["ping", f.placeable.center]]);
+  f.actor.isOwner = false;
+  assert.equal(
+    await focusHudToken({ actor: f.actor, token: f.token }, { ping: true }),
+    "Warnings.NoPermission"
+  );
+  assert.equal(f.calls.length, 1);
+});

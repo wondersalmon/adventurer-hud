@@ -1,6 +1,6 @@
 // @ts-check
 import { companionInitiative } from "./companion-details.js";
-import { worldDocument } from "./companions.js";
+import { worldDocument, companionIsFamiliar } from "./companions.js";
 import { hudSceneTokens } from "../token-focus.js";
 import { getSetting, SETTINGS } from "../../settings-access.js";
 import { reportFailure } from "../../diagnostics.js";
@@ -16,7 +16,8 @@ export function createCompanionActions(
     isCurrent,
     refreshHud,
     ownerTokenUuid,
-    savePanelState
+    savePanelState,
+    currentMode = () => "combat"
   },
   { vision, placement, resolved, navigateTo, refresh, getEntries, picker }
 ) {
@@ -25,13 +26,13 @@ export function createCompanionActions(
     document
       .querySelector(".ws-rolls-dialog")
       ?.querySelector(selector)
-      ?.focus?.();
+      ?.focus?.({ preventScroll: true });
   /** @type {import('../../../types/hud.js').CompanionActions} */
   const actions = {
     companionplace: (_event, target) =>
       placement.place(target.dataset.companionUuid),
     companionvisionstop: () => isCurrent() && vision?.stop(),
-    companionvision: async (_event, target) => {
+    companionvision: async (event, target) => {
       if (!isCurrent() || !vision) return;
       const uuid = target.dataset.companionUuid;
       if (vision.active?.uuid === uuid) return vision.stop();
@@ -39,12 +40,22 @@ export function createCompanionActions(
       if (!isCurrent() || !entry?.actor) return;
       return picker.withToken(entry, async tokenUuid => {
         const current = await resolved(uuid, tokenUuid);
-        if (isCurrent() && current?.actor) return vision.toggle(current);
+        if (isCurrent() && current?.actor) return vision.toggle(current, event);
       });
     },
     companionfilter: (_event, target) => {
       const filter = target.dataset.companionFilter;
-      if (!isCurrent() || companion || (filter !== "scene" && filter !== "all"))
+      if (
+        !isCurrent() ||
+        companion ||
+        (filter !== "scene" && filter !== "all" && filter !== "familiars")
+      )
+        return;
+      if (
+        filter === "familiars" &&
+        (!getSetting(SETTINGS.familiarVision2024) ||
+          !getEntries().some(entry => companionIsFamiliar(owner, entry)))
+      )
         return;
       hudState.companionFilter = filter;
       refreshHud();
@@ -165,7 +176,7 @@ export function createCompanionActions(
    * @param {import('../../../types/hud.js').HudInputEvent | null | undefined} [event]
    */
   const rollEntries = async (choices, event) => {
-    if (rolling || !isCurrent()) return;
+    if (rolling || !isCurrent() || currentMode() !== "combat") return;
     rolling = true;
     const combat = companionInitiative({}).combat;
     const seen = new Set();
@@ -174,7 +185,12 @@ export function createCompanionActions(
       if (!combat) return ui.notifications.warn(t("Initiative.NoCombat"));
       for (const choice of choices) {
         const current = await resolved(choice.uuid, choice.tokenUuid);
-        if (!isCurrent() || companionInitiative({}).combat !== combat) break;
+        if (
+          !isCurrent() ||
+          currentMode() !== "combat" ||
+          companionInitiative({}).combat !== combat
+        )
+          break;
         const state = companionInitiative(current ?? {});
         if (!current?.actor || !state.canRoll || seen.has(state.combatant.id))
           continue;

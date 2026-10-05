@@ -2,6 +2,7 @@ import { getSetting, SETTINGS } from "../settings-access.js";
 
 export function readHudVisibility() {
   return {
+    playerFooter: getSetting(SETTINGS.playerFooter),
     itemDetails: getSetting(SETTINGS.showItemDetails),
     showActionTypes: getSetting(SETTINGS.showActionTypes),
     combatSkills: getSetting(SETTINGS.showCombatSkills),

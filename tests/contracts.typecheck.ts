@@ -2,6 +2,12 @@ import { prepareHudOpenContext } from "../scripts/hud/open-context.js";
 import { openActorHud } from "../scripts/hud/actor-session.js";
 import { openEmptyGmHud } from "../scripts/hud/empty-gm.js";
 import { createLatestRefresh } from "../scripts/hud/async-refresh.js";
+import {
+  moveItemLayout,
+  pruneItemLayouts
+} from "../scripts/hud/items/item-layout.js";
+import { bindItemLayoutInteractions } from "../scripts/hud/items/item-layout-interactions.js";
+import { restoreSettingsBackup } from "../scripts/settings-backup.js";
 import type {
   ActorOpenContext,
   EmptyGmOpenContext,
@@ -34,6 +40,20 @@ void invalidEntry;
 declare const actor: ActorOpenContext;
 declare const emptyGm: EmptyGmOpenContext;
 declare const adapter: HudAdapter;
+declare const state: import("../types/hud.js").HudState;
+declare const element: HTMLElement;
+// @ts-expect-error Activity identities must be strings, never document objects.
+pruneItemLayouts(state, [{ id: "item", activityIds: [{}] }]);
+// @ts-expect-error Reordering requires a string item/activity key.
+moveItemLayout(state, "combat:action", 42, "target", []);
+// @ts-expect-error Restore validates serialized input, not arbitrary objects.
+restoreSettingsBackup({ format: 1 });
+bindItemLayoutInteractions({
+  element,
+  isActive: () => true,
+  // @ts-expect-error Drag handlers receive native Events, not strings.
+  move: (event: string) => event
+});
 const openHud = async () => {};
 
 openActorHud(actor, { openHud });

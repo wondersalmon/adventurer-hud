@@ -34,7 +34,12 @@ export function prepareSettingsGroups({ groups, readValue, t }) {
       settings: keys.map(key => {
         const value = valueFor(key);
         const choices = definitions[key]?.choices;
-        const parentKey = [SETTINGS.showCompanionEffects].includes(key)
+        const parentKey = [
+          SETTINGS.showCompanionEffects,
+          SETTINGS.companionVisionPan,
+          SETTINGS.companionAutoFocus,
+          SETTINGS.familiarVision2024
+        ].includes(key)
           ? SETTINGS.showCompanions
           : key !== SETTINGS.gmEnabled &&
               (definitions[key]?.gmOnly ||
@@ -56,7 +61,9 @@ export function prepareSettingsGroups({ groups, readValue, t }) {
                 label: t(label.replace("ADVENTURER_HUD.", "")),
                 selected: choice === value
               }))
-            : null
+            : null,
+          range: definitions[key]?.range,
+          numeric: definitions[key]?.type === Number
         };
       })
     }))
@@ -69,6 +76,17 @@ export function booleanSettingsEntries(groups, submitted) {
     .flatMap(key => {
       if (!Object.hasOwn(submitted, key)) return [];
       const value = submitted[key];
+      const definition = getSettingDefinitions()[key];
+      if (definition?.type === Number) {
+        const number = Number(value);
+        if (
+          !Number.isFinite(number) ||
+          (definition.range &&
+            (number < definition.range.min || number > definition.range.max))
+        )
+          throw new Error("Invalid numeric setting");
+        return [[key, number]];
+      }
       if (key === "gmCardDetails") {
         if (!["compact", "attack", "full"].includes(value))
           throw new Error("Invalid GM card details");

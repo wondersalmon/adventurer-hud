@@ -45,11 +45,77 @@ for (const immediate of [false, true]) {
   });
 }
 
+test("separate mode sizes merge serialized writes and snapshot dimensions before deferred saving", async t => {
+  const { saveWindowGeometry, flushWindowGeometry, getWindowGeometry } =
+    await import("../scripts/window-geometry.js");
+  const { current } = installSettings({
+    values: {
+      separateModeSizes: true,
+      windowModeSizes: { future: { width: 500, height: 500 } }
+    }
+  });
+  const originalSet = game.settings.set;
+  let release;
+  let started;
+  const gate = new Promise(resolve => {
+    release = resolve;
+  });
+  const waiting = new Promise(resolve => {
+    started = resolve;
+  });
+  t.mock.method(game.settings, "set", async (module, key, value) => {
+    if (key === SETTINGS.windowModeSizes) {
+      started();
+      await gate;
+    }
+    return originalSet(module, key, value);
+  });
+  const regular = { left: 10, top: 20, width: 320, height: 450 };
+  const first = saveWindowGeometry(regular, {
+    mode: "regular",
+    immediate: true
+  });
+  regular.width = 999;
+  await waiting;
+  const second = saveWindowGeometry(
+    { left: 50, top: 60, width: 800, height: 600 },
+    { mode: "combat", immediate: true }
+  );
+  assert.equal(getWindowGeometry(false, "regular").width, 320);
+  assert.equal(getWindowGeometry(false, "combat").width, 800);
+  release();
+  await Promise.all([first, second]);
+  await flushWindowGeometry();
+  assert.deepEqual(current.get(SETTINGS.windowModeSizes), {
+    future: { width: 500, height: 500 },
+    regular: { width: 320, height: 450 },
+    combat: { width: 800, height: 600 }
+  });
+  assert.equal(getWindowGeometry(false, "regular").left, 50);
+});
+
+test("disabled mode sizing retains shared geometry and saved profiles", async () => {
+  const { saveWindowGeometry, flushWindowGeometry, getWindowGeometry } =
+    await import("../scripts/window-geometry.js");
+  const profiles = {
+    regular: { width: 320, height: 450 },
+    combat: { width: 800, height: 600 }
+  };
+  const { current } = installSettings({
+    values: { windowModeSizes: profiles }
+  });
+  const shared = { left: 20, top: 30, width: 500, height: 550 };
+  saveWindowGeometry(shared, { mode: "combat" });
+  await flushWindowGeometry();
+  assert.deepEqual(getWindowGeometry(false, "regular"), shared);
+  assert.deepEqual(current.get(SETTINGS.windowModeSizes), profiles);
+});
+
 test("main and additional settings use task-based groups", async () => {
   const { registrations, menus } = installSettings();
 
   for (const key of [SETTINGS.gmHideSearch, SETTINGS.gmActionTypesOnly]) {
-    assert.equal(registrations.get(key).default, true);
+    assert.equal(registrations.get(key).default, false);
     assert.equal(registrations.get(key).config, false);
     assert.equal(SETTING_DEFINITIONS[key].gmOnly, true);
     assert.equal(
@@ -62,8 +128,8 @@ test("main and additional settings use task-based groups", async () => {
   assert.equal(registrations.get(SETTINGS.showModeNavigation)?.default, false);
   assert.equal(registrations.get(SETTINGS.showModeNavigation)?.config, false);
   assert.equal(registrations.get(SETTINGS.fontSize)?.config, true);
-  assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.config, true);
-  assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.default, false);
+  assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.config, false);
+  assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.default, true);
   assert.equal(registrations.get(SETTINGS.autoOpenHud)?.config, true);
   assert.equal(registrations.get(SETTINGS.autoOpenHud)?.default, false);
   assert.equal(registrations.get(SETTINGS.autoOpenHud)?.scope, "user");
@@ -82,15 +148,15 @@ test("main and additional settings use task-based groups", async () => {
   assert.equal(registrations.has("gmLockWindowSize"), false);
   assert.equal(registrations.has("closeAfterRoll"), false);
   assert.equal(registrations.get(SETTINGS.showTokenControl)?.config, false);
-  assert.equal(registrations.get(SETTINGS.showTokenControl)?.default, false);
+  assert.equal(registrations.get(SETTINGS.showTokenControl)?.default, true);
   assert.equal(registrations.get(SETTINGS.showVisualEffects)?.default, true);
   assert.equal(registrations.get(SETTINGS.showVisualEffects)?.config, false);
   assert.deepEqual(
     Object.keys(registrations.get(SETTINGS.fontSize)?.choices ?? {}),
     ["small", "medium", "large", "extraLarge"]
   );
-  assert.equal(registrations.get(SETTINGS.fontSize)?.default, "medium");
-  assert.equal(registrations.get(SETTINGS.language)?.default, "auto");
+  assert.equal(registrations.get(SETTINGS.fontSize)?.default, "large");
+  assert.equal(registrations.get(SETTINGS.language)?.default, "en");
   assert.equal(registrations.get(SETTINGS.proficientSkillsOnly)?.default, true);
   assert.equal(registrations.get(SETTINGS.proficientSkillsOnly)?.config, false);
   assert.deepEqual(
@@ -104,7 +170,7 @@ test("main and additional settings use task-based groups", async () => {
   assert.equal(SETTING_DEFINITIONS[SETTINGS.fontSize].placement, "basic");
   assert.equal(
     SETTING_DEFINITIONS[SETTINGS.autoUpdateActor].placement,
-    "basic"
+    "advanced"
   );
   assert.equal(
     SETTING_DEFINITIONS[SETTINGS.showTokenControl].placement,
@@ -127,13 +193,21 @@ test("main and additional settings use task-based groups", async () => {
       SETTINGS.language,
       SETTINGS.theme,
       SETTINGS.fontSize,
-      SETTINGS.autoOpenHud,
-      SETTINGS.autoUpdateActor
+      SETTINGS.slidePanel,
+      SETTINGS.openPlayerOnCombat,
+      SETTINGS.autoOpenHud
     ]
   );
   const visibleKeys = context.groups.flatMap(group =>
     group.settings.map(setting => setting.key)
   );
+  for (const key of [
+    SETTINGS.slidePanel,
+    SETTINGS.openPlayerOnCombat,
+    SETTINGS.autoOpenHud
+  ])
+    assert.equal(visibleKeys.includes(key), false);
+  assert.equal(registrations.get(SETTINGS.slidePanel)?.default, true);
   assert.equal(visibleKeys.includes(SETTINGS.pinWindow), false);
   assert.equal(visibleKeys.includes(SETTINGS.showModeNavigation), false);
   assert.equal(visibleKeys.includes(SETTINGS.showShortcuts), true);
@@ -144,6 +218,7 @@ test("main and additional settings use task-based groups", async () => {
     context.groups.map(group => group.label),
     [
       "ADVENTURER_HUD.Settings.Groups.behavior",
+      "ADVENTURER_HUD.Settings.Groups.windowLayout",
       "ADVENTURER_HUD.Settings.Groups.quickAccess",
       "ADVENTURER_HUD.Settings.Groups.itemUse",
       "ADVENTURER_HUD.Settings.Groups.interface"
@@ -154,8 +229,7 @@ test("main and additional settings use task-based groups", async () => {
     SETTINGS.showFavorites,
     SETTINGS.showActivityPicker,
     SETTINGS.showCompanions,
-    SETTINGS.showCompanionEffects,
-    SETTINGS.companionVisionPan
+    SETTINGS.showCompanionEffects
   ]) {
     assert.equal(registrations.get(key)?.config, false);
     assert.equal(registrations.get(key)?.default, true);

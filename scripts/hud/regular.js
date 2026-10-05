@@ -1,3 +1,4 @@
+import { renderInventoryPanel } from "./items/inventory-panel.js";
 import { renderRegularView } from "../render/index.js";
 
 export function createRegularRenderer(context) {
@@ -5,8 +6,7 @@ export function createRegularRenderer(context) {
     abilitiesSection,
     actorHeader,
     back,
-    combatInitiative,
-    combatItemButton,
+    combatStatuses,
     combatItems,
     companionNavigation,
     companionSection,
@@ -14,103 +14,73 @@ export function createRegularRenderer(context) {
     healthPanel,
     hudState,
     inspirationControl,
-    inventoryCategories,
-    inventoryItems,
-    inventorySummary,
     legend,
     modeNavigation,
+    playerStatsHTML,
     restControls,
-    searchControl,
-    searchItems,
+    globalSearchPanel,
+    sortItems,
     shortcutHint,
     skillFilterHTML,
     skillsHTML,
     spellFilterHTML,
     spellGroups,
     t,
-    toolSection,
-    toolState
+    trainedToolsHTML
   } = context;
 
   const availableViews = () => ({
     inventory: true,
     skills: true,
-    spells: combatItems("spells").length > 0,
-    tools: true
+    spells: combatItems("spells").length > 0
   });
 
-  const inventoryHTML = () => {
-    const items = searchItems(inventoryItems(hudState.inventoryCategory));
-    return `
-    <div id="ws-inventory" class="ws-view ws-hidden">
+  const inventoryHTML = () => `
+    <div id="ws-inventory" class="ws-player-subview">
       ${back(t("Inventory.Title"), "fa-box-open")}
-
       <div class="ws-divider"></div>
+      ${renderInventoryPanel(context)}
+    </div>`;
 
-      ${inventorySummary?.() ?? ""}
-
-      ${searchControl()}
-
-      <div class="ws-combat-filters ws-inventory-filters" role="group" aria-label="${t("Inventory.Filter")}">
-        ${inventoryCategories()
-          .map(
-            ([category, icon, label]) => `
-              <button type="button"
-                class="ws-combat-filter ws-button ${hudState.inventoryCategory === category ? "ws-active" : ""}"
-                data-action="inventoryfilter" data-category="${category}">
-                <i class="fa-solid ${icon}"></i>
-                <span>${t(label)}</span>
-                <small>${inventoryItems(category).length}</small>
-              </button>
-            `
-          )
-          .join("")}
-      </div>
-
-      <div class="ws-combat-item-list">
-        ${
-          items.length
-            ? `<div class="ws-combat-item-grid">${items.map(combatItemButton).join("")}</div>`
-            : `<div class="ws-empty">${t(hudState.searchQuery ? "Quick.NoResults" : "Inventory.Empty")}</div>`
-        }
-      </div>
-
-      ${shortcutHint()}
-    </div>
-  `;
-  };
-
-  const mainHTML = () => {
+  const mainHTML = (body = null) => {
+    const detail = hudState.currentView !== "main";
+    const rests = restControls?.() ?? "";
     const { spells: hasSpells } = availableViews();
-    const nav = (view, icon, label) =>
-      `<button type="button" class="ws-nav ws-button" data-action="view" data-view="${view}"><span class="ws-nav-main"><i class="fa-solid ${icon}"></i>${t(label)}</span><i class="fa-solid fa-chevron-right ws-arrow"></i></button>`;
-    return `<div id="ws-main" class="ws-view">
-      ${actorHeader(`<div class="ws-actor-quick-controls">${combatInitiative()}${inspirationControl()}</div>`)}
+    const nav = (view, icon, label) => {
+      const fallback =
+        !detail && view === "skills" && !hudState.explorationSkillsCollapsed;
+      const expanded = hudState.currentView === view;
+      return `<section class="ws-exploration-section ${expanded ? "ws-expanded" : ""}"><button type="button" class="ws-nav ws-section-toggle ws-button ${expanded ? "ws-active" : ""}" data-action="view" data-view="${view}" ${expanded ? 'aria-current="page"' : ""} data-exploration-section="true" ${fallback ? 'data-exploration-default="true"' : ""} aria-expanded="${expanded}" aria-controls="ws-exploration-content-${view}" title="${t(label)}"><span class="ws-nav-main"><i class="fa-solid ${icon}" aria-hidden="true"></i>${t(label)}</span><i class="fa-solid fa-chevron-${expanded ? "up" : "down"} ws-arrow" aria-hidden="true"></i></button><div id="ws-exploration-content-${view}" class="ws-exploration-section-body" ${fallback ? 'data-exploration-default-body="true"' : ""} ${expanded ? "" : "hidden"}>${expanded || fallback ? body : ""}</div></section>`;
+    };
+    const navigation = `<div class="ws-nav-grid ws-exploration-nav ${detail ? "ws-exploration-detail-nav" : ""}">
+      ${nav("skills", "fa-list-check", "Labels.Skills")}
+      ${hasSpells ? nav("spells", "fa-wand-magic-sparkles", "Combat.Spells") : ""}
+      ${nav("inventory", "fa-box-open", "Inventory.Title")}
+    </div>`;
+    return `<div id="${detail ? "ws-exploration" : "ws-main"}" data-divider-label="${t("Labels.ResizeColumns")}" class="ws-view ws-player-layout ${detail ? "ws-player-detail" : hudState.explorationSkillsCollapsed ? "ws-exploration-collapsed" : "ws-exploration-default"}">
+      <section class="ws-player-basics ws-player-info">
+      ${actorHeader(inspirationControl(), rests ? `<div class="ws-exploration-rests" data-hud-block="rests" data-hud-home="info">${rests}</div>` : "")}
       ${modeNavigation("regular")}
       ${companionNavigation?.() ?? ""}
-      <div class="ws-player-content">
-        <section class="ws-player-basics">
           <div class="ws-regular-health">${healthPanel()}</div>
-          ${restControls?.() ?? ""}
+          ${combatStatuses?.() ?? ""}
+          <div class="ws-player-favorites">${favoriteSection()}</div>
+          <div class="ws-regular-stats">${playerStatsHTML?.(false) ?? ""}</div>
           ${abilitiesSection()}
           ${companionSection?.() ?? ""}
-      <div class="ws-nav-grid">
-        ${nav("skills", "fa-list-check", "Labels.Skills")}
-        ${nav("tools", "fa-screwdriver-wrench", "Labels.Tools")}
-        ${hasSpells ? nav("spells", "fa-wand-magic-sparkles", "Combat.Spells") : ""}
-        ${nav("inventory", "fa-box-open", "Inventory.Title")}
-      </div>
-        </section>
-        <div class="ws-player-favorites">${favoriteSection()}</div>
-      </div>
-      ${shortcutHint()}
+          ${shortcutHint()}
+      </section>
+      <section class="ws-player-actions">
+      ${globalSearchPanel?.() ?? ""}
+      ${navigation}
+      </section>
     </div>`;
   };
 
   const skillsViewHTML = () => `
         <div
           id="ws-skills"
-          class="ws-view ws-hidden"
+          class="ws-player-subview"
         >
           ${back(t("Labels.Skills"), "fa-list-check")}
 
@@ -122,106 +92,47 @@ export function createRegularRenderer(context) {
             <div class="ws-entry-grid">
               ${skillsHTML()}
             </div>
+            ${trainedToolsHTML?.() ?? ""}
           </div>
 
           <div class="ws-divider"></div>
 
           ${legend()}
 
-          ${shortcutHint()}
-        </div>
-      `;
-
-  const toolsViewHTML = () => `
-        <div
-          id="ws-tools"
-          class="ws-view ws-hidden"
-        >
-          ${back(t("Labels.Tools"), "fa-screwdriver-wrench")}
-
-          <div class="ws-divider"></div>
-
-          <div class="ws-scroll">
-            <div class="ws-tools-content">
-
-              ${
-                toolState.tools.length
-                  ? `
-                    ${toolSection(
-                      t("Labels.Tools"),
-                      "fa-screwdriver-wrench",
-                      toolState.normalTools
-                    )}
-
-                    ${toolSection(
-                      t("Labels.Instruments"),
-                      "fa-music",
-                      toolState.instruments
-                    )}
-                  `
-                  : `
-                    <div class="ws-empty">
-
-                      <i
-                        class="
-                          fa-solid
-                          fa-screwdriver-wrench
-                        "
-                      ></i>
-
-                      <span>
-                        ${t("Tools.Empty")}
-                      </span>
-
-                    </div>
-                  `
-              }
-
-            </div>
-          </div>
-
-          ${
-            toolState.tools.length
-              ? `
-                <div class="ws-divider"></div>
-                ${legend()}
-              `
-              : ""
-          }
-
-          ${shortcutHint()}
         </div>
       `;
 
   const spellsViewHTML = () => `
-        <div id="ws-spells" class="ws-view ws-hidden">
+        <div id="ws-spells" class="ws-player-subview">
           ${back(t("Combat.Spells"), "fa-wand-magic-sparkles")}
 
           <div class="ws-divider"></div>
 
-          ${searchControl()}
 
           ${spellFilterHTML()}
 
           <div class="ws-combat-item-list">
             ${
-              spellGroups(searchItems(combatItems("spells"))) ||
-              `<div class="ws-empty">${t(hudState.searchQuery ? "Quick.NoResults" : "Combat.EmptyPrepared")}</div>`
+              spellGroups(sortItems(combatItems("spells"))) ||
+              `<div class="ws-empty">${t("Combat.EmptyPrepared")}</div>`
             }
           </div>
 
-          ${shortcutHint()}
         </div>
       `;
 
   const normalHTML = () =>
-    renderRegularView(hudState.currentView, {
-      main: mainHTML,
-      inventory: inventoryHTML,
-      skills: skillsViewHTML,
-      spells: spellsViewHTML,
-      tools: toolsViewHTML
-    });
+    mainHTML(
+      renderRegularView(
+        hudState.currentView === "main" ? "skills" : hudState.currentView,
+        {
+          main: () => null,
+          inventory: inventoryHTML,
+          skills: skillsViewHTML,
+          spells: spellsViewHTML
+        }
+      )
+    );
 
   return { availableViews, inventoryHTML, normalHTML };
 }

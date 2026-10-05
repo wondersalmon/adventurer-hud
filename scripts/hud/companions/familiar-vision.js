@@ -66,6 +66,12 @@ export function createFamiliarVision({
     if (active) return "Companions.VisionAlreadyActive";
     if (!entry.actor?.isOwner || !actorContext.actor.isOwner)
       return "Companions.NoPermission";
+    if (getSetting(SETTINGS.familiarVision2024)) {
+      if (!adapter.familiarSourceItem(actorContext.actor, entry.actor))
+        return "Companions.VisionNotFamiliar";
+      if (adapter.familiarCasterIncapacitated(actorContext.actor))
+        return "Companions.VisionIncapacitated";
+    }
     const tokens = entry.token ? [entry.token] : entry.tokenOptions;
     if (!tokens?.length) return "Companions.OffScene";
     if (!tokens.some(token => placeableFor(token)))
@@ -162,6 +168,9 @@ export function createFamiliarVision({
       placeableFor(state.token) !== state.placeable ||
       adapter.combatStats(state.token.actor).hp.value <= 0 ||
       !state.token.sight?.enabled ||
+      (getSetting(SETTINGS.familiarVision2024) &&
+        (!adapter.familiarSourceItem(actorContext.actor, state.token.actor) ||
+          adapter.familiarCasterIncapacitated(actorContext.actor))) ||
       (entries &&
         !entries.some(
           entry => entry.uuid === state.uuid && entry.actor?.isOwner
@@ -197,7 +206,7 @@ export function createFamiliarVision({
       return active;
     },
     warning,
-    async toggle(entry) {
+    async toggle(entry, event) {
       if (busy || !isCurrent()) return;
       if (active?.uuid === entry.uuid) return stop();
       if (active)
@@ -220,6 +229,35 @@ export function createFamiliarVision({
         return ui.notifications.warn(t("Companions.VisionOwnTurn"));
       busy = true;
       const operation = ++revision;
+      try {
+        if (getSetting(SETTINGS.familiarVision2024)) {
+          const result = await adapter.useFamiliarSenses(
+            actorContext.actor,
+            entry.actor,
+            {
+              event,
+              label: t("Companions.VisionAction"),
+              isCurrent: () =>
+                isCurrent() &&
+                revision === operation &&
+                placeableFor(entry.token) === placeable &&
+                placeableFor(ownerToken) &&
+                !eligibility(entry)
+            }
+          );
+          if (
+            !result ||
+            !isCurrent() ||
+            revision !== operation ||
+            eligibility(entry)
+          )
+            return;
+        }
+      } finally {
+        busy = false;
+      }
+      if (!isCurrent() || revision !== operation) return;
+      busy = true;
       active = {
         uuid: entry.uuid,
         name: entry.token.name ?? entry.actor.name,
@@ -258,6 +296,12 @@ export function createFamiliarVision({
             actorContext.actor.isOwner &&
             state.token.sight?.enabled &&
             adapter.combatStats(state.token.actor).hp.value > 0 &&
+            (!getSetting(SETTINGS.familiarVision2024) ||
+              (adapter.familiarSourceItem(
+                actorContext.actor,
+                state.token.actor
+              ) &&
+                !adapter.familiarCasterIncapacitated(actorContext.actor))) &&
             canvas.visibility?.tokenVision !== false &&
             !placeable.isPreview &&
             !placeable.isFilteredOut

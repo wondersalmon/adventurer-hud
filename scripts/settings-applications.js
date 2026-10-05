@@ -33,16 +33,33 @@ export function registerSettingsMenus() {
       confirmation.settingsApp = { constructor: { gmOnly } };
       return confirmation.render({ force: true });
     },
-    resetWindowPositions: async () => {
+    resetWindowPositions: async (mode = "all") => {
       await flushWindowGeometry();
       await saveChangedSettings([
-        [SETTINGS.pinWindow, false],
-        [SETTINGS.gmPinWindow, false],
-        [SETTINGS.windowGeometry, {}],
-        [SETTINGS.gmWindowGeometry, {}]
+        ...(mode !== "gm"
+          ? [
+              [SETTINGS.pinWindow, false],
+              [SETTINGS.windowGeometry, {}],
+              [SETTINGS.windowModeSizes, {}],
+              [
+                SETTINGS.playerColumnRatio,
+                getSettingDefinitions()[SETTINGS.playerColumnRatio].default
+              ]
+            ]
+          : []),
+        ...(mode !== "player" && game.user?.isGM
+          ? [
+              [SETTINGS.gmPinWindow, false],
+              [SETTINGS.gmWindowGeometry, {}]
+            ]
+          : [])
       ]);
       const app = globalThis.__adventurerHud?.app;
-      if (app?.rendered) await app.resetWindow?.();
+      const isGm = Boolean(app?.hudGmActive);
+      if (app?.rendered && (mode === "all" || isGm === (mode === "gm"))) {
+        if (app.hudStowed) await app.close({ hudForce: true });
+        else await app.hudActions?.resetwindow?.call(app);
+      }
     }
   });
   game.settings.registerMenu(MODULE_ID, "troubleshooting", {
@@ -88,9 +105,20 @@ export function registerSettingsMenus() {
         "change",
         this.dependencyListener
       );
+      this.dependencyElement?.removeEventListener(
+        "input",
+        this.dependencyListener
+      );
       this.dependencyElement = this.element;
       this.dependencyListener = event => {
         const target = event.target;
+        if (target?.type === "range") {
+          const output = target
+            .closest(".ws-settings-range")
+            ?.querySelector("output");
+          if (output) output.textContent = target.value;
+          return;
+        }
         if (
           ![SETTINGS.showCompanions, SETTINGS.gmEnabled].includes(target?.name)
         )
@@ -101,6 +129,11 @@ export function registerSettingsMenus() {
           control.disabled = !target.checked;
       };
       this.element?.addEventListener("change", this.dependencyListener);
+      this.element?.addEventListener("input", this.dependencyListener);
+      for (const target of this.element?.querySelectorAll?.(
+        'input[type="range"]'
+      ) ?? [])
+        this.dependencyListener({ target });
     }
 
     async _prepareContext() {
@@ -329,4 +362,10 @@ export async function localizeSettingsRows(root) {
 export function openGmSettings() {
   if (!game.user?.isGM || !GmSettingsApplication) return;
   return new GmSettingsApplication().render({ force: true });
+}
+
+export function openTroubleshooting() {
+  return IntegrityApplication
+    ? new IntegrityApplication().render({ force: true })
+    : undefined;
 }

@@ -124,14 +124,19 @@ for (const combat of [false, true]) {
         if (enabled) {
           assert.deepEqual(
             [...hints.querySelectorAll("kbd")].map(key => key.textContent),
-            ["Shift", "Alt", "Ctrl"]
+            [
+              "Shift",
+              "Alt",
+              "Ctrl",
+              "Ctrl + ADVENTURER_HUD.Shortcuts.LeftClick"
+            ]
           );
         }
         if (view) {
           await waitFor(
             () =>
               fixture.current.get("panelStates")?.[fixture.actor.uuid]
-                ?.currentView === view
+                ?.currentView === (view === "tools" ? "skills" : view)
           );
         }
       }
@@ -189,7 +194,15 @@ test("opening a supported actor restores its inventory independently of auto-ope
     app.element.querySelector("#ws-inventory").classList.contains("ws-hidden"),
     false
   );
-  assert.equal(app.element.querySelector(".ws-actor-identity strong"), null);
+  assert.equal(
+    app.element.querySelector(".ws-player-info .ws-actor-identity strong")
+      .textContent,
+    fixture.actor.name
+  );
+  assert.equal(
+    app.element.querySelector(".ws-view:not(.ws-hidden)").id,
+    "ws-exploration"
+  );
   assert.deepEqual(fixture.notifications, []);
   const subscriptionCount = fixture.callbacks.size;
   await app.close();
@@ -397,7 +410,7 @@ test("character actions share a cooldown across rolls, description sharing and H
   await actions.openitem({ shiftKey: true }, { dataset: { itemId: "sword" } });
   assert.equal(rolls, 1);
   assert.equal(shared, 0);
-  await actions.toggleabilities();
+  assert.equal(actions.toggleabilities, undefined);
   assert.equal(fixture.notifications.length, 0);
   await fixture.api.open(fixture.actor);
   actions = __adventurerHud.app.options.actions;

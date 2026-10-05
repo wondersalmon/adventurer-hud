@@ -274,48 +274,46 @@ test("tools use owned documents or native base-item resolution for their identit
   assert.deepEqual(requests, [["Compendium.tools.lute", { fullItem: true }]]);
 });
 
-test("condition descriptions enrich native rules and custom effects, excluding suppressed effects", async () => {
-  globalThis.CONFIG = {
-    statusEffects: [{ id: "poisoned", reference: "Compendium.rules.poisoned" }]
-  };
+test("status removal delegates conditions and protects transferred effect definitions", async () => {
+  globalThis.CONFIG = { statusEffects: [{ id: "poisoned" }] };
   const calls = [];
-  globalThis.foundry = {
-    applications: {
-      ux: {
-        TextEditor: {
-          implementation: {
-            async enrichHTML(text, options) {
-              calls.push([text, options]);
-              return `<p>${text}</p>`;
-            }
-          }
-        }
-      }
-    }
-  };
-  const effect = {
-    statuses: new Set(["custom"]),
-    description: "Custom effect"
+  const ownEffect = {
+    id: "own",
+    uuid: "Actor.test.ActiveEffect.own",
+    delete: async () => calls.push("deleted")
   };
   const actor = {
-    isOwner: true,
-    statuses: new Set(["poisoned"]),
-    *allApplicableEffects() {
-      yield effect;
-      yield {
-        statuses: new Set(["hidden"]),
-        description: "Suppressed",
-        isSuppressed: true
-      };
+    effects: [ownEffect],
+    toggleStatusEffect: async (...args) => calls.push(args)
+  };
+  await adapter.removeStatus(actor, "poisoned");
+  await adapter.removeStatus(actor, "effect:Actor.test.ActiveEffect.own");
+  await adapter.removeStatus(
+    actor,
+    "effect:Actor.test.Item.item.ActiveEffect.buff"
+  );
+  assert.deepEqual(calls, [["poisoned", { active: false }], "deleted"]);
+});
+test("native status rule references cover concentration and dodge without overriding configured references", () => {
+  globalThis.CONFIG = {
+    DND5E: {
+      rules: {
+        concentrating: "Compendium.rules.concentration",
+        dodge: "Compendium.rules.dodge"
+      }
+    },
+    statusEffects: {
+      concentrating: { id: "concentrating" },
+      dodging: { id: "dodging" },
+      custom: { id: "custom", reference: "JournalEntry.custom" }
     }
   };
-  const descriptions = await adapter.statusDescriptions(actor);
-  assert.equal(
-    descriptions.get("poisoned"),
-    "<p>@Embed[Compendium.rules.poisoned inline]</p>"
+  assert.deepEqual(
+    adapter.statusDefinitions().map(status => status.reference),
+    [
+      "Compendium.rules.concentration",
+      "Compendium.rules.dodge",
+      "JournalEntry.custom"
+    ]
   );
-  assert.equal(descriptions.get("custom"), "<p>Custom effect</p>");
-  assert.equal(descriptions.has("hidden"), false);
-  assert.equal(calls[1][1].relativeTo, effect);
-  assert.equal(calls[1][1].secrets, true);
 });

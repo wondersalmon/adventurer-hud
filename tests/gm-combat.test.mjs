@@ -263,7 +263,7 @@ test("GM settings reuse the form, reject player access and isolate reset from pl
   assert.equal(f.current.get("gmEnabled"), true);
   assert.equal(f.current.get("showSearch"), false);
   await resetSettings({ gmOnly: true });
-  assert.equal(f.current.get("gmEnabled"), true);
+  assert.equal(f.current.get("gmEnabled"), false);
   assert.equal(f.current.get("gmAutoAdvance"), false);
   assert.equal(f.current.get("showSearch"), false);
   game.user.isGM = false;
@@ -276,7 +276,7 @@ test("GM settings reuse the form, reject player access and isolate reset from pl
 test("players cannot enable the GM preset or open NPCs through the HUD API", async () => {
   const f = await hudFixture();
   await setSetting(SETTINGS.gmEnabled, true);
-  assert.equal(f.current.get(SETTINGS.gmEnabled), true);
+  assert.equal(f.current.get(SETTINGS.gmEnabled), false);
   assert.equal(f.menus.get("gm").restricted, true);
   assert.equal(openGmSettings(), undefined);
   f.current.set(SETTINGS.gmEnabled, true);

@@ -37,7 +37,9 @@ export async function placementFixture() {
   };
 }
 export async function familiarFixture() {
-  const f = await fixture({ values: { showModeNavigation: true } });
+  const f = await fixture({
+    values: { showModeNavigation: true, companionVisionPan: true }
+  });
   const hero = f.token(f.actor, "hero", true);
   const familiar = f.token(f.npc(), "owl");
   const summon = f.token(f.npc("wolf"), "wolf");

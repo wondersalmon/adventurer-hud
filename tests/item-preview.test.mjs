@@ -97,36 +97,39 @@ test("leaving before delay avoids enrichment and hover cannot use the item", asy
   assert.equal(f.element.querySelector(".ws-item-preview"), null);
 });
 
-test("disabling hover still permits an explicit pinned F2 preview and Escape cleans it", async t => {
+test("hovering or focusing side controls never enriches the spell description", async t => {
+  const f = fixture(t);
+  const card = f.element.querySelector('[data-description-item-id="a"]');
+  const side = f.document.createElement("div");
+  side.className = "ws-item-side-actions";
+  side.innerHTML = '<button data-action="openitem">Open</button>';
+  card.append(side);
+  for (const type of ["mouseover", "focusin"]) {
+    side.firstElementChild.dispatchEvent(
+      new f.document.defaultView.Event(type, { bubbles: true })
+    );
+    t.mock.timers.tick(500);
+    await settle();
+  }
+  assert.deepEqual(f.calls, []);
+  f.event("a", "mouseover");
+  t.mock.timers.tick(400);
+  await settle();
+  assert.ok(f.element.querySelector(".ws-item-preview"));
+  side.firstElementChild.dispatchEvent(
+    new f.document.defaultView.Event("mouseover", { bubbles: true })
+  );
+  assert.equal(f.element.querySelector(".ws-item-preview"), null);
+});
+
+test("disabled hover and F2 do not open or pin a preview", async t => {
   const f = fixture(t, { enabled: () => false });
   f.event("a", "focusin");
+  assert.equal(f.event("a", "keydown", { key: "F2" }).defaultPrevented, false);
   t.mock.timers.tick(500);
   await settle();
   assert.equal(f.calls.length, 0);
-  assert.equal(f.event("a", "keydown", { key: "F2" }).defaultPrevented, true);
-  await settle();
-  assert.equal(
-    f.element.querySelector(".ws-item-preview").getAttribute("role"),
-    "dialog"
-  );
-  f.event("a", "mouseout");
-  t.mock.timers.tick(500);
-  assert.ok(f.element.querySelector(".ws-item-preview"));
-  assert.equal(
-    f.event("a", "keydown", { key: "Escape" }).defaultPrevented,
-    true
-  );
   assert.equal(f.element.querySelector(".ws-item-preview"), null);
-  assert.equal(
-    f.element
-      .querySelector('[data-description-item-id="a"]')
-      .hasAttribute("aria-describedby"),
-    false
-  );
-  assert.equal(
-    f.event("a", "keydown", { key: "Enter" }).defaultPrevented,
-    false
-  );
 });
 
 for (const change of ["dispose", "replace", "remove", "ownership"]) {
@@ -139,7 +142,8 @@ for (const change of ["dispose", "replace", "remove", "ownership"]) {
         })
     });
     if (change === "ownership") f.items.get("a").isOwner = true;
-    f.event("a", "keydown", { key: "F2" });
+    f.event("a", "mouseover");
+    t.mock.timers.tick(400);
     if (change === "dispose") f.preview.dispose();
     if (change === "replace") f.items.set("a", { name: "Replacement" });
     if (change === "ownership") f.items.get("a").isOwner = false;
@@ -178,13 +182,15 @@ test("enrichment failure is reported and dispose removes all event routes and ti
       throw failure;
     }
   });
-  f.event("a", "keydown", { key: "F2" });
+  f.event("a", "mouseover");
+  t.mock.timers.tick(400);
   await settle();
   assert.deepEqual(f.errors, [failure]);
   assert.equal(f.element.querySelector(".ws-item-preview"), null);
   f.preview.dispose();
   f.event("a", "mouseover");
-  f.event("a", "keydown", { key: "F2" });
+  f.event("a", "mouseover");
+  t.mock.timers.tick(400);
   t.mock.timers.tick(1000);
   await settle();
   assert.equal(f.errors.length, 1);

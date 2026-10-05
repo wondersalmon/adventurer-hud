@@ -60,7 +60,7 @@ test("features follow Actions and activate through the existing item cards", () 
   });
   const closed = renderer.combatActions();
   assert.ok(
-    closed.indexOf('data-action="toggleactionmenu"') <
+    closed.indexOf('data-category="action"') <
       closed.indexOf('data-category="features"')
   );
   hudState.combatCategory = "features";
@@ -69,7 +69,8 @@ test("features follow Actions and activate through the existing item cards", () 
   assert.match(html, /Flurry of Blows/);
   assert.doesNotMatch(html, /openresource|changeresource/);
   hudState.searchQuery = "missing";
-  assert.match(renderer.combatActions(), /Quick.NoResults/);
+  assert.match(renderer.combatActions(), /Flurry of Blows/);
+  assert.match(renderer.globalSearchPanel(), /Quick.NoResults/);
   available = [];
   renderer.combatActions();
   assert.equal(hudState.combatCategory, null);
@@ -90,10 +91,10 @@ test("search sorting evaluates availability once per matched item and stays fres
     }
   });
   const items = [first, second, third];
-  assert.deepEqual(renderer.searchItems(items), [second, third, first]);
+  assert.deepEqual(renderer.sortItems(items), [second, third, first]);
   assert.equal(calls, 3);
   emptyId = "second";
-  assert.deepEqual(renderer.searchItems(items), [first, third, second]);
+  assert.deepEqual(renderer.sortItems(items), [first, third, second]);
   assert.equal(calls, 6);
   assert.deepEqual(items, [first, second, third]);
 });
@@ -222,7 +223,7 @@ test("hidden item details skip attack and damage calculations", () => {
   }
 });
 
-test("multi-activity cards show a chooser and hide saved stars until editing", () => {
+test("multi-activity cards show a chooser and permanent item and activity stars", () => {
   const activities = [
     { id: "attack", name: "Attack", use() {} },
     { id: "save", name: "Save", use() {} }
@@ -254,17 +255,20 @@ test("multi-activity cards show a chooser and hide saved stars until editing", (
   const html = renderer.combatItemButton(item);
   assert.match(html, /data-action="useactivity"/);
   assert.match(html, /data-activity-id="attack"/);
-  assert.doesNotMatch(html, /ws-item-favorite ws-active/);
-  hudState.favoriteEdit = true;
+  assert.match(html, /ws-item-favorite/);
+  assert.match(
+    renderer.combatItemButton(item),
+    /data-action="togglefavorite" data-item-id="staff"\s+title=/
+  );
   assert.match(renderer.combatItemButton(item), /data-action="removefavorite"/);
   assert.match(renderer.favoriteSection(), /Staff: Attack/);
   hudState.favoritesExpanded = false;
   assert.match(renderer.favoriteSection(), /aria-expanded="false"/);
   assert.doesNotMatch(renderer.favoriteSection(), /Staff: Attack/);
-  assert.match(renderer.searchControl(), /value="staff"/);
+  assert.match(renderer.globalSearchPanel(), /value="staff"/);
 });
 
-test("compact favorites use the displayed item for descriptions and expose activity removal in editing", () => {
+test("compact favorites use the displayed item for descriptions and always expose activity removal", () => {
   const item = { id: "spell", name: "Spell", type: "spell", system: {} };
   const source = { id: "wand" };
   const { renderer, hudState } = itemRendererFixture({
@@ -279,11 +283,7 @@ test("compact favorites use the displayed item for descriptions and expose activ
   let html = renderer.favoriteSection();
   assert.match(html, /data-description-item-id="spell"/);
   assert.match(html, /data-action="useactivity"\s+data-item-id="wand"/);
-  assert.doesNotMatch(
-    html,
-    /ws-item-description|data-action="(?:togglefavorite|removefavorite)"/
-  );
-  hudState.favoriteEdit = true;
+  assert.doesNotMatch(html, /ws-item-description/);
   html = renderer.favoriteSection();
   assert.match(html, /data-action="removefavorite" data-item-id="spell"/);
   hudState.favoriteEntries = [{ itemId: "spell", activityId: "blast" }];
@@ -534,7 +534,7 @@ test("grouped action menu keeps nonempty action types selectable", () => {
     }
   });
   const html = renderer.combatActions();
-  assert.match(html, /data-action="toggleactionmenu"/);
+  assert.doesNotMatch(html, /data-action="toggleactionmenu"/);
   assert.match(html, /data-category="action"/);
   assert.doesNotMatch(html, /data-category="bonus"/);
   assert.deepEqual(categoryReads, [
@@ -600,7 +600,7 @@ test("action-type setting hides its menu while keeping weapon actions", () => {
     visibility
   });
 
-  assert.match(renderer.combatActions(), /data-action="toggleactionmenu"/);
+  assert.match(renderer.combatActions(), /data-category="action"/);
   visibility.showActionTypes = false;
   const html = renderer.combatActions();
   assert.match(html, /data-category="weapons"/);
@@ -661,6 +661,11 @@ test("item action opens the inline chooser and favorite action saves the choice"
     }
   );
   assert.deepEqual(saves, [["staff", "save"]]);
+  await actions.togglefavorite({}, { dataset: { itemId: "staff" } });
+  assert.deepEqual(saves, [
+    ["staff", "save"],
+    ["staff", null]
+  ]);
 });
 
 test("Shift keeps native item use when the inline chooser is enabled", async () => {
@@ -738,16 +743,13 @@ test("native availability keeps empty-charge overrides usable and disabled favor
   const html = renderer.favoriteSection();
   assert.match(html, /Wand: Hidden/);
   assert.match(html, /disabled aria-disabled="true"/);
-  assert.match(
-    html,
-    /title="Quick.ActivityUnavailable\nCombat.OpenDescriptionHint"/
-  );
+  assert.match(html, /title="Quick.ActivityUnavailable"/);
   assert.doesNotMatch(html, /data-favorite-drag-handle|draggable=/);
   item.canUse = false;
   assert.equal(dnd5eAdapter.itemUseState(item).reason, "Quick.ItemUnavailable");
 });
 
-test("empty favorites are hidden and depleted items retain their order with hover-only reasons", () => {
+test("empty favorites offer editing guidance and depleted items retain their order with hover-only reasons", () => {
   const charged = {
       id: "ready",
       name: "Ready",
@@ -782,7 +784,7 @@ test("empty favorites are hidden and depleted items retain their order with hove
   const html = renderer.favoriteSection();
   assert.ok(html.indexOf("Empty") < html.indexOf("Ready"));
   assert.doesNotMatch(html, /class="ws-item-unavailable"/);
-  assert.match(html, /title="Quick.NoCharges\nCombat.OpenDescriptionHint"/);
+  assert.match(html, /title="Quick.NoCharges"/);
   assert.match(html, /0\/7/);
   assert.doesNotMatch(html, /Combat.ResourceCost/);
   assert.match(html, /ws-unavailable-card/);
@@ -791,7 +793,9 @@ test("empty favorites are hidden and depleted items retain their order with hove
   const restored = renderer.favoriteSection();
   assert.ok(restored.indexOf("Empty") < restored.indexOf("Ready"));
   hudState.favoriteEntries = [];
-  assert.equal(renderer.favoriteSection(), "");
+  assert.match(renderer.favoriteSection(), /Quick.EmptyFavoritesHint/);
+  assert.match(renderer.favoriteSection(), /Quick.Favorites · 0/);
   hudState.favoritesExpanded = false;
-  assert.equal(renderer.favoriteSection(), "");
+  assert.match(renderer.favoriteSection(), /aria-expanded="false"/);
+  assert.doesNotMatch(renderer.favoriteSection(), /Quick.EmptyFavoritesHint/);
 });

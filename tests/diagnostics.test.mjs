@@ -224,7 +224,7 @@ test("settings export delegates a readable report to the native Foundry download
 test("repair and export failures reach both the journal and the user", async t => {
   t.mock.method(console, "error", () => {});
   const { menus, notifications } = installSettings({
-    values: { showSearch: "broken" }
+    values: { showSearch: "broken", language: "auto" }
   });
   const C = menus.get("troubleshooting").type;
   const app = new C();

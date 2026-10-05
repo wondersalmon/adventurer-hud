@@ -47,18 +47,12 @@ test("world-character HUD shares sight through its unlinked caster token on its 
   familiar.sight.enabled = false;
   f.hooks.callAll("updateToken", familiar, {});
   await waitFor(() => eye().disabled);
-  assert.match(
-    app.element.querySelector(".ws-companion-status").textContent,
-    /зрение|vision/i
-  );
+  assert.match(eye().title, /зрение|vision/i);
   familiar.sight.enabled = true;
   combat.combatant = entries[1];
   f.hooks.callAll("updateCombat", combat, {});
-  await waitFor(() =>
-    /бонусн|Bonus Action/i.test(
-      app.element.querySelector(".ws-companion-status").textContent
-    )
-  );
+  await waitFor(() => /бонусн|Bonus Action/i.test(eye().title));
+  assert.equal(app.element.querySelector(".ws-companion-status"), null);
   combat.combatant = entries[0];
   f.hooks.callAll("updateCombat", combat, {});
   await waitFor(() => !eye().disabled);

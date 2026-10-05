@@ -1,3 +1,7 @@
+import { snapWindowPosition } from "./geometry.js";
+import { setSetting, SETTINGS } from "../../settings-access.js";
+import { flushWindowGeometry } from "../../window-geometry.js";
+
 const PIN_SELECTOR = '[data-action="togglepin"]';
 const MENU_SELECTOR = [
   'button[data-action="toggleControls"]',
@@ -30,15 +34,18 @@ export function syncPinControl({ document, header, label, pinned }) {
   return control;
 }
 
-export function syncFavoriteEditControl({
+export function syncHeaderEditControl({
   document,
   header,
   enabled,
   editing,
-  label
+  label,
+  action = "togglehudedit",
+  icon = "fa-pen-to-square",
+  besidePin = false
 }) {
   if (!header) return null;
-  let control = header.querySelector('[data-action="togglefavoriteedit"]');
+  let control = header.querySelector(`[data-action="${action}"]`);
   if (!enabled) {
     control?.remove();
     return null;
@@ -48,9 +55,11 @@ export function syncFavoriteEditControl({
   if (!control) {
     control = document.createElement("button");
     control.type = "button";
-    control.classList.add("header-control", "icon", "fa-solid", "fa-star");
-    control.dataset.action = "togglefavoriteedit";
-    menu.before(control);
+    control.classList.add("header-control", "icon", "fa-solid", icon);
+    control.dataset.action = action;
+    const pin = header.querySelector(PIN_SELECTOR);
+    if (besidePin && pin) pin.after(control);
+    else menu.before(control);
   }
   control.classList.toggle("ws-active", editing);
   control.title = label;
@@ -64,13 +73,15 @@ export function createHudApplicationClass({
   document,
   getPinLabel,
   isPinned,
-  allowCloseOnEscape = () => false
+  editingCloseConfig = () => ({}),
+  allowCloseOnEscape = () => false,
+  shouldSlide = () => false
 }) {
   return class AdventurerHudDialog extends DialogV2 {
     _onRender(context, options) {
       super._onRender(context, options);
       this.updatePinControl();
-      this.updateFavoriteEditControl?.();
+      this.updateHudEditControl?.();
     }
 
     setPosition(position = {}) {
@@ -84,7 +95,12 @@ export function createHudApplicationClass({
       const minimum = this.hudMinimumHeight?.() ?? 180;
       if (Number.isFinite(next.height))
         next.height = Math.max(minimum, next.height);
-      return super.setPosition(next);
+      return super.setPosition(
+        snapWindowPosition(next, this.position, {
+          width: window.innerWidth,
+          height: window.innerHeight
+        })
+      );
     }
 
     updatePinControl() {
@@ -101,9 +117,76 @@ export function createHudApplicationClass({
 
     async close(options = {}) {
       if (options.closeKey && !allowCloseOnEscape()) return this;
+      if (!options.hudForce && this.hudEditingState?.()) {
+        const current = this.hudEditingState;
+        this.hudEditingCloseTask ??= DialogV2.confirm(editingCloseConfig());
+        let accepted;
+        try {
+          accepted = await this.hudEditingCloseTask;
+        } finally {
+          this.hudEditingCloseTask = null;
+        }
+        if (!accepted || this.hudEditingState !== current) return this;
+      }
+      if (!options.hudForce && shouldSlide() && this.rendered) {
+        if (this.hudStowed) return this;
+        this.hudStowed = true;
+        this.disposeHudSession?.();
+        this.element.inert = true;
+        this.hudSlideTask = (async () => {
+          await this.slideHud(false);
+          this.element.hidden = true;
+          await flushWindowGeometry();
+          await setSetting(SETTINGS.hudClosed, true);
+          Hooks.callAll("adventurerHudVisibilityChanged");
+        })();
+        await this.hudSlideTask;
+        return this;
+      }
+      if (this.hudStowed) await this.hudSlideTask;
       const closed = await super.close(options);
       await this.hudClosePersistence;
       return closed;
+    }
+
+    async slideHud(opening) {
+      if (
+        !this.element.animate ||
+        window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+      )
+        return;
+      const rect = this.element.getBoundingClientRect();
+      const distances = [
+        rect.left,
+        window.innerWidth - rect.right,
+        rect.top,
+        window.innerHeight - rect.bottom
+      ];
+      const edge = distances.indexOf(Math.min(...distances));
+      const transforms = [
+        `translateX(${-rect.right - 12}px)`,
+        `translateX(${window.innerWidth - rect.left + 12}px)`,
+        `translateY(${-rect.bottom - 12}px)`,
+        `translateY(${window.innerHeight - rect.top + 12}px)`
+      ];
+      const frames = [
+        { transform: "none", opacity: 1 },
+        { transform: transforms[edge], opacity: 0 }
+      ];
+      const animation = this.element.animate(
+        opening ? frames.reverse() : frames,
+        { duration: 180, easing: "ease-out" }
+      );
+      await animation.finished.catch(() => {});
+    }
+
+    async revealHud() {
+      if (!this.hudStowed) return;
+      await this.hudSlideTask;
+      this.element.hidden = false;
+      this.element.inert = false;
+      this.hudStowed = false;
+      await this.slideHud(true);
     }
   };
 }

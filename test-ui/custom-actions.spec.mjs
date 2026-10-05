@@ -91,7 +91,13 @@ for (const [name, type, count] of [
       await expect(
         page.locator('[data-action="featurefilter"]')
       ).toHaveAttribute("aria-pressed", "false");
-      await expect(page.locator('[data-action="openitem"]')).toHaveCount(0);
+      await expect(page.locator('[data-action="openitem"]')).toHaveCount(
+        f.actor.items.filter(
+          item =>
+            item.type === "feat" &&
+            item.system.activities.some(activity => activity.activation?.type)
+        ).length
+      );
       await page.locator('[data-action="featurefilter"]').focus();
       await page.keyboard.press("Space");
       await expect(
@@ -200,25 +206,25 @@ test("hover preview is readable in both themes, stays in the viewport and can be
   }
 });
 
-test("disabled hover still supports keyboard pinning, Escape and focus restoration", async ({
+test("disabled hover and F2 stay inactive; enabled focus supports pinning and Escape", async ({
   page
 }) => {
   await previewPage(page, { enabled: false });
   const card = page.getByRole("button", { name: "Read trait" });
   await card.focus();
+  await page.keyboard.press("F2");
   await page.waitForTimeout(500);
   await expect(page.locator(".ws-item-preview")).toHaveCount(0);
-  await page.keyboard.press("F2");
-  await expect(page.locator(".ws-item-preview")).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(page.locator(".ws-item-preview")).toHaveCount(0);
-  await expect(card).toBeFocused();
   await page.evaluate(() => (window.automatic = true));
-  await page.keyboard.press("F2");
-  await expect(page.locator(".ws-item-preview")).toBeVisible();
+  await card.blur();
+  await card.focus();
+  const popup = page.locator(".ws-item-preview");
+  await expect(popup).toBeVisible();
+  await popup.getByRole("button", { name: "Pin description" }).click();
+  await expect(popup).toHaveAttribute("role", "dialog");
   await page.keyboard.press("Escape");
-  await page.waitForTimeout(500);
-  await expect(page.locator(".ws-item-preview")).toHaveCount(0);
+  await expect(popup).toHaveCount(0);
+  await expect(card).toBeFocused();
   expect(await page.evaluate(() => window.nativeUses)).toBe(0);
 });
 
@@ -227,8 +233,8 @@ test("DOM refresh and session disposal remove pinned previews and discard late e
 }) => {
   await previewPage(page);
   await page.getByRole("button", { name: "Read trait" }).focus();
-  await page.keyboard.press("F2");
   await expect(page.locator(".ws-item-preview")).toBeVisible();
+  await page.getByRole("button", { name: "Pin description" }).click();
   await page.evaluate(
     () => (document.querySelector(".ws-view").innerHTML = "<p>New actor</p>")
   );
@@ -236,7 +242,9 @@ test("DOM refresh and session disposal remove pinned previews and discard late e
   await page.evaluate(() => window.preview.dispose());
   await previewPage(page, { slow: true });
   await page.getByRole("button", { name: "Read trait" }).focus();
-  await page.keyboard.press("F2");
+  await page.waitForFunction(
+    () => typeof window.resolveDescription === "function"
+  );
   await page.evaluate(() => {
     window.preview.dispose();
     window.resolveDescription();
@@ -264,7 +272,7 @@ test("unavailable native actions remain readable from the keyboard", async ({
         element: document.querySelector("main"),
         getItem: () => item,
         enrich: async () => "<p>Unavailable action description</p>",
-        enabled: () => false,
+        enabled: () => true,
         isActive: () => true,
         t: key => key,
         onError: error => {
@@ -277,15 +285,14 @@ test("unavailable native actions remain readable from the keyboard", async ({
   const card = page.locator(`[data-description-item-id="${item.id}"]`);
   await expect(card.locator(".ws-combat-item")).toBeDisabled();
   await card.focus();
-  await page.keyboard.press("F2");
   await expect(page.locator(".ws-item-preview-body")).toHaveText(
     "Unavailable action description"
   );
   await page.keyboard.press("Escape");
-  await expect(card).toBeFocused();
+  await expect(card.locator('[data-action="openitem"]')).toBeFocused();
 });
 
-test("player menu keeps nonstandard activations under Special", async ({
+test("player categories keep nonstandard activations under Special", async ({
   page
 }) => {
   for (const [language, theme] of [
@@ -306,7 +313,7 @@ test("player menu keeps nonstandard activations under Special", async ({
     );
     await expect(page.locator('[data-category^="activation:"]')).toHaveCount(0);
     await expect(
-      page.locator('.ws-action-menu [data-category="special"]')
+      page.locator('.ws-combat-filters [data-category="special"]')
     ).toBeVisible();
     await expect(page.locator('[data-action="useactivity"]')).not.toHaveCount(
       0

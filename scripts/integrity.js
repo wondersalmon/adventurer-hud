@@ -34,8 +34,13 @@ export function inspectSavedData(values) {
     const valid =
       definition.type === Boolean
         ? typeof value === "boolean"
-        : typeof value === "string" &&
-          (!definition.choices || Object.hasOwn(definition.choices, value));
+        : definition.type === Number
+          ? typeof value === "number" &&
+            Number.isFinite(value) &&
+            (!definition.range ||
+              (value >= definition.range.min && value <= definition.range.max))
+          : typeof value === "string" &&
+            (!definition.choices || Object.hasOwn(definition.choices, value));
     if (!valid) suggest(key, definition.default);
   }
   if (typeof values[SETTINGS.proficientSkillsOnly] !== "boolean")
@@ -51,10 +56,7 @@ export function inspectSavedData(values) {
         Object.entries(saved).filter(([key]) => !obsoletePanelKeys.has(key))
       );
       const known = [
-        "abilitiesExpanded",
-        "combatAbilitiesExpanded",
         "conditionsExpanded",
-        "actionMenuOpen",
         "favoritesExpanded",
         "preparedSpellsOnly",
         "combatCategory",
@@ -87,6 +89,27 @@ export function inspectSavedData(values) {
       suggest(geometryKey, next);
     }
   }
+  const sizes = values[SETTINGS.windowModeSizes];
+  if (!isRecord(sizes)) suggest(SETTINGS.windowModeSizes, {});
+  else {
+    const next = { ...sizes };
+    for (const mode of ["regular", "combat"]) {
+      if (!Object.hasOwn(next, mode)) continue;
+      if (!isRecord(next[mode])) {
+        delete next[mode];
+        continue;
+      }
+      next[mode] = { ...next[mode] };
+      for (const key of ["width", "height"]) {
+        if (!Object.hasOwn(next[mode], key)) continue;
+        const value = next[mode][key];
+        if (typeof value !== "number" || !Number.isFinite(value))
+          delete next[mode][key];
+        else next[mode][key] = Math.max(key === "width" ? 270 : 350, value);
+      }
+    }
+    suggest(SETTINGS.windowModeSizes, next);
+  }
   return issues;
 }
 
@@ -96,6 +119,7 @@ function readSavedData() {
     SETTINGS.proficientSkillsOnly,
     SETTINGS.panelStates,
     SETTINGS.windowGeometry,
+    SETTINGS.windowModeSizes,
     SETTINGS.gmWindowGeometry
   ];
   const values = {};
@@ -196,7 +220,6 @@ export async function checkIntegrity() {
     "itemDamageFormula",
     "itemUsesData",
     "spellPreparation",
-    "statusDescriptions",
     "getTools",
     "useItem",
     "useActivity"

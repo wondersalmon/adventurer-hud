@@ -1,82 +1,144 @@
-<div class="ws-settings-form">
-  <p>{{intro}}</p>
-  <p role="status">{{summary}}</p>
-  {{#if repaired}}<p>{{repaired}}</p>{{/if}}
-  <ul>{{#each issues}}<li>{{message}} — {{action}}</li>{{/each}}</ul>
-  {{#if manualHint}}<p class="hint">{{manualHint}}</p>{{/if}}
+<div class="ws-settings-form ws-troubleshooting">
   <fieldset class="ws-settings-group ws-diagnostics">
-    <legend>{{exportLabel}}</legend>
-    <p class="hint">{{sectionsLabel}}</p>
+    <legend>{{recordingSectionLabel}}</legend>
+    <p class="hint">{{recordingHint}}</p>
+    {{#if recording}}<p
+        class="ws-diagnostic-recording"
+        role="status"
+      >{{recordingLabel}}</p>{{/if}}
+    <div class="ws-troubleshooting-actions">
+      {{#if recording}}
+        <button
+          type="button"
+          data-action="mark"
+          class="ws-troubleshooting-primary"
+        >{{markLabel}}</button>
+        <button
+          type="button"
+          data-action="stoprecord"
+        >{{stopRecordLabel}}</button>
+      {{else}}<button
+          type="button"
+          data-action="record"
+        >{{recordLabel}}</button>{{/if}}
+    </div>
+    <p class="hint">{{recordingStatus}}</p>
+  </fieldset>
+  <details
+    class="ws-settings-group ws-diagnostics"
+    data-troubleshooting-section="report"
+    {{expandedSectionAttributes.report}}
+  >
+    <summary>{{reportSectionLabel}}</summary>
+    <p class="hint">{{reportHelpLabel}}</p>
     <p role="status">{{diagnosticSummary}}</p>
-    <p>{{recordingStatus}}</p>
-    {{#if recording}}
-      <p class="ws-diagnostic-recording" role="status">{{recordingLabel}}</p>
-      <button type="button" data-action="mark">{{markLabel}}</button>
-      <button
-        type="button"
-        data-action="stoprecord"
-      >{{stopRecordLabel}}</button>
-    {{else}}
-      <button type="button" data-action="record">{{recordLabel}}</button>
-    {{/if}}
-    <label>{{commentLabel}}<textarea
+    <label class="ws-diagnostic-comment">{{commentLabel}}<textarea
         data-diagnostic-comment
         maxlength="4000"
         rows="3"
       >{{diagnosticComment}}</textarea></label>
-    <label>{{#if includeErrorText}}<input
+    <label class="ws-setting-toggle">{{#if includeErrorText}}<input
           type="checkbox"
           data-diagnostic-errors
           checked
-        />{{else}}<input
-          type="checkbox"
-          data-diagnostic-errors
-        />{{/if}}{{includeErrorsLabel}}</label>
+        />{{else}}<input type="checkbox" data-diagnostic-errors />{{/if}}
+      <span>{{includeErrorsLabel}}</span></label>
     <p class="hint">{{privacyHint}}</p>
-    <button type="button" data-action="preview">{{previewLabel}}</button>
+    <div class="ws-troubleshooting-actions">
+      <button
+        type="button"
+        data-action="export"
+        class="ws-troubleshooting-primary"
+      >{{exportLabel}}</button>
+      <button type="button" data-action="preview">{{previewLabel}}</button>
+    </div>
     {{#if preview}}<pre
         class="ws-diagnostic-preview"
         tabindex="0"
         aria-label="{{previewLabel}}"
       >{{preview}}</pre>{{/if}}
-    <button type="button" data-action="export">{{exportLabel}}</button>
     <button
       type="button"
       data-action="cleardiagnostics"
     >{{clearDiagnosticsLabel}}</button>
-  </fieldset>
-  <fieldset class="ws-settings-group">
-    <button
-      type="button"
-      data-action="resetsettings"
-    >{{resetSettingsLabel}}</button>
-    {{#if isGM}}<button
+  </details>
+  <details
+    class="ws-settings-group"
+    data-troubleshooting-section="saved"
+    {{expandedSectionAttributes.saved}}
+  >
+    <summary>{{integritySectionLabel}}</summary>
+    <p class="hint">{{intro}}</p>
+    <p role="status">{{summary}}</p>
+    {{#if repaired}}<p>{{repaired}}</p>{{/if}}
+    {{#if issues.length}}<ul>{{#each issues}}<li>{{message}}
+            —
+            {{action}}</li>{{/each}}</ul>{{/if}}
+    {{#if manualHint}}<p class="hint">{{manualHint}}</p>{{/if}}
+    <div class="ws-troubleshooting-actions">
+      {{#if busy}}<button
+          type="button"
+          disabled
+        >{{checkLabel}}</button>{{else}}<button
+          type="button"
+          data-action="check"
+        >{{checkLabel}}</button>{{/if}}
+      {{#if canRepair}}<button
+          type="button"
+          data-action="repair"
+        >{{repairLabel}}</button>{{/if}}
+    </div>
+  </details>
+  <details
+    class="ws-settings-group"
+    data-troubleshooting-section="backup"
+    {{expandedSectionAttributes.backup}}
+  >
+    <summary>{{backupSectionLabel}}</summary>
+    <p class="hint">{{backupHint}}</p>
+    <div class="ws-troubleshooting-actions">
+      <button
         type="button"
-        data-action="resetgm"
-      >{{resetGmLabel}}</button>{{/if}}
-    <button
-      type="button"
-      data-action="resetpositions"
-    >{{resetPositionsLabel}}</button>
-  </fieldset>
-  <footer class="form-footer">
-    {{#if busy}}<button
+        data-action="backupsettings"
+      >{{backupLabel}}</button>
+      <button
         type="button"
-        disabled
-      >{{checkLabel}}</button>{{else}}<button
+        data-action="restoresettings"
+      >{{restoreLabel}}</button>
+    </div>
+  </details>
+  <details class="ws-settings-group ws-troubleshooting-resets">
+    <summary>{{resetsLabel}}</summary>
+    <div class="ws-troubleshooting-actions">
+      <button
         type="button"
-        data-action="check"
-      >{{checkLabel}}</button>{{/if}}
-    {{#if canRepair}}<button
+        data-action="resetplayerwindow"
+      >{{resetPlayerWindowLabel}}</button>
+      {{#if isGM}}<button
+          type="button"
+          data-action="resetgmwindow"
+        >{{resetGmWindowLabel}}</button>{{/if}}
+      <button
         type="button"
-        data-action="repair"
-      >{{repairLabel}}</button>{{/if}}
-    {{#if busy}}<button
-        type="button"
-        disabled
-      >{{closeLabel}}</button>{{else}}<button
-        type="button"
-        data-action="close"
-      >{{closeLabel}}</button>{{/if}}
+        data-action="resetsettings"
+      >{{resetSettingsLabel}}</button>
+      {{#if isGM}}<button
+          type="button"
+          data-action="resetgm"
+        >{{resetGmLabel}}</button>{{/if}}
+      <button type="button" data-action="resetall">{{resetAllLabel}}</button>
+    </div>
+  </details>
+  <footer class="form-footer ws-troubleshooting-footer">
+    <p class="hint" role="status">{{saveHint}}</p>
+    <div class="ws-troubleshooting-actions">
+      {{#if busy}}<button
+          type="button"
+          disabled
+        >{{closeLabel}}</button>{{else}}<button
+          type="button"
+          data-action="close"
+        >{{closeLabel}}</button>{{/if}}
+    </div>
   </footer>
 </div>

@@ -101,9 +101,9 @@
 .ws-rolls-dialog .ws-health-button {
   position: relative;
   min-width: 0;
-  min-height: 52px;
+  min-height: 46px;
   height: auto;
-  padding: 6px 8px;
+  padding: 5px 8px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -273,6 +273,10 @@
 }
 
 .ws-rolls-dialog .ws-combat-stat > span {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
   color: var(--muted);
   font-size: calc(8px * var(--ws-type-scale));
   font-weight: 800;
@@ -280,12 +284,11 @@
 }
 
 .ws-rolls-dialog .ws-combat-stat strong {
-  overflow: hidden;
   max-width: 100%;
   color: var(--text);
   font-size: calc(10px * var(--ws-type-scale));
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .ws-rolls-dialog .ws-combat-stat small {
@@ -315,7 +318,11 @@
 }
 
 .ws-rolls-dialog .ws-active-conditions {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+}
+
+.ws-rolls-dialog :is(.ws-status-extra, .ws-status-more)[hidden] {
+  display: none;
 }
 
 .ws-rolls-dialog .ws-status-extra {
@@ -393,15 +400,16 @@
 
 .ws-rolls-dialog .ws-combat-filters {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(105px, 180px));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
   justify-content: start;
   gap: 5px;
 }
 
 .ws-rolls-dialog .ws-combat-filter {
   min-width: 0;
-  height: 31px;
-  padding: 0 7px;
+  height: auto;
+  min-height: 31px;
+  padding: 5px 7px;
   display: grid;
   grid-template-columns: 13px minmax(0, 1fr) auto;
   align-items: center;
@@ -409,13 +417,21 @@
   color: var(--muted);
   font-size: calc(8px * var(--ws-type-scale));
   font-weight: 800;
+  line-height: 1.2;
 }
 
-.ws-rolls-dialog .ws-combat-filter span,
-.ws-rolls-dialog .ws-combat-item span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.ws-rolls-dialog .ws-combat-filter > i {
+  width: 13px;
+  min-width: 13px;
+  text-align: center;
+  justify-self: center;
+}
+
+.ws-rolls-dialog .ws-combat-filter span {
+  min-width: 0;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .ws-rolls-dialog .ws-combat-filter small {
@@ -427,12 +443,6 @@
   border-color: rgb(193 154 88 / 0.45) !important;
   background: var(--accent-bg) !important;
   color: var(--accent);
-}
-
-.ws-rolls-dialog .ws-action-menu {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 5px;
 }
 
 .ws-rolls-dialog .ws-combat-item-list {
@@ -461,9 +471,45 @@
   color: var(--muted);
 }
 
+.ws-rolls-dialog .ws-global-search {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.ws-rolls-dialog .ws-global-search .ws-item-search {
+  margin: 0;
+}
+
+.ws-rolls-dialog .ws-search-results {
+  min-width: 0;
+  max-height: 260px;
+  display: grid;
+  gap: 6px;
+  overflow: hidden auto;
+  padding: 2px;
+}
+
+.ws-rolls-dialog .ws-search-rolls h3 {
+  margin: 0 0 4px;
+  font-size: calc(9px * var(--ws-type-scale));
+  color: var(--muted);
+}
+
+.ws-rolls-dialog .ws-search-rolls .ws-ability-roll {
+  justify-content: space-between;
+  padding: 4px 6px;
+  border-color: var(--line) !important;
+  background: var(--surface) !important;
+}
+
 .ws-rolls-dialog .ws-combat-item-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, calc(190px * var(--ws-type-scale, 1.15))), 1fr)
+  );
+  align-items: start;
   justify-content: start;
   gap: 5px;
 }
@@ -654,15 +700,107 @@
   display: grid;
   align-content: center;
   min-width: 0;
+  gap: 3px;
+}
+
+.ws-rolls-dialog .ws-item-side-actions > button {
+  height: 24px;
+  min-height: 24px;
+  padding: 2px;
+  font-size: 14px;
+}
+
+.ws-rolls-dialog .ws-item-open {
+  min-width: 0;
+  min-height: 24px;
+  padding: 3px;
+  color: var(--muted);
+}
+
+.ws-rolls-dialog .ws-organized-entry {
+  min-width: 0;
+}
+
+/* Let the browser skip offscreen layout in long lists; keep every native control
+   in the DOM. Editing uses full layout for predictable drag targets. */
+.ws-rolls-dialog .ws-items-long > .ws-combat-item-grid > .ws-organized-entry {
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 60px;
+  overflow-clip-margin: 4px;
+}
+
+.ws-rolls-dialog .ws-item-layout-controls {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
+  justify-content: flex-end;
+}
+
+.ws-rolls-dialog .ws-item-layout-controls > button {
+  min-width: 27px;
+  min-height: 27px;
+  padding: 4px;
+}
+
+.ws-rolls-dialog .ws-item-layout-controls .ws-item-drag {
+  margin-right: auto;
+  cursor: grab;
+}
+
+.ws-rolls-dialog .ws-item-layout-controls .ws-item-drag:active {
+  cursor: grabbing;
+}
+
+.ws-rolls-dialog .ws-item-layout-hidden {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.ws-rolls-dialog .ws-item-layout-hidden > button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+}
+
+.ws-rolls-dialog .ws-item-layout-restore {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+}
+
+.ws-rolls-dialog .ws-item-layout-restore > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ws-rolls-dialog summary.ws-spell-level-heading {
+  cursor: pointer;
+  list-style: none;
+}
+
+.ws-rolls-dialog summary.ws-spell-level-heading::-webkit-details-marker {
+  display: none;
+}
+
+.ws-rolls-dialog summary.ws-spell-level-heading::before {
+  content: "›";
+  color: var(--accent);
+}
+
+.ws-rolls-dialog details[open] > summary.ws-spell-level-heading::before {
+  content: "⌄";
 }
 
 .ws-rolls-dialog .ws-item-side-actions:has(.ws-item-prepare) > button {
-  min-height: 26px;
+  min-height: 24px;
 }
 
 .ws-rolls-dialog .ws-item-favorite {
   min-width: 32px;
-  min-height: 36px;
+  min-height: 24px;
   padding: 0;
   color: var(--muted);
 }
@@ -713,6 +851,11 @@
   gap: 5px;
 }
 
+.ws-rolls-dialog .ws-favorites .ws-combat-item {
+  min-height: 51px;
+  padding-block: 3px;
+}
+
 .ws-rolls-dialog .ws-favorites h3 {
   margin: 0;
   color: var(--accent);
@@ -723,7 +866,8 @@
 .ws-rolls-dialog .ws-combat-item {
   min-width: 0;
   width: 100%;
-  height: 36px;
+  height: auto;
+  min-height: 36px;
   padding: 4px 7px 4px 4px;
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr) 12px;
@@ -732,6 +876,8 @@
   color: var(--text);
   font-size: calc(9.5px * var(--ws-type-scale));
   text-align: left;
+  line-height: 1.2;
+  white-space: normal;
 }
 
 .ws-rolls-dialog .ws-combat-item.ws-item-depleted .ws-spell-meta {
@@ -740,13 +886,15 @@
 
 .ws-rolls-dialog .ws-combat-skill {
   width: 100%;
-  height: 36px;
+  height: auto;
+  min-height: 34px;
   padding: 4px 7px;
   font-size: calc(9.5px * var(--ws-type-scale));
 }
 
 .ws-rolls-dialog .ws-combat-skill.ws-skill-details {
-  height: 52px;
+  height: auto;
+  min-height: 36px;
 }
 
 .ws-rolls-dialog .ws-combat-skill .ws-entry-name,
@@ -761,25 +909,25 @@
   color: var(--danger);
   font-size: calc(8px * var(--ws-type-scale));
   font-weight: 750;
+  overflow-wrap: anywhere;
 }
 
 .ws-rolls-dialog .ws-detailed-card .ws-combat-item {
-  min-height: 52px;
+  min-height: 46px;
 }
 
 .ws-rolls-dialog .ws-combat-item-content {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
 .ws-rolls-dialog .ws-combat-item-content > strong {
-  overflow: hidden;
   font-size: inherit;
   font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .ws-rolls-dialog .ws-spell-meta {
@@ -795,9 +943,18 @@
 }
 
 .ws-rolls-dialog .ws-spell-meta > span {
+  min-width: 0;
+  max-width: 100%;
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 3px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.ws-rolls-dialog .ws-spell-meta i {
+  flex-shrink: 0;
 }
 
 .ws-rolls-dialog .ws-spell-meta b {
@@ -1275,14 +1432,14 @@
   line-height: 1.2;
 }
 
-.ws-rolls-dialog .window-content:has(.ws-gm-view) {
+.ws-rolls-dialog .window-content:has(.ws-gm-view, .ws-player-layout) {
   display: flex;
   flex-direction: column;
   overflow: hidden !important;
 }
 
-.ws-rolls-dialog .window-content > form:has(.ws-gm-view),
-.ws-rolls-dialog .dialog-content:has(.ws-gm-view) {
+.ws-rolls-dialog .window-content > form:has(.ws-gm-view, .ws-player-layout),
+.ws-rolls-dialog .dialog-content:has(.ws-gm-view, .ws-player-layout) {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -1290,7 +1447,7 @@
   overflow: hidden;
 }
 
-.ws-rolls-dialog .ws-shell:has(.ws-gm-view) {
+.ws-rolls-dialog .ws-shell:has(.ws-gm-view, .ws-player-layout) {
   flex: 1;
   height: 100%;
   min-height: 0;
@@ -1757,4 +1914,22 @@
   padding: 5px 9px;
   white-space: normal;
   font-size: calc(11px * var(--ws-font-scale, 1));
+}
+
+@media (pointer: coarse) {
+  .ws-rolls-dialog .ws-item-side-actions > button,
+  .ws-rolls-dialog .ws-item-side-actions:has(.ws-item-prepare) > button {
+    min-width: 44px;
+    min-height: 44px;
+    height: auto;
+  }
+
+  .ws-rolls-dialog .ws-combat-item-card.ws-has-side-actions {
+    grid-template-columns: minmax(0, 1fr) 44px;
+  }
+
+  .ws-rolls-dialog .ws-entry,
+  .ws-rolls-dialog .ws-combat-skill.ws-skill-details {
+    min-height: 44px;
+  }
 }

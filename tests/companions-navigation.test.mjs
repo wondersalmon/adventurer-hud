@@ -10,8 +10,85 @@ import {
   clearDiagnostics
 } from "../scripts/diagnostics.js";
 import { combatFor, fixture, select, target } from "./helpers/companions.mjs";
+import { ACTION_COOLDOWN_MS } from "../scripts/hud/action-cooldown.js";
 
 restoreGlobalsAfterEach();
+
+test("ending a companion turn returns to the exact owner token; cancellation stays in the companion panel", async t => {
+  let time = 0;
+  t.mock.method(performance, "now", () => time);
+  const f = await fixture({ values: { companionAutoFocus: true } });
+  const hero = f.token(f.actor, "hero"),
+    summon = f.token(f.npc(), "summon");
+  canvas.tokens.controlled = [f.placeables.get(hero.id)];
+  const { combat, entries } = combatFor(f, [hero, summon]);
+  combat.combatant = entries[1];
+  combat.round = 1;
+  combat.turn = 1;
+  let advances = 0;
+  combat.nextTurn = async () => {
+    advances++;
+    return null;
+  };
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  try {
+    await app.hudActions.opencompanion(null, target(summon.uuid));
+    await app.hudActions.endturn();
+    assert.equal(__adventurerHud.actor, summon.actor);
+    assert.equal(advances, 1);
+    time += ACTION_COOLDOWN_MS;
+    combat.nextTurn = async () => {
+      advances++;
+      combat.round++;
+      combat.turn = 0;
+      combat.combatant = entries[0];
+      f.hooks.callAll("updateCombat", combat, { turn: 0, round: 2 });
+      return combat;
+    };
+    await app.hudActions.endturn();
+    assert.equal(advances, 2);
+    assert.equal(__adventurerHud.app, app);
+    assert.equal(__adventurerHud.actor, f.actor);
+    assert.equal(canvas.tokens.controlled[0].document, hero);
+    assert.equal(
+      app.element.querySelector('[data-action="companionback"]'),
+      null
+    );
+  } finally {
+    await app.close();
+  }
+});
+
+test("an old companion turn completion cannot replace a newly selected companion", async () => {
+  const f = await fixture();
+  const first = f.token(f.npc("first"), "first"),
+    second = f.token(f.npc("second"), "second");
+  const { combat, entries } = combatFor(f, [first, second]);
+  combat.combatant = entries[0];
+  let finish;
+  combat.nextTurn = () =>
+    new Promise(resolve => {
+      finish = () => {
+        combat.combatant = entries[1];
+        resolve(combat);
+      };
+    });
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  try {
+    await app.hudActions.opencompanion(null, target(first.uuid));
+    const pending = app.hudActions.endturn();
+    await waitFor(() => typeof finish === "function");
+    await app.hudActions.opencompanion(null, target(second.uuid));
+    finish();
+    await pending;
+    assert.equal(__adventurerHud.actor, second.actor);
+    assert.ok(app.element.querySelector('[data-action="companionback"]'));
+  } finally {
+    await app.close();
+  }
+});
 
 test("world and synthetic hero HUDs return to the exact selected unlinked token in both modes", async () => {
   for (const world of [true, false])
@@ -223,7 +300,9 @@ test("collapsible companions share character modes, retain actions and save expa
   assert.ok(app.element.querySelector(".ws-companions-list"));
   await app.options.actions.combatmode();
   assert.ok(
-    app.element.querySelector('#ws-combat [data-action="toggleabilities"]')
+    app.element.querySelector(
+      '#ws-combat .ws-ability-cards [data-action="ability"]'
+    )
   );
   assert.ok(app.element.querySelector("#ws-combat .ws-companions-list"));
   assert.equal(

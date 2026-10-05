@@ -1,11 +1,9 @@
 import { REGULAR_VIEWS } from "./state.js";
+import { normalizeItemLayouts } from "./items/item-layout.js";
 
 const BOOLEAN_KEYS = [
   "companionsExpanded",
-  "abilitiesExpanded",
-  "combatAbilitiesExpanded",
   "conditionsExpanded",
-  "actionMenuOpen",
   "favoritesExpanded",
   "preparedSpellsOnly",
   "showPassiveFeatures"
@@ -19,7 +17,8 @@ const COMBAT_CATEGORIES = new Set([
   "reaction",
   "special",
   "features",
-  "skills"
+  "skills",
+  "inventory"
 ]);
 const INVENTORY_CATEGORIES = new Set(["equipped", "consumables", "other"]);
 
@@ -37,6 +36,10 @@ export function panelStateForActor(stored, actorUuid) {
   if (!saved || typeof saved !== "object") return {};
 
   const state = {};
+  if (saved.itemLayouts)
+    state.itemLayouts = normalizeItemLayouts(saved.itemLayouts);
+  if (saved.hudLayouts)
+    state.hudLayouts = normalizeItemLayouts(saved.hudLayouts);
   if (saved.combatCategory === "resources") state.combatCategory = "features";
   for (const key of BOOLEAN_KEYS) {
     if (typeof saved[key] === "boolean") state[key] = saved[key];
@@ -63,6 +66,12 @@ export function panelStateForActor(stored, actorUuid) {
 
 export function panelStateSnapshot(state) {
   return {
+    ...(Object.keys(state.hudLayouts ?? {}).length
+      ? { hudLayouts: normalizeItemLayouts(state.hudLayouts) }
+      : {}),
+    ...(Object.keys(state.itemLayouts ?? {}).length
+      ? { itemLayouts: normalizeItemLayouts(state.itemLayouts) }
+      : {}),
     ...Object.fromEntries(BOOLEAN_KEYS.map(key => [key, Boolean(state[key])])),
     combatCategory: validCombatCategory(state.combatCategory)
       ? state.combatCategory

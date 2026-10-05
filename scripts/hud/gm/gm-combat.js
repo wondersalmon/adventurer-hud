@@ -284,7 +284,7 @@ export function renderGmCombatHeader({
       preparing
         ? `<section class="ws-gm-encounter-tools"><h3>${t("GM.CombatSetup")}</h3>
     <div class="ws-gm-setup"><button type="button" class="ws-button" data-action="gmaddcreatures"><i class="fa-solid fa-users" aria-hidden="true"></i>${t("GM.AddCreatures")}</button><button type="button" class="ws-button" data-action="gmaddcreatures" data-scope="all"><i class="fa-solid fa-layer-group" aria-hidden="true"></i>${t("GM.AddSceneCreatures")}</button></div>
-    <div class="ws-gm-initiative-controls">${combat && list.length ? `<button type="button" class="ws-button" data-action="gmrollinitiative" data-scope="all" data-reroll="false"><i class="fa-solid fa-dice-d20" aria-hidden="true"></i>${t("GM.RollAllInitiative")}</button>` : ""}</div>
+    <div class="ws-gm-initiative-controls">${renderGmInitiativeButtons(combat, list, t)}</div>
     <details class="ws-gm-initiative-options"><summary data-gm-initiative-options>${t("GM.MoreInitiative")}</summary><div class="ws-gm-initiative-controls">${(combat &&
     list.length
       ? [
@@ -340,10 +340,16 @@ export function renderGmRemovalButton(list, t) {
 }
 
 export function renderGmInitiativeButtons(combat, list, t) {
-  if (!combat?.started) return "";
-  const roll = reroll =>
-    `<button type="button" class="ws-button" data-action="gmrollinitiative" data-scope="all" data-reroll="${reroll}" ${list.length ? "" : "disabled"}><i class="fa-solid ${reroll ? "fa-rotate" : "fa-dice-d20"}" aria-hidden="true"></i>${t(reroll ? "GM.RerollAllInitiative" : "GM.RollAllInitiative")}</button>`;
-  return roll(false);
+  if (!combat) return "";
+  return [
+    ["all", "GM.RollAllInitiative", "fa-dice-d20"],
+    ["npc", "GM.RollNpcInitiative", "fa-dragon"]
+  ]
+    .map(
+      ([scope, label, icon]) =>
+        `<button type="button" class="ws-button" data-action="gmrollinitiative" data-scope="${scope}" data-reroll="false" ${(combat.combatants?.size ?? list.length) ? "" : "disabled"}><i class="fa-solid ${icon}" aria-hidden="true"></i>${t(label)}</button>`
+    )
+    .join("");
 }
 
 export function renderGmEndCombatButton(combat, t) {

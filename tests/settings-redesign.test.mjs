@@ -71,7 +71,7 @@ test("troubleshooting moves debug control and confirms geometry reset", async ()
     advanced.groups
       .flatMap(group => group.settings)
       .some(field => field.key === "debugWindowSize"),
-    false
+    true
   );
   const companionMenu = f.menus.get("companions");
   assert.equal(companionMenu.restricted, false);
@@ -91,14 +91,54 @@ test("troubleshooting moves debug control and confirms geometry reset", async ()
       "showCompanions",
       "showCompanionEffects",
       "companionVisionPan",
-      "companionAutoFocus"
+      "companionAutoFocus",
+      "familiarVision2024"
     ]
   );
-  assert.equal(f.registrations.has("debugWindowSize"), false);
+  assert.equal(f.registrations.get("playerFooter").default, true);
+  assert.equal(f.registrations.get("playerFooter").config, false);
+  assert.ok(
+    advanced.groups
+      .flatMap(group => group.settings)
+      .some(field => field.key === "playerFooter")
+  );
+  assert.equal(
+    advanced.groups
+      .flatMap(group => group.settings)
+      .some(field => field.key === "playerColumnRatio"),
+    false
+  );
+  f.current.set("showCompanions", false);
+  const disabled = await new companionMenu.type()._prepareContext();
+  for (const key of [
+    "showCompanionEffects",
+    "companionVisionPan",
+    "companionAutoFocus"
+  ])
+    assert.equal(
+      disabled.groups
+        .flatMap(group => group.settings)
+        .find(field => field.key === key).disabled,
+      true
+    );
+  f.current.set("showCompanions", true);
+  assert.equal(f.registrations.get("debugWindowSize").default, false);
   const App = f.menus.get("troubleshooting").type;
-  assert.equal(App.DEFAULT_OPTIONS.actions.debugsize, undefined);
   const app = new App();
-  await app._prepareContext();
+  assert.equal((await app._prepareContext()).debugWindowSize, undefined);
+  f.current.set("debugWindowSize", true);
+  app.rendered = true;
+  await App.DEFAULT_OPTIONS.actions.close.call(app);
+  assert.equal(f.current.get("debugWindowSize"), true);
+  assert.equal(app.rendered, false);
+  assert.equal(f.registrations.get("twoColumnWidth").config, false);
+  assert.equal(f.registrations.get("twoColumnWidth").type, Number);
+  assert.deepEqual(f.registrations.get("twoColumnWidth").range, {
+    min: 450,
+    max: 1200,
+    step: 10
+  });
+  assert.equal(f.registrations.get("separateModeSizes").config, false);
   foundry.applications.api.DialogV2 = { confirm: async () => false };
   await App.DEFAULT_OPTIONS.actions.resetpositions.call(app);
   assert.equal(f.current.get("pinWindow"), true);
@@ -212,7 +252,7 @@ test("players save companion settings through their own submenu without changing
   const f = installSettings({ values: { showSearch: false, gmEnabled: true } });
   const app = new (f.menus.get("companions").type)();
   const context = await app._prepareContext();
-  assert.equal(context.groups.flatMap(group => group.settings).length, 4);
+  assert.equal(context.groups.flatMap(group => group.settings).length, 5);
   for (const key of [
     "showCompanionHealth",
     "showCompanionPortraits",

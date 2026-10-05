@@ -21,20 +21,44 @@
                     >{{label}}</option>{{/if}}{{/each}}
               </select>
             {{else}}
-              {{#if disabled}}<input
-                  id="adventurer-hud-{{key}}"
-                  type="checkbox"
-                  name="{{key}}"
-                  {{checked value}}
-                  disabled
-                  data-parent-key="{{parentKey}}"
-                />{{else}}<input
-                  id="adventurer-hud-{{key}}"
-                  type="checkbox"
-                  name="{{key}}"
-                  {{checked value}}
-                  data-parent-key="{{parentKey}}"
-                />{{/if}}
+              {{#if numeric}}
+                <div class="ws-settings-range">
+                  <div class="ws-settings-range-main">
+                    <input
+                      id="adventurer-hud-{{key}}"
+                      type="range"
+                      name="{{key}}"
+                      value="{{value}}"
+                      min="{{range.min}}"
+                      max="{{range.max}}"
+                      step="{{range.step}}"
+                      aria-label="{{name}}"
+                    />
+                    <output
+                      for="adventurer-hud-{{key}}"
+                      aria-live="polite"
+                    >{{value}}</output>
+                  </div>
+                  <div class="ws-settings-range-limits" aria-hidden="true">
+                    <span>{{range.min}}</span><span>{{range.max}}</span>
+                  </div>
+                </div>
+              {{else}}
+                {{#if disabled}}<input
+                    id="adventurer-hud-{{key}}"
+                    type="checkbox"
+                    name="{{key}}"
+                    {{checked value}}
+                    disabled
+                    data-parent-key="{{parentKey}}"
+                  />{{else}}<input
+                    id="adventurer-hud-{{key}}"
+                    type="checkbox"
+                    name="{{key}}"
+                    {{checked value}}
+                    data-parent-key="{{parentKey}}"
+                  />{{/if}}
+              {{/if}}
             {{/if}}
           </div>
           <p class="hint">{{hint}}</p>

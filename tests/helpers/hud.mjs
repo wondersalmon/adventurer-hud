@@ -13,7 +13,21 @@ export async function hudFixture({
   combat = false
 } = {}) {
   ++sequence;
-  const settings = installSettings({ values, isGM });
+  const settings = installSettings({
+    values: {
+      language: "auto",
+      gmEnabled: isGM,
+      gmFollowTurn: true,
+      gmHideSearch: true,
+      gmActionTypesOnly: true,
+      playerFooter: false,
+      // Most lifecycle tests exercise full closure; sliding has dedicated cases.
+      slidePanel: false,
+      autoUpdateActor: false,
+      ...values
+    },
+    isGM
+  });
   globalThis.fromUuid = async () => null;
   globalThis.CONFIG = { DND5E: { skills: {}, tools: {} }, statusEffects: [] };
   const { document } = installDom();

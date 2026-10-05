@@ -41,11 +41,11 @@
   width: 100%;
   height: auto;
   min-height: 48px;
-  padding: 5px;
+  padding: 4px 5px;
   display: grid;
   grid-template-columns: 26px minmax(0, 1fr);
   align-items: center;
-  gap: 5px;
+  gap: 2px 5px;
   text-align: left;
 }
 
@@ -53,7 +53,13 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.ws-rolls-dialog .ws-companion-open.ws-companion-unrolled {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
 .ws-rolls-dialog .ws-companion-open img {
+  grid-row: 2;
   width: 26px;
   height: 26px;
   object-fit: cover;
@@ -62,31 +68,37 @@
 
 .ws-rolls-dialog .ws-companion-copy {
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: contents;
   overflow-wrap: anywhere;
 }
 
 .ws-rolls-dialog .ws-companion-copy strong {
+  grid-column: 1 / -1;
+  grid-row: 1;
   font-size: calc(10px * var(--ws-type-scale));
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.25;
 }
 
 .ws-rolls-dialog .ws-companion-copy small {
+  grid-column: 2;
   font-size: max(11px, calc(10px * var(--ws-type-scale)));
   color: var(--muted);
   line-height: 1.25;
 }
 
 .ws-rolls-dialog .ws-companion-hp {
+  grid-column: 1 / -1;
   width: 100%;
   height: 4px;
   background: var(--line);
   border-radius: 3px;
   overflow: hidden;
+}
+
+.ws-rolls-dialog .ws-companion-open.ws-no-portrait .ws-companion-copy small,
+.ws-rolls-dialog .ws-companion-copy small ~ small {
+  grid-column: 1 / -1;
 }
 
 .ws-rolls-dialog .ws-companion-hp > span {
@@ -97,8 +109,7 @@
 
 .ws-rolls-dialog .ws-companion-controls {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 28px;
+  grid-template-columns: repeat(2, 28px);
   gap: 3px;
 }
 
@@ -313,13 +324,6 @@
   min-width: 0;
 }
 
-@container ws-rolls (max-width: 320px) {
-  .ws-rolls-dialog .ws-companion-controls:has(> button:nth-child(4)) {
-    grid-auto-flow: row;
-    grid-template-columns: repeat(2, 28px);
-  }
-}
-
 @media (pointer: coarse) {
   .ws-rolls-dialog .ws-companions-toggle.ws-section-toggle,
   .ws-rolls-dialog .ws-companion-back,
@@ -373,12 +377,4 @@
   color: var(--accent) !important;
   border-color: var(--accent) !important;
   background: var(--accent-bg) !important;
-}
-
-.ws-rolls-dialog .ws-companion-status {
-  padding: 2px 5px;
-  color: var(--muted);
-  font-size: max(11px, calc(10px * var(--ws-type-scale)));
-  line-height: 1.3;
-  overflow-wrap: anywhere;
 }

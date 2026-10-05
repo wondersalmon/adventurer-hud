@@ -6,6 +6,23 @@ import {
 } from "./actor-data.js";
 
 export const dnd5eActor = {
+  removeStatus(actor, id) {
+    if (this.statusDefinitions().some(status => status.id === id))
+      return actor.toggleStatusEffect(id, { active: false });
+    // Only delete effects embedded directly in this actor, never transferred item definitions.
+    const effect = [...(actor.effects ?? [])].find(
+      effect =>
+        id === `effect:${effect.uuid ?? effect.id}` ||
+        effect.statuses?.has?.(id)
+    );
+    if (
+      effect &&
+      !effect.disabled &&
+      !effect.isSuppressed &&
+      effect.isOwner !== false
+    )
+      return effect.delete();
+  },
   abilityDefinitions: () => abilities,
   abilityData: (actor, id) => actor.system.abilities?.[id] ?? {},
   abilityTotal,
@@ -77,7 +94,12 @@ export const dnd5eActor = {
       units: game.i18n.localize(
         CONFIG.DND5E.weightUnits?.[units]?.abbreviation ?? units
       ),
-      gold: number(actor.system.currency?.gp) ?? 0
+      coins: ["pp", "gp", "ep", "sp", "cp"]
+        .map(type => ({
+          type,
+          value: number(actor.system.currency?.[type]) ?? 0
+        }))
+        .filter(coin => coin.value > 0)
     };
   },
   async updateHp(actor, { value, temp, damage }) {

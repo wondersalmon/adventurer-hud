@@ -1,7 +1,10 @@
 import { skillIcons } from "./constants.js";
 import { proficiencyMultiplier } from "./actor-data.js";
-import { reportFailure } from "../diagnostics.js";
 export const dnd5eConfig = {
+  abilityLabel(id) {
+    const config = CONFIG.DND5E.abilities?.[id];
+    return game.i18n.localize(config?.label ?? config ?? id);
+  },
   activationTypeLabel(type) {
     const config =
       CONFIG.DND5E.activityActivationTypes?.[type] ??
@@ -53,53 +56,6 @@ export const dnd5eConfig = {
           a.name.localeCompare(b.name, game.i18n.lang)
       );
   },
-  async statusDescriptions(actor) {
-    const effects =
-      typeof actor.allApplicableEffects === "function"
-        ? [...actor.allApplicableEffects()]
-        : [...(actor.effects ?? [])];
-    const result = new Map();
-    const activeEffects = effects.filter(
-      effect => !effect.disabled && !effect.isSuppressed
-    );
-    const statuses = new Map(
-      this.statusDefinitions()
-        .filter(status => actor.statuses?.has(status.id))
-        .map(status => [status.id, status])
-    );
-    for (const effect of activeEffects) {
-      for (const id of effect.statuses ?? []) {
-        if (!statuses.has(id)) statuses.set(id, { id });
-      }
-    }
-    for (const status of statuses.values()) {
-      const effect = effects.find(
-        effect =>
-          !effect.disabled &&
-          !effect.isSuppressed &&
-          effect.statuses?.has?.(status.id)
-      );
-      const description =
-        effect?.description ||
-        (status.reference
-          ? `@Embed[${status.reference} inline]`
-          : status.description);
-      if (!description) continue;
-      const editor = foundry.applications.ux.TextEditor.implementation;
-      try {
-        result.set(
-          status.id,
-          await editor.enrichHTML(description, {
-            relativeTo: effect ?? actor,
-            secrets: actor.isOwner
-          })
-        );
-      } catch (error) {
-        reportFailure("dnd5e.status.description", error, { level: "warn" });
-      }
-    }
-    return result;
-  },
   rangeUnitLabel(units, { localizeConfig }) {
     return (
       localizeConfig(
@@ -114,7 +70,22 @@ export const dnd5eConfig = {
       : typeof statuses?.values === "function"
         ? [...statuses.values()]
         : Object.values(statuses ?? {});
-    return definitions.filter(status => status?.id);
+    const ruleKeys = {
+      dodging: "dodge",
+      hiding: "hide",
+      coverHalf: "halfcover",
+      coverThreeQuarters: "threequarterscover",
+      coverTotal: "totalcover",
+      stable: "stabilizing"
+    };
+    return definitions
+      .filter(status => status?.id)
+      .map(status => {
+        const reference =
+          status.reference ??
+          CONFIG.DND5E?.rules?.[ruleKeys[status.id] ?? status.id];
+        return reference ? { ...status, reference } : status;
+      });
   },
   statusKind(status) {
     if (["concentrating", "concentration"].includes(status.id))

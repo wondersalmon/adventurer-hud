@@ -1,9 +1,13 @@
+import { synchronizeStatusLayout } from "./status-layout.js";
+import { applyPlayerLayout } from "./responsive-layout.js";
+
 export function captureHudDomState(root) {
   const activeElement = root?.ownerDocument?.activeElement;
   const focused =
     activeElement && root.contains(activeElement) ? activeElement : null;
   const attributes = [
     "data-action",
+    "data-status-id",
     "data-combatant-id",
     "data-item-id",
     "data-activity-id",
@@ -15,6 +19,8 @@ export function captureHudDomState(root) {
     "data-type",
     "data-proficient",
     "data-prepared",
+    "data-spell-level",
+    "data-layout-key",
     "data-view",
     "data-scope",
     "data-reroll",
@@ -26,6 +32,14 @@ export function captureHudDomState(root) {
     "id"
   ];
   return {
+    spellLevels: Array.from(
+      root?.querySelectorAll("details[data-spell-level]") ?? [],
+      node => [node.dataset.spellLevel, node.open]
+    ),
+    playerColumns:
+      root
+        ?.querySelector(".ws-player-layout")
+        ?.classList.contains("ws-player-columns") === true,
     focus: focused
       ? attributes
           .filter(key => focused.hasAttribute(key))
@@ -42,16 +56,19 @@ export function captureHudDomState(root) {
     scroll: [
       ".ws-gm-roster",
       ".ws-combat-item-list",
+      ".ws-player-layout",
+      ".ws-player-info",
+      ".ws-player-actions",
       ".ws-gm-content",
       ".ws-gm-combat",
       ".ws-gm-body",
       ".ws-gm-info",
       ".ws-gm-action-column",
       ".ws-gm-more-actions"
-    ].map(selector => [
-      selector,
-      root?.querySelector(selector)?.scrollTop ?? 0
-    ]),
+    ].map(selector => {
+      const node = root?.querySelector(selector);
+      return [selector, node?.scrollTop ?? 0, node];
+    }),
     collapsed: root?.querySelector(".ws-gm-list")?.open === false,
     playersCollapsed:
       root?.querySelector(".ws-gm-player-roster")?.open === false,
@@ -67,9 +84,25 @@ export function captureHudDomState(root) {
 
 export function restoreHudDomState(root, state) {
   if (!root || !state) return;
-  for (const [selector, top] of state.scroll) {
+  applyPlayerLayout(
+    root.querySelector(".ws-player-layout"),
+    Boolean(state.playerColumns)
+  );
+  const defaultBody = root.querySelector("[data-exploration-default-body]");
+  if (defaultBody) defaultBody.hidden = !state.playerColumns;
+  synchronizeStatusLayout(root);
+  for (const [level, open] of state.spellLevels ?? []) {
+    const group = Array.from(
+      root.querySelectorAll("details[data-spell-level]")
+    ).find(node => node.dataset.spellLevel === level);
+    if (group) group.open = open;
+  }
+  for (const [selector, top, previous] of state.scroll) {
     const node = root.querySelector(selector);
-    if (node) node.scrollTop = top;
+    // A freshly rendered scroller already starts at zero. Assigning zero still
+    // forces synchronous layout; retain writes for reused nodes and saved offsets.
+    if (node && (top !== 0 || !previous || previous === node))
+      node.scrollTop = top;
   }
   const list = root.querySelector(".ws-gm-list");
   if (list?.tagName === "DETAILS") list.open = !state.collapsed;

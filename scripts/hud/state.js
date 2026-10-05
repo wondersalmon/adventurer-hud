@@ -13,14 +13,15 @@ export const REGULAR_VIEWS = Object.freeze([
  */
 export function createHudState(initial = {}) {
   return {
-    abilitiesExpanded: true,
-    combatAbilitiesExpanded: false,
+    explorationSkillsCollapsed: false,
     combatCategory: null,
     conditionsExpanded: false,
-    actionMenuOpen: false,
     currentView: "main",
     favoritesExpanded: true,
-    favoriteEdit: false,
+    itemLayouts: {},
+    hudLayouts: {},
+    hudEditing: false,
+    itemHiddenExpanded: null,
     companionsExpanded: false,
     companionFilter: "scene",
     forcedMode: null,
@@ -32,8 +33,11 @@ export function createHudState(initial = {}) {
     searchQuery: "",
     openActivityItemId: null,
     favoriteEntries: [],
-    statusDescriptions: new Map(),
-    ...initial
+    ...initial,
+    currentView:
+      initial.currentView === "tools"
+        ? "skills"
+        : (initial.currentView ?? "main")
   };
 }
 
@@ -52,7 +56,7 @@ export function syncHudPreferences(
 
 export function setRegularView(state, view) {
   if (!REGULAR_VIEWS.includes(view)) return false;
-  state.currentView = view;
+  state.currentView = view === "tools" ? "skills" : view;
   return true;
 }
 

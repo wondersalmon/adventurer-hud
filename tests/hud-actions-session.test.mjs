@@ -10,6 +10,7 @@ import { combatTurnState } from "../scripts/hud/actor-context.js";
 import { getCurrentCombat } from "../scripts/runtime-helpers.js";
 import { applyHudSettingChanges } from "../scripts/hud/settings-refresh.js";
 import { activateHudWindow } from "../scripts/hud/window/window-session.js";
+import { fragment } from "./helpers/rendering.mjs";
 
 restoreGlobalsAfterEach();
 
@@ -168,7 +169,6 @@ test("spell preparation toggles only eligible owned spells", async () => {
 test("panel toggles save their changed layout", () => {
   const saved = [];
   const hudState = {
-    combatAbilitiesExpanded: false,
     combatCategory: null,
     actionMenuOpen: false
   };
@@ -178,13 +178,12 @@ test("panel toggles save their changed layout", () => {
     refreshHud() {},
     savePanelState: () => saved.push({ ...hudState })
   });
-  actions.toggleabilities();
+  assert.equal(actions.toggleabilities, undefined);
   actions.combatfilter(null, { dataset: { category: "features" } });
   actions.combatfilter(null, { dataset: { category: "spells" } });
-  assert.equal(saved.length, 3);
-  assert.equal(saved[0].combatAbilitiesExpanded, true);
-  assert.equal(saved[1].combatCategory, "features");
-  assert.equal(saved[2].combatCategory, "spells");
+  assert.equal(saved.length, 2);
+  assert.equal(saved[0].combatCategory, "features");
+  assert.equal(saved[1].combatCategory, "spells");
 });
 
 test("regular view navigation saves the selected tab", () => {
@@ -323,11 +322,20 @@ test("window session updates live settings and releases document hooks", async (
     const listeners = new Map();
     const elementListeners = new Map();
     const elementClasses = new Set();
+    const dividerListeners = new Map();
+    const resizeDocument = fragment("").ownerDocument;
     const app = {
       element: {
         closest: () => null,
-        ownerDocument: { defaultView: {} },
+        ownerDocument: {
+          defaultView: {},
+          createElement: tag => resizeDocument.createElement(tag),
+          addEventListener: (name, callback) =>
+            dividerListeners.set(name, callback),
+          removeEventListener: name => dividerListeners.delete(name)
+        },
         dataset: {},
+        append() {},
         removeAttribute() {},
         querySelector: () => null,
         style: { setProperty() {} },
@@ -369,6 +377,7 @@ test("window session updates live settings and releases document hooks", async (
     const searches = [];
 
     await activateHudWindow({
+      t: key => key,
       actor,
       app,
       canRollActor: true,
@@ -388,6 +397,11 @@ test("window session updates live settings and releases document hooks", async (
     });
 
     assert.equal(state.app, app);
+    // An unopened tray registers no document pointer/key listeners.
+    assert.deepEqual(
+      [...dividerListeners.keys()],
+      ["pointermove", "pointerup", "pointercancel"]
+    );
     elementListeners.get("dblclick")({
       target: {
         closest: selector =>
@@ -449,6 +463,7 @@ test("window session updates live settings and releases document hooks", async (
     assert.equal(state.app, null);
     assert.equal(state.actor, null);
     assert.equal(removed.length, hookIds.length);
+    assert.equal(dividerListeners.size, 0);
   } finally {
     globalThis.Hooks = previousHooks;
   }

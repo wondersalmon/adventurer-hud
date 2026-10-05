@@ -1,9 +1,7 @@
 import { createHudApplicationClass } from "./window-controls.js";
 import { activateHudWindow } from "./window-session.js";
 import {
-  playerWindowPosition,
   defaultPlayerWindowGeometry,
-  bottomWindowPosition,
   defaultGmWindowGeometry,
   normalizeWindowGeometry,
   storedWindowGeometry
@@ -40,7 +38,12 @@ function windowControls(t, gmActive) {
           }
         ]
       : []),
-    { icon: "fa-solid fa-gear", label: t("Settings.Open"), action: "settings" }
+    { icon: "fa-solid fa-gear", label: t("Settings.Open"), action: "settings" },
+    {
+      icon: "fa-solid fa-wrench",
+      label: t("Settings.Troubleshooting.Name"),
+      action: "troubleshooting"
+    }
   ];
 }
 
@@ -52,12 +55,15 @@ export function createHudWindow({
   DialogV2,
   t,
   title,
-  content
+  content,
+  currentMode = () => "regular"
 }) {
   let app = reusedApp;
   const pinSetting = gmActive ? SETTINGS.gmPinWindow : SETTINGS.pinWindow;
   let pinned = Boolean(getSetting(pinSetting));
   let closeOnEscape = Boolean(getSetting(SETTINGS.closeOnEscape));
+  let geometryMode = reusedApp?.hudGeometryMode ?? currentMode();
+  let separateSizes = Boolean(getSetting(SETTINGS.separateModeSizes));
   const fontSize = getSetting(SETTINGS.fontSize) || "medium";
   const defaultPosition = () =>
     gmActive
@@ -73,7 +79,34 @@ export function createHudWindow({
     const geometry = storedWindowGeometry(position);
     if (!geometry) return;
     state.position = geometry;
-    saveWindowGeometry(geometry, { gmActive });
+    saveWindowGeometry(geometry, { gmActive, mode: geometryMode });
+  };
+  const syncMode = mode => {
+    const enabled = Boolean(getSetting(SETTINGS.separateModeSizes));
+    const changed = geometryMode !== mode;
+    if (changed && !gmActive && separateSizes && app?.rendered)
+      storePosition(app.position);
+    geometryMode = mode;
+    app.hudGeometryMode = mode;
+    const applySize = changed || enabled !== separateSizes;
+    separateSizes = enabled;
+    if (!applySize || !enabled || gmActive || pinned || !app?.rendered) return;
+    const saved = getWindowGeometry(false, mode);
+    const geometry = normalizeWindowGeometry(
+      {
+        ...app.position,
+        width: saved.width ?? app.position.width,
+        height: saved.height ?? app.position.height
+      },
+      {
+        defaultWidth: defaultPosition().width,
+        viewportHeight: window.innerHeight,
+        viewportWidth: window.innerWidth,
+        minimumHeight: 350
+      }
+    );
+    app.setPosition(geometry);
+    storePosition(app.position);
   };
   const setPinned = value => {
     if (value && app?.rendered) {
@@ -95,6 +128,7 @@ export function createHudWindow({
   };
 
   return {
+    syncMode,
     create(actions) {
       if (!app) {
         const Hud = createHudApplicationClass({
@@ -102,7 +136,12 @@ export function createHudWindow({
           document,
           getPinLabel: value => t(value ? "Window.Unpin" : "Window.Pin"),
           isPinned: () => app.hudPinState?.() ?? pinned,
-          allowCloseOnEscape: () => app.hudEscapeState?.() ?? closeOnEscape
+          editingCloseConfig: () => ({
+            window: { title: t("HudLayout.CloseTitle") },
+            content: `<p>${t("HudLayout.CloseWarning")}</p>`
+          }),
+          allowCloseOnEscape: () => app.hudEscapeState?.() ?? closeOnEscape,
+          shouldSlide: () => Boolean(getSetting(SETTINGS.slidePanel))
         });
         const routes = Object.fromEntries(
           Object.keys(actions).map(key => [
@@ -124,12 +163,18 @@ export function createHudWindow({
           },
           position: {
             ...defaultPosition(),
-            ...normalizeWindowGeometry(getWindowGeometry(gmActive), {
-              defaultWidth: defaultPosition().width,
-              viewportHeight: window.innerHeight,
-              viewportWidth: window.innerWidth,
-              minimumHeight: gmActive ? 180 : 350
-            })
+            ...normalizeWindowGeometry(
+              {
+                ...defaultPosition(),
+                ...getWindowGeometry(gmActive, geometryMode)
+              },
+              {
+                defaultWidth: defaultPosition().width,
+                viewportHeight: window.innerHeight,
+                viewportWidth: window.innerWidth,
+                minimumHeight: gmActive ? 180 : 350
+              }
+            )
           },
           content,
           actions: routes,
@@ -140,6 +185,8 @@ export function createHudWindow({
       app.hudPinState = () => pinned;
       app.hudEscapeState = () => closeOnEscape;
       app.hudMinimumHeight = () => (gmActive ? 180 : 350);
+      app.hudGeometryMode = geometryMode;
+      app.hudGmActive = gmActive;
       return app;
     },
     async togglePin() {
@@ -149,28 +196,12 @@ export function createHudWindow({
     },
     async resetWindow() {
       if (pinned) return;
-      const { width, height } = defaultPosition();
-      app.setPosition({ width, height });
-      await new Promise(resolve => requestAnimationFrame(resolve));
-      const rect = app.element.getBoundingClientRect();
-      const positionWindow = gmActive
-        ? bottomWindowPosition
-        : playerWindowPosition;
-      const { left, top } = positionWindow(rect, {
-        width: window.innerWidth,
-        height: window.innerHeight
-      });
-      app.setPosition({ left, top });
-      storePosition({
-        left,
-        top,
-        width: rect.width,
-        height: rect.height
-      });
+      app.setPosition(defaultPosition());
+      storePosition(app.position);
       await flushWindowGeometry();
     },
-    activate(options) {
-      return activateHudWindow({
+    async activate(options) {
+      await activateHudWindow({
         ...options,
         app,
         t,
@@ -190,6 +221,7 @@ export function createHudWindow({
         },
         storePosition
       });
+      syncMode(currentMode());
     }
   };
 }

@@ -13,63 +13,39 @@ export function createAbilityComponents(context) {
     skills,
     t,
     tf,
-    visibility
+    visibility,
+    toolState
   } = context;
   const canAct = () => Boolean(actor?.isOwner ?? canRollActor);
+  const rollButton = (id, short, type, label) => {
+    const rollLabel = escapeHTML(
+      tf(
+        type === "save" ? "RollLabels.SavingThrow" : "RollLabels.AbilityCheck",
+        { ability: short }
+      )
+    );
+    const proficient = type === "save" && saveProf(id) > 0;
+    return `<button type="button" class="ws-ability-roll ws-button ${proficient ? "ws-save-prof" : ""}"
+      data-action="ability" data-type="${type}" data-key="${escapeHTML(id)}"
+      title="${rollLabel}" aria-label="${rollLabel}" ${canAct() ? "" : "disabled"}>
+      <span>${escapeHTML(label)}</span><strong>${formatMod(adapter.abilityTotal(adapter.abilityData(actor, id), type))}</strong>
+    </button>`;
+  };
   function abilityCards() {
     return `<div class="ws-ability-cards">${abilities
       .map(([id, short, icon]) => {
-        const data = adapter.abilityData(actor, id);
-        const safeId = escapeHTML(id);
-        const rollButton = (type, label) => {
-          const rollLabel = escapeHTML(
-            tf(
-              type === "save"
-                ? "RollLabels.SavingThrow"
-                : "RollLabels.AbilityCheck",
-              { ability: short }
-            )
-          );
-          const proficient = type === "save" && saveProf(id) > 0;
-          return `<button type="button" class="ws-ability-roll ws-button ${proficient ? "ws-save-prof" : ""}"
-          data-action="ability" data-type="${type}" data-key="${safeId}"
-          title="${rollLabel}" aria-label="${rollLabel}" ${canAct() ? "" : "disabled"}>
-          <span>${label}</span>
-          <strong>${formatMod(adapter.abilityTotal(data, type))}</strong>
-        </button>`;
-        };
         return `<div class="ws-ability-card">
         <div class="ws-ability-card-title"><i class="fa-solid ${escapeHTML(icon)}"></i>${escapeHTML(short)}</div>
-        ${rollButton("save", t("Labels.Save"))}
-        ${rollButton("check", t("Labels.Check"))}
+        ${rollButton(id, short, "save", t("Labels.Save"))}
+        ${rollButton(id, short, "check", t("Labels.Check"))}
       </div>`;
       })
       .join("")}</div>`;
   }
   const gmSaves = () =>
     `<section class="ws-gm-saves"><h3>${t("GM.Saves")}</h3><div>${abilities.map(([id, short]) => `<button type="button" class="ws-button" data-action="ability" data-type="save" data-key="${escapeHTML(id)}" title="${escapeHTML(tf("RollLabels.SavingThrow", { ability: short }))}" ${canAct() ? "" : "disabled"}><span>${escapeHTML(short)}</span><strong>${formatMod(adapter.abilityTotal(adapter.abilityData(actor, id), "save"))}</strong></button>`).join("")}</div></section>`;
-  const abilitiesSection = (mode = "regular") => {
-    const expanded =
-      hudState[
-        mode === "combat" ? "combatAbilitiesExpanded" : "abilitiesExpanded"
-      ];
-
-    return `
-      <section class="ws-ability-table ${expanded ? "ws-expanded" : ""}">
-        <button type="button" class="ws-section-toggle ws-button"
-          data-action="toggleabilities" aria-expanded="${expanded}">
-          <span><i class="fa-solid fa-dice"></i>${t("Labels.Abilities")}</span>
-          <i class="fa-solid fa-chevron-${expanded ? "up" : "down"}"></i>
-        </button>
-        ${
-          expanded
-            ? `
-          ${abilityCards()}`
-            : ""
-        }
-      </section>
-    `;
-  };
+  const abilitiesSection = () =>
+    `<section class="ws-ability-table">${abilityCards()}</section>`;
   const skillFilterHTML = () => `
     <div class="ws-skill-filter" role="group" aria-label="${t("Skills.Filter")}">
       <button type="button" class="ws-button ${hudState.proficientSkillsOnly ? "ws-active" : ""}"
@@ -92,10 +68,12 @@ export function createAbilityComponents(context) {
         ${t("Combat.AllSpells")}
       </button>
     </div>`;
-  function skillsHTML(mode = "regular") {
-    const visibleSkills = hudState.proficientSkillsOnly
-      ? skills.filter(([id]) => skillProf(id) >= 1)
-      : skills;
+  function skillsHTML(mode = "regular", matchingSkills = null) {
+    const visibleSkills =
+      matchingSkills ??
+      (hudState.proficientSkillsOnly
+        ? skills.filter(([id]) => skillProf(id) >= 1)
+        : skills);
     if (!visibleSkills.length) {
       return `<div class="ws-empty">${t("Skills.EmptyFiltered")}</div>`;
     }
@@ -217,7 +195,63 @@ export function createAbilityComponents(context) {
         </section>
       `;
   };
+  const trainedToolsHTML = () =>
+    toolState
+      ? `<div class="ws-tools-content">${toolSection(
+          t("Labels.Tools"),
+          "fa-screwdriver-wrench",
+          toolState.normalTools.filter(tool => tool.proficiency >= 1)
+        )}${toolSection(
+          t("Labels.Instruments"),
+          "fa-music",
+          toolState.instruments.filter(tool => tool.proficiency >= 1)
+        )}</div>`
+      : "";
+  const searchRolls = query => {
+    const needle = query.trim().toLocaleLowerCase();
+    if (!needle) return "";
+    const matches = value => String(value).toLocaleLowerCase().includes(needle);
+    const section = (label, html) =>
+      html
+        ? `<section class="ws-search-rolls"><h3>${t(label)}</h3><div class="ws-entry-grid">${html}</div></section>`
+        : "";
+    const matchingSkills = skills.filter(([id, name]) =>
+      matches(`${name} ${id}`)
+    );
+    const matchingTools = [
+      ...(toolState?.normalTools ?? []),
+      ...(toolState?.instruments ?? [])
+    ].filter(tool => matches(`${tool.name} ${tool.id}`));
+    const abilityResults = type =>
+      abilities
+        .flatMap(([id, short]) => {
+          const name = adapter.abilityLabel?.(id) ?? short;
+          const label = tf(
+            type === "save"
+              ? "RollLabels.SavingThrow"
+              : "RollLabels.AbilityCheck",
+            { ability: name }
+          );
+          return matches(
+            `${short} ${name} ${label} ${t(type === "save" ? "Labels.Save" : "Labels.Check")}`
+          )
+            ? [rollButton(id, short, type, label)]
+            : [];
+        })
+        .join("");
+    return (
+      section(
+        "Labels.Skills",
+        matchingSkills.length ? skillsHTML("regular", matchingSkills) : ""
+      ) +
+      section("Labels.Tools", toolEntries(matchingTools)) +
+      section("Labels.SavingThrows", abilityResults("save")) +
+      section("Labels.AbilityChecks", abilityResults("check"))
+    );
+  };
   return {
+    searchRolls,
+    trainedToolsHTML,
     abilitiesSection,
     gmSaves,
     skillFilterHTML,

@@ -1,7 +1,7 @@
 // @ts-check
 import { renderHudMode } from "../render/index.js";
 import { resolveHudMode } from "./state.js";
-import { createHudComponents } from "./components.js";
+import { createHudComponents, diceTrayButton } from "./components.js";
 import { createItemPanelRenderer } from "./items/item-panels.js";
 import { createCombatRenderer } from "./combat.js";
 import { createRegularRenderer } from "./regular.js";
@@ -9,8 +9,8 @@ import { renderInventorySummary } from "./items/inventory-summary.js";
 import { hudSceneTokens } from "./token-focus.js";
 import {
   gmWindowTitle,
-  renderGmInitiativeButtons,
   renderGmCombatHeader,
+  renderGmInitiativeButtons,
   renderGmRemovalButton,
   renderGmTurnControls
 } from "./gm/gm-combat.js";
@@ -89,7 +89,7 @@ export function createHudPresentation({
         : resolveHudMode({
             combatAvailable: combatModeAvailable(),
             forcedMode: hudState.forcedMode,
-            isActiveCombatant: getCombatState().isActive
+            isActiveCombatant: Boolean(getCombatState().combatant)
           });
 
   const components = createHudComponents({
@@ -100,6 +100,7 @@ export function createHudPresentation({
     tokenControl: () =>
       `<button type="button" class="ws-header-control ws-button" data-action="actorcenter" title="${t("Actor.SelectToken")}" aria-label="${t("Actor.SelectToken")}" ${actor.isOwner && hudSceneTokens(actorContext).length ? "" : "disabled"}><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i></button>`,
     abilities,
+    toolState,
     actor,
     adapter,
     canRollActor,
@@ -117,12 +118,21 @@ export function createHudPresentation({
   });
 
   const itemPanels = createItemPanelRenderer({
+    inventorySummary: () =>
+      renderInventorySummary({
+        data: adapter.inventorySummary(actor),
+        t,
+        escapeHTML,
+        formatNumber: value => inventoryNumberFormat.format(value)
+      }),
     skills,
     actor,
     adapter,
     escapeHTML,
     hudState,
     skillsHTML: components.skillsHTML,
+    searchRolls: components.searchRolls,
+    trainedToolsHTML: components.trainedToolsHTML,
     skillFilterHTML: components.skillFilterHTML,
     spellFilterHTML: components.spellFilterHTML,
     t,
@@ -155,6 +165,7 @@ export function createHudPresentation({
     hudState,
     ...components,
     combatActions: itemPanels.combatActions,
+    globalSearchPanel: itemPanels.globalSearchPanel,
     gmSpecialActions: itemPanels.gmSpecialActions,
     gmTurnControls: () => renderGmTurnControls(gmController?.getCombat(), t),
     gmInitiativeButtons: () =>
@@ -171,32 +182,30 @@ export function createHudPresentation({
   });
 
   const regularRenderer = createRegularRenderer({
-    inventorySummary: () =>
-      renderInventorySummary({
-        data: adapter.inventorySummary(actor),
-        t,
-        escapeHTML,
-        formatNumber: value => inventoryNumberFormat.format(value)
-      }),
     companionNavigation: companions?.navigationHTML,
     companionSection: companions?.sectionHTML,
     hudState,
     toolState,
     ...components,
     ...itemPanels,
-    combatInitiative: combatRenderer.combatInitiative,
     healthPanel: combatRenderer.healthPanel,
+    playerStatsHTML: combatRenderer.playerStatsHTML,
+    combatStatuses: combatRenderer.combatStatuses,
     t,
     visibility
   });
 
   const { availableViews } = regularRenderer;
+  const frame = body =>
+    !gmActive && visibility.playerFooter
+      ? `<div class="ws-player-frame">${body}<footer class="ws-player-footer"><div class="ws-footer-effects"></div><div class="ws-footer-controls">${diceTrayButton(t)}<button type="button" class="ws-button" data-action="actorping" title="${t("GM.Ping")}" aria-label="${t("GM.Ping")}" ${actor.isOwner && hudSceneTokens(actorContext).length ? "" : "disabled"}><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i></button></div></footer></div>`
+      : body;
   const combatHTML = () =>
-    itemPanels.withUsageTargets(combatRenderer.combatHTML);
+    itemPanels.withUsageTargets(() => frame(combatRenderer.combatHTML()));
   const combatActions = () =>
     itemPanels.withUsageTargets(itemPanels.combatActions);
   const normalHTML = () =>
-    itemPanels.withUsageTargets(regularRenderer.normalHTML);
+    itemPanels.withUsageTargets(() => frame(regularRenderer.normalHTML()));
 
   const dialogTitle = () =>
     gmActive
@@ -233,6 +242,8 @@ export function createHudPresentation({
     currentMode,
     combatHTML,
     combatActions,
+    globalSearchPanel: () =>
+      itemPanels.withUsageTargets(itemPanels.globalSearchPanel),
     availableViews,
     normalHTML
   };

@@ -27,7 +27,7 @@ const getOpenApp = () => globalThis.__adventurerHud?.app ?? null;
 const toggleHud = () => {
   const app = getOpenApp();
 
-  if (app?.rendered) {
+  if (app?.rendered && !app.hudStowed) {
     return app.close();
   }
 
@@ -37,14 +37,18 @@ const toggleHud = () => {
 const scheduleActorRefresh = () => {
   if (!isDnd5e()) return;
   if (globalThis.__adventurerHud?.preset === "gm") return;
-  if (!getSetting(SETTINGS.autoUpdateActor) || !getOpenApp()?.rendered) {
+  if (
+    !getSetting(SETTINGS.autoUpdateActor) ||
+    !getOpenApp()?.rendered ||
+    getOpenApp()?.hudStowed
+  ) {
     return;
   }
 
   clearTimeout(selectionTimer);
   selectionTimer = setTimeout(() => {
     selectionTimer = null;
-    if (!getOpenApp()?.rendered) return;
+    if (!getOpenApp()?.rendered || getOpenApp()?.hudStowed) return;
 
     const selected = canvas.tokens.controlled;
     if (selected.length > 1) {
@@ -147,17 +151,18 @@ Hooks.on("getSceneControlButtons", controls => {
   const name = gm ? "adventurerGmHud" : "adventurerHud";
   tokenControls.tools[name] = {
     name,
-    title: getOpenApp()?.rendered
-      ? gm
-        ? "ADVENTURER_HUD.GM.Controls.Hide"
-        : "ADVENTURER_HUD.Controls.Hide"
-      : gm
-        ? "ADVENTURER_HUD.GM.Controls.Show"
-        : "ADVENTURER_HUD.Controls.Show",
+    title:
+      getOpenApp()?.rendered && !getOpenApp()?.hudStowed
+        ? gm
+          ? "ADVENTURER_HUD.GM.Controls.Hide"
+          : "ADVENTURER_HUD.Controls.Hide"
+        : gm
+          ? "ADVENTURER_HUD.GM.Controls.Show"
+          : "ADVENTURER_HUD.Controls.Show",
     icon: gm ? "fa-solid fa-dragon" : "fa-solid fa-dice-d20",
     order: Object.keys(tokenControls.tools).length,
     button: true,
-    active: Boolean(getOpenApp()?.rendered),
+    active: Boolean(getOpenApp()?.rendered && !getOpenApp()?.hudStowed),
     visible: true,
     onChange: async () => {
       if (gm && !getSetting(SETTINGS.gmEnabled))
@@ -169,6 +174,33 @@ Hooks.on("getSceneControlButtons", controls => {
 
 Hooks.on("controlToken", scheduleActorRefresh);
 Hooks.on("canvasReady", scheduleActorRefresh);
+
+Hooks.on("createCombatant", combatant => {
+  if (
+    !isDnd5e() ||
+    !getSetting(SETTINGS.openPlayerOnCombat) ||
+    (game.user?.isGM && getSetting(SETTINGS.gmEnabled)) ||
+    combatant.parent?.scene?.id !== canvas.scene?.id
+  )
+    return;
+  const token = combatant.token;
+  const actor = token?.actor ?? combatant.actor;
+  const character = game.user?.character;
+  if (
+    !actor?.isOwner ||
+    !character ||
+    actor.type !== "character" ||
+    (actor !== character && token?.baseActor !== character)
+  )
+    return;
+  void openRollsHud(actor)
+    .then(() => {
+      const app = getOpenApp();
+      if (app?.rendered && !app.hudStowed)
+        return app.hudActions?.combatmode?.();
+    })
+    .catch(error => reportFailure("hud.combat.open", error));
+});
 
 Hooks.on("renderSettingsConfig", (app, html) => {
   if (!isDnd5e()) return;

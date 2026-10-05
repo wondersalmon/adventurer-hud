@@ -1,35 +1,41 @@
 # Player HUD
 
-[About the module](../README.md) · [GM HUD](gm-guide.md) · [Русский](player-guide.ru.md)
+[About](../README.md) · [GM guide](gm-guide.md) · [Companions](companions-guide.md) · [Version 2.0](release-2.0.md) · [Русский](player-guide.ru.md)
 
-Select your character's token and press **Shift+R** to open or close the HUD. Without a token, it opens your only available character or offers a choice. The portrait opens the sheet; the pin locks window position and size. **⋮** provides settings and manual mode controls.
+Select your character's token and press **Shift+R** to open or close the HUD. Without a token, choose an available character. The portrait/name opens the sheet; the pin locks movement and resizing. **⋮** contains settings, Troubleshooting and manual mode controls.
 
-## Character and actions
+## Exploration and combat
 
-Exploration provides checks, saves, skills, tools, spells, inventory and rests. Combat actions appear when your character participates in a started encounter. Roll initiative after the token joins combat; use **End turn** on your turn.
+Exploration provides checks, saves, skills, proficient tools, spells, inventory and rests. Skills open initially; click an expanded section again to collapse it. Combat appears when your character joins an encounter, before its first round. Separate buttons open weapon, spell, action, feature, skill and inventory categories at every width; click again to collapse. Features can switch between active and passive entries.
 
-Click **HP** for damage `-7`, healing `+5` or a new value `12`; temporary HP has a separate field. At 0 HP, death saves appear when needed. Crosshairs beside your name select your token and center the camera in either mode.
+Initiative requires a combat participant. **End turn** is available on your turn. The fixed bottom toolbar is enabled by default and holds effects, End turn, dice, ping and token focus; disabling it returns the other controls to their usual positions and hides the tray button. Shortcut hints start at the bottom of the left column. Ctrl+left-click an effect to remove it; hover for its native description.
 
-Search and filters help find actions. Inventory shows weight, capacity and gold. Favorites follows your character sheet; the header star enables editing.
+Click **HP** for damage `-7`, healing `+5` or a new value `12`; temporary HP is separate. Shift-click restores HP to maximum. Death saves appear at 0 HP when needed. Inspiration is beside your name; in exploration, compact short/long rest buttons sit beside it with hover labels. Saves and checks stay open. Expand speed for other movement types.
 
-Actions use D&D 5e dialogs and resources. Choose among an item's activities in its card. **Shift+left-click** skips that choice and requests a quick roll; **Alt/Ctrl+left-click** requests advantage/disadvantage where supported. **Right-click** opens the item sheet; **Shift+right-click** shares its description in chat.
+## Search, favorites and cards
 
-Hover over a card or focus it with the keyboard to read its description. The pin button or **F2** keeps it open; **Escape** closes it. Disable automatic previews in **Additional settings → Cards and actions**. **Features** shows entries with an activation by default, including Epic Actions. Enable **Show passive features** in that tab to switch to Darkvision and other passive traits; **Show active features** switches back; the choice is remembered for this character.
+Character search covers all items, activities, skills, tools, saves and checks regardless of the visible tab. Names come from your sheet, not the HUD language. Results retain native controls and rolls. Inventory provides equipment/consumable/other filters, weight and nonzero coins in both modes.
 
-## Companions on scene and in combat
+Favorites sync with the native sheet. Card stars add/remove items or activities. The global **Favorites** setting hides both the panel and stars; hiding the panel with the editor keeps stars and saved favorites.
 
-**Companions** automatically lists owned characters and creatures except your main character. **On scene** opens by default; **All** includes creatures without a token here. Rows provide sheets, health, AC and effects, updating with ownership and token changes.
+Actions use native D&D dialogs, resources and cancellation. Shift+left-click requests a quick roll; Alt/Ctrl requests advantage/disadvantage where supported. The book button opens the item sheet; Shift-click shares its description in chat. Hover/focus previews descriptions; pin the preview to keep it open, or close it with Escape. Click spell level headings to collapse groups.
 
-Select a row to open its actions in the same window; choose another companion below **Return to …**. Returning restores your original character token even outside the companion's vision. Switching selects the token, centers the camera and uses its vision; disable **Follow companion selection** to change only the panel. Ping marks a companion without changing selection.
+## Edit your HUD
 
-In **All**, **Add to scene** beside a creature places its prototype token. Choose a map position; **Escape** or right-click cancels. Ownership and token-creation permission are required; players cannot place during a pause. Once placed, the button disappears without adding a duplicate row. Multiple tokens share a row, with an instance picker when needed. Cast summoning spells through D&D 5e.
+The pen beside the pin enables **Edit HUD**. Drag handles or use arrows to reorder blocks, tabs and cards; move whole blocks between columns. The eye hides an element; **Hidden elements** and each list's **Hidden** controls restore it. Hiding the open tab closes its content. Cards do not activate while editing; closing asks for confirmation.
 
-![Companions panel](../media/summons-panel.png)
+Layouts save per character and mode; search/hint hiding applies to both player modes. Native item order and favorites stay intact. Global search settings enable the feature; they do not undo a character's saved hiding.
 
-## Familiar senses
+## Window and settings
 
-For **Find Familiar (2024)**, use the companion row's eye from your character panel. It adds the familiar's configured senses; your character stays selected with their actions available. The camera moves to the familiar while movement still controls your character. Disable **Move camera with shared senses** in **Companions** settings to keep the camera still. A green eye and message show that sharing is active.
+New player windows start at about 640 × 500 at the left edge, starting at top 710 px when the screen allows. Existing geometry takes priority. Unpin to resize an edge along one axis, resize a corner, or adjust the column divider with dragging/arrow keys. Moving near an edge snaps the window to it.
 
-Activate sharing on your character's turn; it lasts until the start of their next turn, or six seconds of advanced **game time** outside combat. Track the Bonus Action and other spell requirements yourself. Press the eye again or return to your own senses to stop early. Changing token or panel, reopening or closing the HUD also stops sharing.
+Main settings contain language, theme, text size, opening on login, sliding and opening on joining combat. **Additional settings** groups window behavior, window/layout, panel content, cards/actions and controls. There you can choose the two-column threshold (450–1200), separate mode sizes, HUD dimensions, bottom toolbar and scrolling to opened sections. Spell level headings retain ordinary scrolling. The two-column threshold defaults to 450 px and the left column to 48%. Sliding is enabled by default and can be disabled; opening on joining combat is optional. The latter opens a closed HUD; an already open HUD switches when added to combat regardless of that preference. GM preferences remain independent.
 
-An unavailable eye shows the reason below its row. Both tokens must be on this scene and controllable; the familiar needs vision and more than 0 HP. In combat, your character must participate and have the current turn. If several character tokens exist, select the intended one first. See [GM setup](gm-guide.md#players-companions).
+## Dice tray
+
+Open the dice button beside ping in the bottom toolbar. Choose d2/d4/d6/d8/d10/d12/d20/d100: left-click adds one, right-click removes one, minimum zero. Shift-click rolls one immediately; Alt/Ctrl rolls two and keeps the higher/lower result. Quick rolls leave the set intact. **Roll** rolls the set with an optional modifier/additional formula, such as `-2` or `1d6 + @abilities.dex.mod`; a formula also works alone. **Clear** removes the set and formula. Results use native chat visibility. Escape, the close button or clicking outside closes the tray; refresh/creature switching also closes it.
+
+## Backup and help
+
+**Troubleshooting** exports/restores personal settings, layouts and windows as JSON. Restore updates open panels; failures attempt rollback and warn if incomplete. A window reset changes geometry only. **Reset all** also clears block/card layouts, while native favorites remain. Reset is optional after upgrading; restore hidden content through the editor first. See the [companions guide](companions-guide.md) for shared senses and the optional 2024 mode.

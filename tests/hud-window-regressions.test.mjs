@@ -12,6 +12,196 @@ import { diagnosticReport } from "../scripts/diagnostics.js";
 
 restoreGlobalsAfterEach();
 
+test("turn button and panel highlight follow the displayed character's turn and visual-effect preference", async () => {
+  const f = await hudFixture({ combat: true, values: { playerFooter: false } });
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  const root = app.element;
+  assert.ok(root.classList.contains("ws-actor-turn"));
+  assert.ok(
+    root.querySelector('.ws-actor-quick-controls [data-action="endturn"] span')
+  );
+  assert.equal(root.querySelector(".ws-current-turn"), null);
+  app.applySetting(SETTINGS.showVisualEffects, false);
+  assert.ok(root.classList.contains("ws-effects-disabled"));
+  assert.ok(root.classList.contains("ws-actor-turn"));
+  app.applySetting(SETTINGS.showVisualEffects, true);
+  assert.equal(root.classList.contains("ws-effects-disabled"), false);
+  game.combat.combatant = { id: "other" };
+  f.hooks.callAll("updateCombat", game.combat, {});
+  await waitFor(() => !root.classList.contains("ws-actor-turn"));
+  assert.equal(root.querySelector('[data-action="endturn"]'), null);
+  await app.close();
+  assert.equal(root.classList.contains("ws-actor-turn"), false);
+});
+
+test("Ctrl-click removes displayed actor conditions while ordinary click, denied ownership and stale sessions do not", async () => {
+  const f = await hudFixture();
+  CONFIG.statusEffects = [
+    { id: "poisoned", name: "Poisoned", reference: "Compendium.rules.poisoned" }
+  ];
+  f.actor.statuses = new Set(["poisoned"]);
+  const removals = [];
+  f.actor.toggleStatusEffect = async (...args) => {
+    removals.push(args);
+    f.actor.statuses.clear();
+  };
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  const icon = app.element.querySelector('[data-status-id="poisoned"]');
+  assert.ok(icon);
+  const context = new document.defaultView.Event("click", {
+    bubbles: true,
+    cancelable: true
+  });
+  Object.assign(context, { ctrlKey: true, button: 0 });
+  icon.querySelector("img").dispatchEvent(context);
+  assert.equal(context.defaultPrevented, true);
+  await waitFor(() => removals.length === 1);
+  assert.deepEqual(removals, [["poisoned", { active: false }]]);
+  const actions = app.hudActions;
+  const target = { dataset: { statusId: "poisoned" } };
+  await actions.removestatus({ type: "click" }, target);
+  f.actor.isOwner = false;
+  await actions.removestatus(
+    { type: "click", ctrlKey: true, button: 0 },
+    target
+  );
+  await app.close();
+  f.actor.isOwner = true;
+  await actions.removestatus(
+    { type: "click", ctrlKey: true, button: 0 },
+    target
+  );
+  icon.dispatchEvent(context);
+  assert.equal(removals.length, 1);
+});
+
+for (const isGM of [false, true]) {
+  test(`header Troubleshooting shortcut opens diagnostics without actor selection in ${isGM ? "GM" : "player"} mode`, async () => {
+    const f = await hudFixture({ isGM });
+    if (isGM) game.combat = null;
+    await f.api.open(isGM ? undefined : f.actor);
+    const app = __adventurerHud.app;
+    assert.ok(
+      app.options.window.controls.some(
+        control => control.action === "troubleshooting"
+      )
+    );
+    const diagnostics = await app.hudActions.troubleshooting();
+    assert.equal(diagnostics.rendered, true);
+    assert.equal(diagnostics.context.debugWindowSize, undefined);
+    await app.close();
+  });
+}
+
+test("column threshold changes reflow the open HUD immediately and remain applied after refresh", async () => {
+  const f = await hudFixture({ values: { twoColumnWidth: 900 } });
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  app.setPosition({ width: 650, height: 450 });
+  app.listeners.get("position")();
+  assert.equal(
+    app.element
+      .querySelector(".ws-player-layout")
+      .classList.contains("ws-player-columns"),
+    false
+  );
+  await game.settings.set("adventurer-hud", SETTINGS.twoColumnWidth, 600);
+  assert.equal(
+    app.element
+      .querySelector(".ws-player-layout")
+      .classList.contains("ws-player-columns"),
+    true
+  );
+  await app.hudActions.regularview(null, { dataset: { view: "skills" } });
+  assert.equal(
+    app.element
+      .querySelector(".ws-player-layout")
+      .classList.contains("ws-player-columns"),
+    true
+  );
+  assert.equal(
+    app.element.querySelector(".ws-player-info .ws-health-stack") !== null,
+    true
+  );
+  assert.equal(
+    app.element
+      .querySelector('.ws-exploration-nav [data-view="skills"]')
+      .getAttribute("aria-current"),
+    "page"
+  );
+  await app.close();
+});
+
+test("manual mode switches restore separate dimensions, preserve position and survive reopening", async () => {
+  const f = await hudFixture({
+    combat: true,
+    values: {
+      showModeNavigation: true,
+      separateModeSizes: true,
+      windowGeometry: { left: 20, top: 30, width: 500, height: 450 },
+      windowModeSizes: {
+        regular: { width: 320, height: 450 },
+        combat: { width: 800, height: 600 }
+      }
+    }
+  });
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  assert.equal(app.position.width, 800);
+  await app.hudActions.normal();
+  assert.deepEqual(app.position, {
+    left: 20,
+    top: 30,
+    width: 320,
+    height: 450
+  });
+  app.setPosition({ width: 400, height: 500, left: 40, top: 50 });
+  app.listeners.get("position")();
+  await app.hudActions.combatmode();
+  assert.deepEqual(app.position, {
+    left: 40,
+    top: 50,
+    width: 800,
+    height: 600
+  });
+  await app.hudActions.normal();
+  assert.equal(app.position.width, 400);
+  assert.equal(app.position.height, 500);
+  await app.close();
+  await f.api.open(f.actor);
+  await __adventurerHud.app.hudActions.normal();
+  assert.equal(__adventurerHud.app.position.width, 400);
+  await __adventurerHud.app.close();
+});
+
+test("automatic combat transitions use mode sizes while pinned windows keep their dimensions", async () => {
+  const f = await hudFixture({
+    values: {
+      separateModeSizes: true,
+      windowModeSizes: {
+        regular: { width: 320, height: 450 },
+        combat: { width: 800, height: 600 }
+      }
+    }
+  });
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  assert.equal(app.position.width, 320);
+  const combatant = { id: "turn", actorId: f.actor.id, initiative: 10 };
+  game.combat = { started: true, combatant, combatants: [combatant] };
+  f.hooks.callAll("updateCombat", game.combat, { started: true });
+  f.flushFrames();
+  assert.equal(app.position.width, 800);
+  await app.hudActions.togglepin();
+  game.combat.started = false;
+  f.hooks.callAll("updateCombat", game.combat, { started: false });
+  f.flushFrames();
+  assert.equal(app.position.width, 800);
+  await app.close();
+});
+
 test("item previews use the displayed Actor and respond to live settings without reopening", async t => {
   const f = await hudFixture();
   f.actor.items.set("trait", {
@@ -36,11 +226,10 @@ test("item previews use the displayed Actor and respond to live settings without
   const card = app.element.querySelector('[data-description-item-id="trait"]');
   card.getBoundingClientRect = () => ({ left: 20, right: 80, top: 40 });
   const show = () => {
-    const event = new document.defaultView.Event("keydown", {
+    const event = new document.defaultView.Event("mouseover", {
       bubbles: true,
       cancelable: true
     });
-    Object.assign(event, { key: "F2" });
     card.querySelector("button").dispatchEvent(event);
   };
   show();
@@ -57,6 +246,14 @@ test("item previews use the displayed Actor and respond to live settings without
   );
   await waitFor(() => !app.element.querySelector(".ws-item-preview"));
   assert.equal(app.hudActions, originalActions);
+  show();
+  await new Promise(resolve => setTimeout(resolve, 450));
+  assert.equal(app.element.querySelector(".ws-item-preview"), null);
+  await game.settings.set(
+    "adventurer-hud",
+    SETTINGS.showItemDescriptions,
+    true
+  );
   show();
   await waitFor(() => app.element.querySelector(".ws-item-preview"));
   await app.close();
@@ -172,16 +369,16 @@ test("GM right-click routes the addressed card and removes its handler on close"
   assert.deepEqual(addressed, ["creature"]);
 });
 
-test("player defaults open a narrow panel at the lower left", async () => {
+test("player defaults use the reference size and requested top offset", async () => {
   const f = await hudFixture();
   window.innerWidth = 788;
   window.innerHeight = 1597;
   await f.api.open(f.actor);
   assert.deepEqual(__adventurerHud.app.position, {
-    width: 320,
-    height: 830,
+    width: 640,
+    height: 500,
     left: 0,
-    top: 623
+    top: 710
   });
   await __adventurerHud.app.close();
 });
@@ -198,16 +395,19 @@ test("GM defaults follow the screenshot proportions and sit above the bottom edg
     await f.api.open();
     const app = __adventurerHud.app;
     const { width, height, left, top } = app.position;
-    assert.equal(width, Math.round(viewport.width * 0.78));
-    assert.equal(height, Math.round(viewport.height * 0.45));
-    assert.ok(Math.abs(left + width / 2 - viewport.width / 2) <= 0.5);
-    assert.equal(top + height, viewport.height - 16);
+    assert.equal(width, Math.min(1120, viewport.width));
+    assert.equal(height, Math.min(450, viewport.height));
+    assert.equal(left, 0);
+    assert.equal(top + height, viewport.height);
     await app.close();
   }
 });
 
 test("GM search and category preferences apply live, retain spells and leave player mode unchanged", async () => {
-  const f = await hudFixture({ isGM: true });
+  const f = await hudFixture({
+    isGM: true,
+    values: { gmFollowTurn: true, gmHideSearch: true, gmActionTypesOnly: true }
+  });
   canvas.scene = { id: "scene" };
   const actor = { ...f.actor, type: "npc", uuid: "Actor.monster" };
   actor.items = itemCollection([
@@ -276,7 +476,8 @@ test("GM search and category preferences apply live, retain spells and leave pla
   search().dispatchEvent(
     new document.defaultView.Event("input", { bubbles: true })
   );
-  assert.equal(app.element.querySelector('[data-item-id="spell"]'), null);
+  assert.ok(app.element.querySelector('[data-item-id="spell"]'));
+  assert.ok(app.element.querySelector('.ws-search-results [role="status"]'));
   await game.settings.set("adventurer-hud", SETTINGS.gmHideSearch, true);
   assert.equal(search(), null);
   assert.ok(app.element.querySelector('[data-item-id="spell"]'));
@@ -544,9 +745,13 @@ test("typing in the middle of search preserves focus and the selection direction
       new document.defaultView.Event("input", { bubbles: true })
     );
     const next = app.element.querySelector('[data-action="searchitems"]');
-    assert.notEqual(next, input);
+    assert.equal(next, input);
     assert.equal(document.activeElement, next);
-    assert.deepEqual(selections, [[next, 1, 3, "backward"]]);
+    assert.deepEqual(
+      [next.selectionStart, next.selectionEnd, next.selectionDirection],
+      [1, 3, "backward"]
+    );
+    assert.deepEqual(selections, []);
   } finally {
     prototype.focus = priorFocus;
     if (priorSelection) prototype.setSelectionRange = priorSelection;
@@ -695,29 +900,40 @@ test("one GM window keeps menus, pin state and subscriptions across empty and po
   const reset = app.options.actions.resetwindow();
   f.flushFrames();
   await reset;
-  assert.equal(app.position.width, 780);
-  assert.equal(app.position.height, 360);
-  assert.equal(app.position.left, 110);
-  assert.equal(app.position.top, 424);
-  assert.equal(__adventurerHud.position.width, 780);
+  assert.equal(app.position.width, 1000);
+  assert.equal(app.position.height, 450);
+  assert.equal(app.position.left, 0);
+  assert.equal(app.position.top, 350);
+  assert.equal(__adventurerHud.position.width, 1000);
   assert.deepEqual(f.notifications, []);
   await app.close();
   assert.ok(f.callbacks.size < hookCount);
 });
 
 for (const isGM of [false, true]) {
-  test(`diagnostic reports collect resized HUD dimensions without a header badge in ${isGM ? "GM" : "player"} mode`, async () => {
+  test(`debug dimensions update in the header and diagnostic reports in ${isGM ? "GM" : "player"} mode`, async () => {
     const f = await hudFixture({ isGM, values: { debugWindowSize: true } });
     await f.api.open(isGM ? undefined : f.actor);
     const app = __adventurerHud.app;
     app.setPosition({ width: 500, height: 650 });
+    app.listeners.get("position")();
+    assert.equal(
+      app.element.querySelector(".ws-window-size").textContent,
+      "500 × 650"
+    );
     const first = diagnosticReport().context.panel;
     assert.equal(first.width, 500);
     assert.equal(first.height, 650);
     app.setPosition({ width: 300, height: 450 });
+    app.listeners.get("position")();
     const resized = diagnosticReport().context.panel;
     assert.equal(resized.width, 300);
     assert.equal(resized.height, 450);
+    assert.equal(
+      app.element.querySelector(".ws-window-size").textContent,
+      "300 × 450"
+    );
+    await game.settings.set("adventurer-hud", SETTINGS.debugWindowSize, false);
     assert.equal(app.element.querySelector(".ws-window-size"), null);
     await app.close();
   });
