@@ -13,12 +13,13 @@ import { flushWindowGeometry } from "../window-geometry.js";
 import { getSetting, setSetting, SETTINGS } from "../settings-access.js";
 
 /**
- * @param {{actorOverride: import('../../types/hud.js').ActorContext['actor'] | null, navigation?: import('../../types/hud.js').CompanionNavigation | null, adapter: import('../../types/hud.js').HudAdapter, openHud: import('../../types/hud.js').OpenHud}} options
+ * @param {{actorOverride: import('../../types/hud.js').ActorContext['actor'] | null, navigation?: import('../../types/hud.js').CompanionNavigation | null, recovery?: import('../../types/hud.js').HudActorRecovery, adapter: import('../../types/hud.js').HudAdapter, openHud: import('../../types/hud.js').OpenHud}} options
  * @returns {Promise<import('../../types/hud.js').HudOpenContext | null>}
  */
 export async function prepareHudOpenContext({
   actorOverride,
   navigation = null,
+  recovery,
   adapter,
   openHud
 }) {
@@ -52,6 +53,7 @@ export async function prepareHudOpenContext({
     !gmActive && navigation
       ? await companionNavigationContext(navigation)
       : null;
+  if (recovery && !recovery.isCurrent()) return null;
   if (navigation && !gmActive && !linkedContext) {
     ui.notifications.warn(t("Companions.Unavailable"));
     return null;
@@ -106,6 +108,8 @@ export async function prepareHudOpenContext({
     if (leavingGm) await setSetting(SETTINGS.gmEnabled, true);
     return null;
   }
+  if (recovery && !recovery.isCurrent()) return null;
+  if (selection && !gmActive && recovery) selection.token = recovery.token;
   const reuseCompanion =
     linkedContext &&
     state.preset === "player" &&
@@ -134,6 +138,7 @@ export async function prepareHudOpenContext({
     : null;
   if (state.app?.rendered && !reusedApp) {
     await flushWindowGeometry();
+    if (recovery && !recovery.isCurrent()) return null;
     await state.app.close({ hudForce: true });
   }
 
@@ -178,6 +183,7 @@ export async function prepareHudOpenContext({
     tf,
     adapter,
     actorContext,
+    recoveryState: recovery?.hudState,
     session,
     gmController,
     gmCombatant,

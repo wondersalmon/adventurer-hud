@@ -35,7 +35,7 @@ for (const language of ["en", "ru"]) {
 ${bindHudDiceTray.toString()}
       const strings=${JSON.stringify(strings)}, root=document.querySelector('.ws-rolls-dialog');
       window.trayCalls=[]; window.foundry={dice:{Roll:class {constructor(formula){this.total=9;this.dice=window.trayDice||[];window.trayCalls.push(formula);}async evaluate(){}async toMessage(data,options){window.trayChat={data,options};}}}};
-      window.CONFIG={ChatMessage:{documentClass:{getSpeaker:()=>({actor:'hero'})}}};window.game={audio:{interface:new AudioContext(),locked:false,globalMute:false},settings:{get:(_module,key)=>key==='globalInterfaceVolume'?0.3:'private'}};
+      window.CONFIG={ChatMessage:{documentClass:{getSpeaker:()=>({actor:'hero'})}}};window.game={audio:{interface:new AudioContext(),locked:false,globalMute:false},settings:{get:(_module,key)=>key==='globalInterfaceVolume'?0.3:'gm'}};
       const audio=game.audio.interface, originalOscillator=audio.createOscillator.bind(audio);window.trayAudioStarted=0;
       audio.createOscillator=()=>{window.trayAudioStarted++;return originalOscillator();};
       document.addEventListener('keydown',()=>void audio.resume(),{once:true});
@@ -168,14 +168,14 @@ ${bindHudDiceTray.toString()}
         await expect(tray.locator("input")).toHaveValue("-2");
         expect(
           await page.evaluate(() => window.trayChat.options.messageMode)
-        ).toBe("private");
+        ).toBe("gm");
         await tray.locator('[data-dice-tray="clear"]').click();
         await expect(die.locator("small")).toHaveText("0");
         await die.click({ button: "right" });
         await expect(die.locator("small")).toHaveText("0");
         await title.focus();
         await page.keyboard.press("Shift+Tab");
-        await expect(tray.locator('[data-dice-tray="clear"]')).toBeFocused();
+        await expect(tray.locator("[data-dice-visibility]")).toBeFocused();
         await page.keyboard.press("Escape");
         await expect(tray).toHaveCount(0);
         await expect(toggle).toBeFocused();

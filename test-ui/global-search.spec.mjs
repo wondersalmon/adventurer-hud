@@ -1,22 +1,15 @@
+import { loadHudModules } from "./module-fixture.mjs";
 import { test, expect } from "@playwright/test";
-import { readFile } from "node:fs/promises";
 import { layoutFixture } from "./layout-fixture.mjs";
 import { itemRendererFixture } from "../tests/helpers/rendering.mjs";
-import { createViewActions } from "../scripts/hud/view-actions.js";
 import { createHudState } from "../scripts/hud/state.js";
-import { captureHudDomState } from "../scripts/hud/window/dom-state.js";
-import { refreshHudView } from "../scripts/hud/refresh.js";
-import { applyPlayerLayout } from "../scripts/hud/window/responsive-layout.js";
-
-const layoutSource = await readFile(
-  new URL("../scripts/hud/window/hud-layout.js", import.meta.url),
-  "utf8"
-);
 
 for (const language of ["en", "ru"]) {
   test(`${language} typing keeps focus, caret and a search block moved above identity`, async ({
     page
   }) => {
+    const errors = [];
+    page.on("pageerror", error => errors.push(error.message));
     const fixture = await layoutFixture(language);
     const query = language === "en" ? "Sword" : "Меч";
     const { renderer, hudState } = itemRendererFixture({
@@ -31,13 +24,26 @@ for (const language of ["en", "ru"]) {
     await page.setContent(
       `<style>${fixture.baseline}\n${fixture.css}</style><section class="ws-rolls-dialog ws-font-large ws-theme-dark" style="width:650px"><header class="window-header"><b>HUD</b><button data-action="togglehudedit">Edit</button></header><div class="window-content" style="height:430px"><div class="ws-shell">${fixture.bodies["player-combat"]}</div></div></section>`
     );
-    await page.addScriptTag({
-      type: "module",
-      content: `${layoutSource};Object.assign(window,{synchronizeHudLayout,changeHudLayout});`
+    await loadHudModules(page, {
+      "hud/window/hud-layout.js": [
+        "synchronizeHudLayout",
+        "changeHudLayout",
+        "bindHudLayoutDrag",
+        "resetHudBlock",
+        "undoHudLayout",
+        "captureHudLayoutUndo",
+        "rememberHudLayoutChange"
+      ],
+      "hud/view-actions.js": ["createViewActions"],
+      "hud/refresh.js": ["refreshHudView", "refreshHudShell"],
+      "hud/window/dom-state.js": ["captureHudDomState", "restoreHudDomState"],
+      "hud/window/responsive-layout.js": ["applyPlayerLayout"],
+      "hud/items/item-layout.js": ["renderItemLayout", "moveItemLayout"],
+      "hud/items/item-layout-interactions.js": ["bindItemLayoutInteractions"]
     });
     await page.waitForFunction(() => Boolean(window.changeHudLayout));
     await page.addScriptTag({
-      content: `${applyPlayerLayout.toString()};${createViewActions.toString()};${captureHudDomState.toString()};${refreshHudView.toString()};
+      content: `
       const state=${JSON.stringify(createHudState({ renderedMode: "combat" }))}, results=${JSON.stringify(results)}, renderedMarkup=new WeakMap();
       const root=document.querySelector('.ws-rolls-dialog'), app={element:root,rendered:true};
       const render=()=>{applyPlayerLayout(root.querySelector('.ws-player-layout'),true);synchronizeHudLayout(root,state,key=>key);};
@@ -86,5 +92,6 @@ for (const language of ["en", "ru"]) {
       columnTop: node.closest("[data-hud-lane]").getBoundingClientRect().top
     }));
     expect(bounds.top).toBeGreaterThanOrEqual(bounds.columnTop);
+    expect(errors).toEqual([]);
   });
 }

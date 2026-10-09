@@ -62,6 +62,36 @@ function fixture(t, options = {}) {
   return { document, element, items, calls, errors, preview, event };
 }
 
+test("pinned previews allow other descriptions, keyboard movement and complete disposal", async t => {
+  const f = fixture(t);
+  f.event("a", "mouseover");
+  t.mock.timers.tick(400);
+  await settle();
+  const pinned = f.element.querySelector(".ws-item-preview");
+  pinned.querySelector("header button").click();
+  f.event("b", "mouseover");
+  t.mock.timers.tick(400);
+  await settle();
+  assert.equal(f.element.querySelectorAll(".ws-item-preview").length, 2);
+  const header = pinned.querySelector("header");
+  const left = parseFloat(pinned.style.left);
+  const key = new f.document.defaultView.Event("keydown", {
+    bubbles: true,
+    cancelable: true
+  });
+  Object.assign(key, { key: "ArrowRight" });
+  header.dispatchEvent(key);
+  assert.equal(parseFloat(pinned.style.left), left + 10);
+  f.preview.dispose();
+  assert.equal(f.element.querySelectorAll(".ws-item-preview").length, 0);
+  assert.equal(
+    f.element
+      .querySelector('[data-description-item-id="a"]')
+      .getAttribute("aria-describedby"),
+    null
+  );
+});
+
 test("preview enriches only after hover delay, escapes names and preserves enriched links", async t => {
   const f = fixture(t);
   f.event("a", "mouseover");
@@ -119,7 +149,39 @@ test("hovering or focusing side controls never enriches the spell description", 
   side.firstElementChild.dispatchEvent(
     new f.document.defaultView.Event("mouseover", { bubbles: true })
   );
+  assert.ok(f.element.querySelector(".ws-item-preview"));
+  t.mock.timers.tick(500);
   assert.equal(f.element.querySelector(".ws-item-preview"), null);
+});
+
+test("the preview stays reachable across side controls and can be pinned", async t => {
+  const f = fixture(t);
+  f.event("a", "mouseover");
+  t.mock.timers.tick(400);
+  await settle();
+  const popup = f.element.querySelector(".ws-item-preview");
+  const side = f.document.createElement("div");
+  side.className = "ws-item-side-actions";
+  f.element.append(side);
+  f.event("a", "mouseout", { relatedTarget: side });
+  side.dispatchEvent(
+    new f.document.defaultView.Event("mouseover", { bubbles: true })
+  );
+  t.mock.timers.tick(300);
+  const pin = popup.querySelector("header button");
+  pin.dispatchEvent(
+    new f.document.defaultView.Event("mouseover", { bubbles: true })
+  );
+  t.mock.timers.tick(600);
+  assert.equal(f.element.querySelector(".ws-item-preview"), popup);
+  pin.click();
+  pin.dispatchEvent(
+    new f.document.defaultView.Event("mouseout", { bubbles: true })
+  );
+  t.mock.timers.tick(600);
+  assert.equal(pin.getAttribute("aria-pressed"), "true");
+  assert.equal(popup.getAttribute("role"), "dialog");
+  assert.equal(f.element.querySelector(".ws-item-preview"), popup);
 });
 
 test("disabled hover and F2 do not open or pin a preview", async t => {

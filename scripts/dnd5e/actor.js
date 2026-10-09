@@ -5,7 +5,34 @@ import {
   proficiencyMultiplier
 } from "./actor-data.js";
 
+/** Resolve native encounter members, including quantity formulas and world imports. */
+export async function encounterActors(actor) {
+  if (
+    !game.user?.isGM ||
+    actor.type !== "encounter" ||
+    !actor.isOwner ||
+    !actor.system?.getPlaceableMembers
+  )
+    return [];
+  const members = await actor.system.getPlaceableMembers();
+  if (!actor.isOwner) return [];
+  return members.flatMap(member => {
+    const quantity = member.quantity?.value ?? 1;
+    if (
+      member.actor?.type !== "npc" ||
+      !member.actor.isOwner ||
+      !Number.isSafeInteger(quantity) ||
+      quantity < 1
+    )
+      return [];
+    return Array(quantity).fill(member.actor);
+  });
+}
+
 export const dnd5eActor = {
+  encounterActors,
+  openInventorySheet: actor =>
+    actor.sheet?.render({ force: true, tab: "inventory" }),
   removeStatus(actor, id) {
     if (this.statusDefinitions().some(status => status.id === id))
       return actor.toggleStatusEffect(id, { active: false });
@@ -87,10 +114,26 @@ export const dnd5eActor = {
     const units =
       (config?.[actor.type] ?? config?.default)?.[unitSystem] ??
       (unitSystem === "metric" ? "kg" : "lb");
+    const weight = number(encumbrance.value);
+    const capacity = encumbrance.thresholds?.maximum ?? encumbrance.max;
+    const maxWeight = capacity === Infinity ? Infinity : number(capacity);
+    const variant = game.settings.get("dnd5e", "encumbrance") === "variant";
+    const exceeds = threshold =>
+      weight != null && threshold != null && weight > threshold;
+    const loadState = exceeds(maxWeight)
+      ? "overloaded"
+      : variant && exceeds(encumbrance.thresholds?.heavilyEncumbered)
+        ? "heavy"
+        : (variant && exceeds(encumbrance.thresholds?.encumbered)) ||
+            encumbrance.encumbered
+          ? "encumbered"
+          : weight == null || maxWeight == null
+            ? "unknown"
+            : "normal";
     return {
-      weight: number(encumbrance.value),
-      maxWeight:
-        encumbrance.max === Infinity ? Infinity : number(encumbrance.max),
+      weight,
+      maxWeight,
+      loadState,
       units: game.i18n.localize(
         CONFIG.DND5E.weightUnits?.[units]?.abbreviation ?? units
       ),

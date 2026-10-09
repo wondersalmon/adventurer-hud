@@ -117,7 +117,10 @@ test("N2: Cast card uses consistent cached DC, range and damage", () => {
   );
   assert.match(root.textContent, /17/);
   assert.match(root.textContent, /BA/);
-  assert.match(root.textContent, /Combat.ConcentrationShort/);
+  assert.equal(
+    root.querySelector(".ws-concentration-icon").getAttribute("aria-label"),
+    "Combat.Concentration"
+  );
   assert.match(root.textContent, /2\/3/);
   assert.equal(
     root.querySelector('[data-action="useactivity"]').dataset.activityId,

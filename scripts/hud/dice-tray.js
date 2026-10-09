@@ -110,6 +110,12 @@ export function bindDiceTray({ app, actor, t, isActive }) {
   let anchor = null;
   let counts = {};
   let extra = "";
+  const messageModes = ["public", "gm", "blind", "self"];
+  let messageMode = globalThis.game?.user?.isGM
+    ? "self"
+    : game.settings.get("core", "messageMode");
+  if (!messageModes.includes(messageMode)) messageMode = "public";
+  const canRoll = () => Boolean(globalThis.game?.user?.isGM || actor?.isOwner);
   let busy = false;
   let effectTimer = null;
   let stopSound = () => {};
@@ -187,28 +193,34 @@ export function bindDiceTray({ app, actor, t, isActive }) {
     position();
   };
   const roll = async formula => {
-    if (busy || !formula || !actor?.isOwner || !isActive()) return;
+    if (busy || !formula || !canRoll() || !isActive()) return;
     busy = true;
     sync();
     try {
       const rolledTray = tray;
       let natural20 = false;
       let natural1 = false;
-      const total = await rollDiceTray(actor, formula, isActive, result => {
-        for (const die of result.dice ?? []) {
-          if (die.faces !== 20) continue;
-          for (const face of die.results ?? []) {
-            if (face.active === false || face.discarded || face.rerolled)
-              continue;
-            if (face.result === 20) natural20 = true;
-            if (face.result === 1) natural1 = true;
+      const total = await rollDiceTray(
+        actor,
+        formula,
+        isActive,
+        result => {
+          for (const die of result.dice ?? []) {
+            if (die.faces !== 20) continue;
+            for (const face of die.results ?? []) {
+              if (face.active === false || face.discarded || face.rerolled)
+                continue;
+              if (face.result === 20) natural20 = true;
+              if (face.result === 1) natural1 = true;
+            }
           }
-        }
-      });
+        },
+        messageMode
+      );
       if (
         tray &&
         tray === rolledTray &&
-        actor.isOwner &&
+        canRoll() &&
         isActive() &&
         total != null
       ) {
@@ -255,6 +267,7 @@ export function bindDiceTray({ app, actor, t, isActive }) {
         <span><kbd>Ctrl</kbd> ${t("Shortcuts.Disadvantage")}</span>
       </div></div>
       <div class="ws-dice-formula"><label for="ws-dice-formula">${t("DiceTray.Formula")}</label><div class="ws-dice-formula-row"><span class="ws-dice-formula-symbol" aria-hidden="true">Σ</span><input id="ws-dice-formula" type="text" maxlength="256" data-dice-formula placeholder="+5 / 1d6"><button type="button" class="ws-button" data-dice-tray="clear" title="${t("DiceTray.Clear")}" aria-label="${t("DiceTray.Clear")}"><i class="fa-solid fa-eraser" aria-hidden="true"></i></button></div></div>
+      <label class="ws-dice-visibility">${t("DiceTray.Visibility")}<select data-dice-visibility aria-label="${t("DiceTray.Visibility")}">${messageModes.map(mode => `<option value="${mode}" ${mode === messageMode ? "selected" : ""}>${t(`DiceTray.Mode.${mode}`)}</option>`).join("")}</select></label>
       <output aria-live="polite"></output><div class="ws-dice-commands"><button type="button" class="ws-button" data-dice-tray="roll"><i class="fa-solid fa-dice-d20" aria-hidden="true"></i>${t("DiceTray.Roll")}</button></div><div data-dice-result role="status"></div>`;
     root.append(tray);
     tray.querySelector("input").value = extra;
@@ -286,7 +299,7 @@ export function bindDiceTray({ app, actor, t, isActive }) {
       switch (button.dataset.diceTray) {
         case "toggle":
           if (tray) close(true);
-          else if (actor?.isOwner) open(button);
+          else if (canRoll()) open(button);
           break;
         case "mimic": {
           const now = Date.now();
@@ -324,6 +337,11 @@ export function bindDiceTray({ app, actor, t, isActive }) {
     sync();
   };
   const input = event => {
+    if (event.target.matches?.("[data-dice-visibility]")) {
+      if (messageModes.includes(event.target.value))
+        messageMode = event.target.value;
+      return;
+    }
     if (!event.target.matches?.("[data-dice-formula]")) return;
     extra = event.target.value;
     sync();
@@ -355,7 +373,7 @@ export function bindDiceTray({ app, actor, t, isActive }) {
     } else if (event.key === "Tab") {
       const focusable = [
         ...tray.querySelectorAll(
-          'button:not(:disabled), input, [data-dice-tray="mimic"]'
+          'button:not(:disabled), input, select, [data-dice-tray="mimic"]'
         )
       ];
       const index = focusable.indexOf(doc.activeElement);
@@ -371,6 +389,7 @@ export function bindDiceTray({ app, actor, t, isActive }) {
   root.addEventListener("click", click, true);
   root.addEventListener("contextmenu", context, true);
   root.addEventListener("input", input);
+  root.addEventListener("change", input);
   doc.addEventListener("pointerdown", outside, true);
   doc.addEventListener("keydown", key, true);
   viewport.addEventListener?.("resize", position);
@@ -400,6 +419,7 @@ export function bindDiceTray({ app, actor, t, isActive }) {
     root.removeEventListener("click", click, true);
     root.removeEventListener("contextmenu", context, true);
     root.removeEventListener("input", input);
+    root.removeEventListener("change", input);
     doc.removeEventListener("pointerdown", outside, true);
     doc.removeEventListener("keydown", key, true);
     viewport.removeEventListener?.("resize", position);

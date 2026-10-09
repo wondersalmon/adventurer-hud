@@ -98,6 +98,8 @@ export function itemUsesData(item, activityId = null) {
   };
 }
 
+/** @param {any} item Native Item.
+ * @param {string | null} activityId */
 export function itemUseState(item, activityId = null) {
   const activities = itemActivities(item);
   const selected = activityId

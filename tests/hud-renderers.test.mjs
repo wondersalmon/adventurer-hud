@@ -111,7 +111,7 @@ test("statuses expose safe native tooltip labels and right-click identity", () =
       /aria-label="Marked &quot;dangerous&quot; &lt;effect&gt;"/
     );
     assert.match(html, /data-status-id="custom"/);
-    assert.match(html, /role="img"/);
+    assert.equal(fragment(html).querySelector(".ws-status").tagName, "BUTTON");
     assert.doesNotMatch(html, /data-action="removestatus"/);
     assert.equal(
       fragment(html).querySelector(".ws-status-more").hasAttribute("hidden"),
@@ -726,7 +726,7 @@ test("exploration keeps character information beside the selected view and reads
     skills,
     /aria-expanded="true" aria-controls="ws-exploration-content-skills"/
   );
-  assert.match(skills, /ws-exploration-detail-nav/);
+  assert.match(skills, /ws-exploration-section ws-expanded/);
   assert.match(skills, /data-view="skills" aria-current="page"/);
   assert.equal(inventoryReads, 0);
   hudState.currentView = "skills";

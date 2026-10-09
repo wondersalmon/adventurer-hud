@@ -1,3 +1,5 @@
+import { bindGmActorDrop } from "../gm/gm-actor-drop.js";
+import { bindStatusInteractions } from "../status-interactions.js";
 import { flushWindowGeometry } from "../../window-geometry.js";
 import { getSetting, setSetting, SETTINGS } from "../../settings-access.js";
 import { subscribeHudDocuments } from "../subscriptions.js";
@@ -13,18 +15,25 @@ import { bindItemLayoutInteractions } from "../items/item-layout-interactions.js
 import { synchronizeHudTheme, watchHudTheme } from "../theme.js";
 import { createItemPreview } from "../items/item-preview.js";
 import { watchPlayerLayout } from "./responsive-layout.js";
-import { synchronizeHudLayout, bindHudLayoutDrag } from "./hud-layout.js";
+import { bindGmColumnDividers } from "./gm-column-dividers.js";
+import { bindExtraColumn } from "./extra-column.js";
+import { synchronizeHudLayout } from "./hud-layout.js";
+import { bindHudLayoutDrag } from "./hud-layout-interactions.js";
 import { bindHudAxisResize } from "./axis-resize.js";
 
 export async function activateHudWindow({
   actor,
   isActorCurrent = () => true,
+  onActorReplacement,
+  getCombat,
   layoutState,
   adapter,
   t = key => key,
   app,
   visualEffectsEnabled = true,
   gmActive = false,
+  gmController = null,
+  performSceneAction,
   pinned = false,
   pinSetting = SETTINGS.pinWindow,
   setCloseOnEscape,
@@ -54,6 +63,7 @@ export async function activateHudWindow({
   app.disposeHudSession?.();
   let disposed = false;
   let itemPreview = null;
+  let actorDrop = null;
   let effectsEnabled = Boolean(visualEffectsEnabled);
   let hpFeedbackTimer = null;
   let flashTimer = null;
@@ -112,8 +122,18 @@ export async function activateHudWindow({
   app.updateHudWindowSize = updateWindowSize;
 
   app.applySetting = (key, value) => {
-    if ([SETTINGS.twoColumnWidth, SETTINGS.playerColumnRatio].includes(key))
+    if (
+      [
+        SETTINGS.twoColumnWidth,
+        SETTINGS.playerColumnRatio,
+        SETTINGS.gmRosterColumnRatio,
+        SETTINGS.gmInfoColumnRatio,
+        SETTINGS.playerExtraColumnRatio,
+        SETTINGS.gmExtraColumnRatio
+      ].includes(key)
+    )
       app.syncHudLayout?.();
+    if (key === SETTINGS.gmActorDrop) actorDrop?.sync();
     if (key === SETTINGS.debugWindowSize) updateWindowSize();
     if (key === SETTINGS.showItemDescriptions && !value) itemPreview?.close();
     if (key === SETTINGS.closeOnEscape) setCloseOnEscape?.(Boolean(value));
@@ -155,6 +175,36 @@ export async function activateHudWindow({
   app.updatePinControl();
   syncTheme(theme);
   updateWindowSize();
+  const gmLayout = bindGmColumnDividers(app.element, {
+    readRatio: key =>
+      getSetting(
+        key === "roster"
+          ? SETTINGS.gmRosterColumnRatio
+          : SETTINGS.gmInfoColumnRatio
+      ),
+    saveRatio: (key, value) => {
+      void setSetting(
+        key === "roster"
+          ? SETTINGS.gmRosterColumnRatio
+          : SETTINGS.gmInfoColumnRatio,
+        value
+      ).catch(error => reportFailure("hud.gm.columns.save", error));
+    },
+    isPinned: () => app.hudPinState?.() ?? false,
+    t
+  });
+  const extraRatioSetting = gmActive
+    ? SETTINGS.gmExtraColumnRatio
+    : SETTINGS.playerExtraColumnRatio;
+  const extraLayout = bindExtraColumn(app.element, {
+    readRatio: () => getSetting(extraRatioSetting),
+    saveRatio: value => {
+      void setSetting(extraRatioSetting, value).catch(error =>
+        reportFailure("hud.columns.extra.save", error)
+      );
+    },
+    isPinned: () => app.hudPinState?.() ?? false
+  });
   const layout = watchPlayerLayout(
     app,
     () => getSetting(SETTINGS.twoColumnWidth),
@@ -167,7 +217,9 @@ export async function activateHudWindow({
       },
       isPinned: () => app.hudPinState?.() ?? false,
       afterSync: () => {
+        gmLayout.sync();
         if (layoutState) synchronizeHudLayout(app.element, layoutState, t);
+        extraLayout.sync();
       }
     }
   );
@@ -185,6 +237,16 @@ export async function activateHudWindow({
     isActive: () =>
       !disposed && app.rendered && !app.hudStowed && isActorCurrent()
   });
+  actorDrop =
+    gmActive && gmController && performSceneAction
+      ? bindGmActorDrop({
+          root: app.element,
+          controller: gmController,
+          performSceneAction,
+          t,
+          isCurrent: () => !disposed && app.rendered && !app.hudStowed
+        })
+      : null;
   const unbindAxisResize = bindHudAxisResize(app, t);
   const showRecording = () => {
     if (disposed) return;
@@ -267,21 +329,11 @@ export async function activateHudWindow({
     move: (event, target) =>
       app.hudActions?.hudblockmove?.call(app, event, target)
   });
-  const onStatusClick = event => {
-    const status = event.target?.closest?.("[data-status-id]");
-    if (
-      disposed ||
-      app.hudStowed ||
-      !status ||
-      !event.ctrlKey ||
-      event.button > 0
-    )
-      return;
-    event.preventDefault();
-    event.stopPropagation();
-    void app.hudActions?.removestatus?.(event, status);
-  };
-  app.element.addEventListener("click", onStatusClick, true);
+  const unbindStatuses = bindStatusInteractions({
+    element: sessionElement,
+    isActive: () => !disposed && app.rendered && !app.hudStowed,
+    remove: (event, status) => app.hudActions?.removestatus?.(event, status)
+  });
 
   if (!reuse)
     app.addEventListener("position", () => {
@@ -354,6 +406,9 @@ export async function activateHudWindow({
 
   const unsubscribeDocuments = subscribeHudDocuments({
     actor,
+    isActorCurrent,
+    onActorReplacement,
+    getCombat,
     hooks: Hooks,
     readHp,
     isCurrentCombatant,
@@ -389,6 +444,8 @@ export async function activateHudWindow({
     if (disposed) return;
     disposed = true;
     layout.dispose();
+    gmLayout.dispose();
+    extraLayout.dispose();
     app.syncHudLayout = null;
     app.updateHudWindowSize = null;
     sessionElement.querySelector(".ws-window-size")?.remove();
@@ -410,12 +467,13 @@ export async function activateHudWindow({
     sessionElement.removeEventListener?.("change", onChange);
     sessionElement.removeEventListener?.("dblclick", onDoubleClick);
     sessionElement.removeEventListener?.("contextmenu", onContextMenu);
-    sessionElement.removeEventListener?.("click", onStatusClick, true);
+    unbindStatuses();
     unbindItemDescriptions();
     unbindItemLayout();
     unbindHudLayout();
     unbindAxisResize();
     unbindDiceTray();
+    actorDrop?.dispose();
     itemPreview?.dispose();
   };
   if (!reuse)
@@ -457,7 +515,12 @@ export function bindHudDiceTray({
   const current = () => !disposed && app.element === root && isActive();
   const open = event => {
     const button = event.target?.closest?.('[data-dice-tray="toggle"]');
-    if (!button || !root.contains(button) || !current() || !actor?.isOwner)
+    if (
+      !button ||
+      !root.contains(button) ||
+      !current() ||
+      !(globalThis.game?.user?.isGM || actor?.isOwner)
+    )
       return;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -465,7 +528,12 @@ export function bindHudDiceTray({
     loading = Promise.resolve()
       .then(load)
       .then(({ bindDiceTray }) => {
-        if (!current() || !actor.isOwner || !button.isConnected) return;
+        if (
+          !current() ||
+          !(globalThis.game?.user?.isGM || actor?.isOwner) ||
+          !button.isConnected
+        )
+          return;
         unbind = bindDiceTray({ app, actor, t, isActive: current });
         root.removeEventListener("click", open, true);
         button.click();

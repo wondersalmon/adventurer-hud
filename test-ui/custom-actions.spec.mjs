@@ -150,7 +150,7 @@ async function previewPage(
       };
       window.preview = createItemPreview({
         element: document.querySelector("main"),
-        getItem: () => item,
+        getItem: id => (id === "b" ? window.secondItem : item),
         enrich: async () => {
           if (slow)
             await new Promise(resolve => (window.resolveDescription = resolve));
@@ -175,6 +175,40 @@ async function previewPage(
     { enabled, slow }
   );
 }
+
+test("pinned descriptions move by mouse and allow another hover preview", async ({
+  page
+}) => {
+  await previewPage(page, { width: 320 });
+  await page.getByRole("button", { name: "Read trait" }).hover();
+  const pinned = page.locator(".ws-item-preview");
+  await expect(pinned).toBeVisible();
+  await pinned.getByRole("button", { name: "Pin description" }).click();
+  const header = pinned.locator("header");
+  const before = await pinned.boundingBox();
+  const heading = await header.boundingBox();
+  await page.mouse.move(heading.x + 20, heading.y + 12);
+  await page.mouse.down();
+  await page.mouse.move(heading.x + 55, heading.y + 42);
+  await page.mouse.up();
+  const after = await pinned.boundingBox();
+  expect(after.x).toBeCloseTo(before.x + 35, 0);
+  expect(after.y).toBeCloseTo(before.y + 30, 0);
+  await page.evaluate(() => {
+    window.secondItem = { id: "b", name: "Another trait" };
+    const card = document.createElement("div");
+    card.dataset.descriptionItemId = "b";
+    card.style.marginTop = "450px";
+    card.innerHTML = "<button>Read another trait</button>";
+    document.querySelector(".ws-view").append(card);
+  });
+  await page.getByRole("button", { name: "Read another trait" }).hover();
+  await expect(page.locator(".ws-item-preview")).toHaveCount(2);
+  await expect(page.locator('.ws-item-preview[role="dialog"]')).toHaveCount(1);
+  await expect(
+    page.locator('.ws-item-preview[aria-label="Another trait"]')
+  ).toBeVisible();
+});
 
 test("hover preview is readable in both themes, stays in the viewport and can be pinned without using an item", async ({
   page

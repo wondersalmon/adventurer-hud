@@ -1,8 +1,12 @@
 import { ZipArchive } from "archiver";
 import { createWriteStream } from "node:fs";
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { verifyReleaseDocumentation } from "./release-documentation.mjs";
+import {
+  collectReleaseFiles,
+  readReleaseDocuments
+} from "./release-package.mjs";
 
 const root = process.cwd();
 const dist = path.join(root, "dist");
@@ -16,9 +20,17 @@ const repository = packageJson.repository.url
   .replace(/\.git$/, "")
   .replace(/^git\+/, "");
 
-manifest.version = packageJson.version;
+if (manifest.version !== packageJson.version)
+  throw new Error(
+    "module.json and package.json versions differ; run version:sync first."
+  );
 manifest.manifest = `${repository}/releases/latest/download/module.json`;
 manifest.download = `${repository}/releases/download/v${packageJson.version}/adventurer-hud.zip`;
+
+const files = await collectReleaseFiles(root);
+const documents = await readReleaseDocuments(root, files);
+verifyReleaseDocumentation(new Set(files), documents);
+const documentSources = new Map(documents);
 
 await rm(dist, { recursive: true, force: true });
 await mkdir(dist, { recursive: true });
@@ -45,33 +57,16 @@ const complete = new Promise((resolve, reject) => {
 archive.pipe(output);
 archive.file(releaseManifest, { name: "module.json" });
 
-for (const directory of ["lang", "scripts", "styles", "templates"]) {
-  archive.directory(path.join(root, directory), directory);
-}
-
-archive.glob(
-  "{*-guide*,release-2.0*}.md",
-  { cwd: path.join(root, "docs") },
-  { prefix: "docs" }
-);
-archive.directory(path.join(root, "media"), "media");
-
-for (const file of ["README.md", "README.ru.md", "CHANGELOG.md", "LICENSE"]) {
-  archive.file(path.join(root, file), { name: file });
+for (const file of files) {
+  if (file === "module.json") continue;
+  if (documentSources.has(file))
+    archive.append(documentSources.get(file), { name: file });
+  else archive.file(path.join(root, file), { name: file });
 }
 
 await archive.finalize();
 await complete;
 
-const guides = (await readdir(path.join(root, "docs")))
-  .filter(file => /(?:-guide.*|release-2\.0.*)\.md$/.test(file))
-  .map(file => `docs/${file}`);
-const documents = await Promise.all(
-  ["README.md", "README.ru.md", "CHANGELOG.md", ...guides].map(async file => [
-    file,
-    await readFile(path.join(root, file), "utf8")
-  ])
-);
 verifyReleaseDocumentation(entries, documents);
 
 console.log(`Built Adventurer HUD v${packageJson.version}.`);

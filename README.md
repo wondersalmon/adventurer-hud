@@ -5,9 +5,11 @@
 [![Foundry VTT 14](https://img.shields.io/badge/Foundry_VTT-14-2f855a?style=flat-square)](https://foundryvtt.com/)
 [![D&D 5e 5.3+](https://img.shields.io/badge/D%26D_5e-5.3%2B-2f855a?style=flat-square)](https://github.com/foundryvtt/dnd5e)
 
-Adventurer HUD is a compact HUD for [D&D 5e](https://github.com/foundryvtt/dnd5e). Players get character actions in exploration and combat; GMs get a dedicated panel for managing creatures and encounters.
+> A customizable D&D 5e HUD for players and GMs, with character actions, encounter management, companions, shared senses and editable layouts.
 
-The player panel now uses a [two-column layout](media/layout.png) by default, adapting to one column in narrow windows.
+The player panel now uses a [two-column layout](media/layout.webp) by default, adapting to one column in narrow windows.
+
+**Development plans.** After 2.1, near-term updates will focus on bug fixes only. No major changes to module behavior or HUD layouts are planned.
 
 - [Player guide](docs/player-guide.md) — character actions, spells, favorites, editor and dice.
 - [GM guide](docs/gm-guide.md) — encounter setup, creature actions and turn controls.
@@ -15,7 +17,13 @@ The player panel now uses a [two-column layout](media/layout.png) by default, ad
 - [Companions guide](docs/companions-guide.md) — ownership, summons and shared senses.
 - [Version 2.0](docs/release-2.0.md) — new features and bug fixes.
 
-![Adventurer HUD demonstration](media/demo.gif)
+![Adventurer HUD demonstration](media/layout.webp)
+
+## GM panel
+
+Prepare encounters, manage initiative and turns, and access creature actions from one panel. Drag NPCs, actor folders or Encounters from Actors and compendiums into the creature list. Creature controls include HP, effects, visibility, defeat, ping and token focus; the layout can be customized. See the [GM guide](docs/gm-guide.md).
+
+![GM panel with the creature roster, character controls and actions](media/gm-w.webp)
 
 ## Installation
 

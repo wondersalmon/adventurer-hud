@@ -70,11 +70,25 @@
     <summary>{{integritySectionLabel}}</summary>
     <p class="hint">{{intro}}</p>
     <p role="status">{{summary}}</p>
+    {{#if checks.length}}<ul>{{#each checks}}<li>{{label}}
+            —
+            {{status}}</li>{{/each}}</ul>{{/if}}
     {{#if repaired}}<p>{{repaired}}</p>{{/if}}
     {{#if issues.length}}<ul>{{#each issues}}<li>{{message}}
             —
-            {{action}}</li>{{/each}}</ul>{{/if}}
+            {{action}}
+            {{#if changes.length}}<ul>{{#each changes}}<li>{{kind}}:
+                    {{path}}<br />{{before}}
+                    →
+                    {{after}}</li>{{/each}}</ul>{{/if}}
+          </li>{{/each}}</ul>{{/if}}
     {{#if manualHint}}<p class="hint">{{manualHint}}</p>{{/if}}
+    {{#if layoutHint}}<p class="hint">{{layoutHint}}</p>{{/if}}
+    {{#if repairBackupDate}}<p class="hint">{{repairBackupHint}}
+        {{repairBackupDate}}</p><button
+        type="button"
+        data-action="backuprepair"
+      >{{repairBackupLabel}}</button>{{/if}}
     <div class="ws-troubleshooting-actions">
       {{#if busy}}<button
           type="button"
@@ -130,7 +144,6 @@
     </div>
   </details>
   <footer class="form-footer ws-troubleshooting-footer">
-    <p class="hint" role="status">{{saveHint}}</p>
     <div class="ws-troubleshooting-actions">
       {{#if busy}}<button
           type="button"

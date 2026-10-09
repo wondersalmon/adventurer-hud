@@ -30,7 +30,7 @@ test("version synchronization preserves manifest fields and writes Prettier-comp
     id: "hud",
     version: "1.0.0",
     compatibility: { minimum: "14", verified: "14" },
-    media: [{ type: "video", url: "media/demo.gif" }]
+    media: [{ type: "setup", url: "media/layout.webp" }]
   };
   await fs.writeFile(
     path.join(temporary, "module.json"),

@@ -1,19 +1,7 @@
+import { loadHudModules } from "./module-fixture.mjs";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
-import {
-  renderItemLayout,
-  moveItemLayout
-} from "../scripts/hud/items/item-layout.js";
-import { bindItemLayoutInteractions } from "../scripts/hud/items/item-layout-interactions.js";
-import { createViewActions } from "../scripts/hud/view-actions.js";
 import { createHudState } from "../scripts/hud/state.js";
-import { refreshHudShell } from "../scripts/hud/refresh.js";
-import {
-  captureHudDomState,
-  restoreHudDomState
-} from "../scripts/hud/window/dom-state.js";
-import { applyPlayerLayout } from "../scripts/hud/window/responsive-layout.js";
-import { synchronizeStatusLayout } from "../scripts/hud/window/status-layout.js";
 
 const css = (
   await Promise.all(
@@ -37,8 +25,15 @@ test("shared player/GM editor supports drag, arrows, hiding and keyboard restora
       html: `<div class="ws-combat-item-card"><button type="button" class="ws-combat-item ws-button" data-action="useitem"><span class="ws-combat-item-content"><strong>${name}</strong><small>Attack +7 · 1d10</small></span></button></div>`
     })
   );
+  await loadHudModules(page, {
+    "hud/items/item-layout.js": ["renderItemLayout", "moveItemLayout"],
+    "hud/view-actions.js": ["createViewActions"],
+    "hud/items/item-layout-interactions.js": ["bindItemLayoutInteractions"],
+    "hud/refresh.js": ["refreshHudShell"],
+    "hud/window/dom-state.js": ["captureHudDomState", "restoreHudDomState"],
+    "hud/window/responsive-layout.js": ["applyPlayerLayout"]
+  });
   await page.setContent(`<style>${css}</style><section class="ws-rolls-dialog ws-theme-dark ws-font-large" style="width:310px"><button data-action="togglehudedit" id="edit">Edit HUD</button><div id="order-list"></div></section><script>
-      ${renderItemLayout.toString()};${moveItemLayout.toString()};${createViewActions.toString()};${bindItemLayoutInteractions.toString()};
       const state=${JSON.stringify(state)}, entries=${JSON.stringify(entries)}, strings=${JSON.stringify(strings)};
       const root=document.getElementById('order-list');
       const escapeHTML=value=>String(value).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;');
@@ -51,6 +46,24 @@ test("shared player/GM editor supports drag, arrows, hiding and keyboard restora
       window.layoutUses=()=>uses;
       render();
       </script>`);
+  await loadHudModules(page, {
+    "hud/window/hud-layout.js": [
+      "synchronizeHudLayout",
+      "changeHudLayout",
+      "bindHudLayoutDrag",
+      "resetHudBlock",
+      "undoHudLayout",
+      "captureHudLayoutUndo",
+      "rememberHudLayoutChange"
+    ],
+    "hud/view-actions.js": ["createViewActions"],
+    "hud/refresh.js": ["refreshHudView", "refreshHudShell"],
+    "hud/window/dom-state.js": ["captureHudDomState", "restoreHudDomState"],
+    "hud/window/responsive-layout.js": ["applyPlayerLayout"],
+    "hud/items/item-layout.js": ["renderItemLayout", "moveItemLayout"],
+    "hud/items/item-layout-interactions.js": ["bindItemLayoutInteractions"]
+  });
+  await page.waitForFunction(() => Boolean(window.captureHudLayoutUndo));
   await page.locator('[data-action="togglehudedit"]').click();
   await page.locator(".ws-combat-item").first().click();
   expect(await page.evaluate(() => window.layoutUses())).toBe(0);
@@ -123,13 +136,16 @@ for (const language of ["en", "ru"]) {
         await page.setContent(
           `<style>${css}</style><section class="ws-rolls-dialog ws-theme-${theme}" style="width:${width}px"><button id="edit" data-action="togglehudedit">${translations["ADVENTURER_HUD.ItemLayout.Edit"] || "Edit HUD"}</button><div class="ws-shell ws-combat-item-list" style="height:350px;overflow:auto"></div></section>`
         );
+        await loadHudModules(page, {
+          "hud/view-actions.js": ["createViewActions"],
+          "hud/items/item-layout.js": ["renderItemLayout"],
+          "hud/refresh.js": ["refreshHudShell"]
+        });
         await page.addScriptTag({
           content: `
           (() => {
-          ${renderItemLayout.toString()};${refreshHudShell.toString()};
-          ${captureHudDomState.toString()};${restoreHudDomState.toString()};
-          ${applyPlayerLayout.toString()};${synchronizeStatusLayout.toString()};
-          ${createViewActions.toString()};
+          ;;
+          ;
           const renderedMarkup = new WeakMap(), state = ${JSON.stringify(createHudState())};
           const strings=${JSON.stringify(translations)}, root=document.querySelector('.ws-shell');
           const uses=[], entries=Array.from({length:500},(_,index)=>({key:'item-'+index,name:'Item '+index,html:'<div class="ws-combat-item-card"><button type="button" class="ws-combat-item ws-button" data-action="useitem" data-item-id="item-'+index+'"><span class="ws-combat-item-content"><strong>Item '+index+'</strong><small>Attack +7 · 1d10</small></span></button></div>'}));

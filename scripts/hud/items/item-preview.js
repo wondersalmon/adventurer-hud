@@ -1,5 +1,5 @@
 /**
- * Read-only descriptions, with delayed hover/focus and an explicit pinned view.
+ * Read-only descriptions, with independent movable pinned views.
  * @param {{element: HTMLElement, getItem: (id: string) => any, enrich: (item: any) => Promise<string>, enabled: () => boolean, isActive: () => boolean, t: (key: string) => string, onError: (error: unknown) => void, delay?: number}} options
  */
 export function createItemPreview({
@@ -12,87 +12,122 @@ export function createItemPreview({
   onError,
   delay = 400
 }) {
-  const doc = element.ownerDocument;
-  const view = doc.defaultView;
-  /** @type {ReturnType<typeof setTimeout> | null} */
+  const doc = element.ownerDocument,
+    view = doc.defaultView;
+  /** @typedef {{anchor: HTMLElement, item: any, owner: boolean, popup: HTMLElement|null, id: string, pinned: boolean, left: number|null, top: number|null}} Preview */
+  /** @type {Preview|null} */
+  let active = null;
+  /** @type {Set<Preview>} */
+  const locked = new Set();
+  /** @type {ReturnType<typeof setTimeout>|null} */
   let timer = null;
-  let revision = 0;
-  /** @type {HTMLElement | null} */
-  let anchor = null;
-  /** @type {any} Foundry Item document. */
-  let currentItem = null;
-  /** @type {HTMLElement | null} */
-  let popup = null;
-  let pinned = false;
-  let ownerPermission = false;
-  let disposed = false;
-  let restoringFocus = false;
+  /** @type {{entry: Preview, x: number, y: number, left: number, top: number}|null} */
+  let drag = null;
+  let disposed = false,
+    restoringFocus = false;
+  const clearTimer = () => {
+    clearTimeout(timer);
+    timer = null;
+  };
   const restoreFocus = card => {
     restoringFocus = true;
     (card?.querySelector("button:not([disabled])") ?? card)?.focus();
     restoringFocus = false;
   };
-  const id = `ws-item-preview-${Math.random().toString(36).slice(2)}`;
-  const clearTimer = () => {
-    clearTimeout(timer);
-    timer = null;
+  const entries = () => [...locked, ...(active ? [active] : [])];
+  /** @param {Preview} entry */
+  const remove = entry => {
+    if (entry === active) {
+      clearTimer();
+      active = null;
+    }
+    if (drag?.entry === entry) drag = null;
+    locked.delete(entry);
+    const described = entry.anchor
+      .getAttribute("aria-describedby")
+      ?.split(/\s+/)
+      .filter(id => id !== entry.id);
+    if (described?.length)
+      entry.anchor.setAttribute("aria-describedby", described.join(" "));
+    else entry.anchor.removeAttribute("aria-describedby");
+    entry.popup?.remove();
+  };
+  const closeActive = () => {
+    clearTimer();
+    if (active) remove(active);
   };
   const close = () => {
-    revision++;
     clearTimer();
-    const described = anchor
-      ?.getAttribute("aria-describedby")
-      ?.split(/\s+/)
-      .filter(value => value !== id);
-    if (described?.length)
-      anchor.setAttribute("aria-describedby", described.join(" "));
-    else anchor?.removeAttribute("aria-describedby");
-    popup?.remove();
-    popup = anchor = currentItem = null;
-    pinned = false;
+    for (const entry of entries()) remove(entry);
   };
-  const valid = () =>
+  /** @param {Preview} entry */
+  const valid = entry =>
     !disposed &&
     isActive() &&
-    anchor?.isConnected &&
-    Boolean(currentItem?.isOwner ?? currentItem?.actor?.isOwner) ===
-      ownerPermission &&
-    getItem(anchor.dataset.descriptionItemId) === currentItem;
-  const position = () => {
-    if (!popup || !anchor) return;
-    const box = anchor.getBoundingClientRect();
+    entry.anchor.isConnected &&
+    Boolean(entry.item?.isOwner ?? entry.item?.actor?.isOwner) ===
+      entry.owner &&
+    getItem(entry.anchor.dataset.descriptionItemId) === entry.item;
+  /** @param {Preview} entry */
+  const position = entry => {
+    if (!entry.popup) return;
+    const box = entry.anchor.getBoundingClientRect();
     const width = Math.max(0, Math.min(360, view.innerWidth - 16));
-    popup.style.width = `${width}px`;
+    entry.popup.style.width = `${width}px`;
     const right = box.right + 8;
     const left =
-      right + width <= view.innerWidth - 8 ? right : box.left - width - 8;
-    popup.style.left = `${Math.max(8, Math.min(left, view.innerWidth - width - 8))}px`;
-    popup.style.top = `${Math.max(8, Math.min(box.top, view.innerHeight - popup.getBoundingClientRect().height - 8))}px`;
-  };
-  const show = async (card, pin = false) => {
-    if (disposed || !isActive() || !card?.isConnected) return;
-    close();
-    anchor = card;
-    currentItem = getItem(card.dataset.descriptionItemId);
-    if (!currentItem) return close();
-    ownerPermission = Boolean(
-      currentItem.isOwner ?? currentItem.actor?.isOwner
+      entry.left ??
+      (right + width <= view.innerWidth - 8 ? right : box.left - width - 8);
+    const top = entry.top ?? box.top;
+    const boundedLeft = Math.max(
+      8,
+      Math.min(left, view.innerWidth - width - 8)
     );
-    pinned = pin;
-    const operation = revision;
+    const boundedTop = Math.max(
+      8,
+      Math.min(
+        top,
+        view.innerHeight - entry.popup.getBoundingClientRect().height - 8
+      )
+    );
+    entry.popup.style.left = `${boundedLeft}px`;
+    entry.popup.style.top = `${boundedTop}px`;
+    if (entry.pinned) {
+      entry.left = boundedLeft;
+      entry.top = boundedTop;
+    }
+  };
+  const show = async card => {
+    if (disposed || !isActive() || !card?.isConnected) return;
+    closeActive();
+    const item = getItem(card.dataset.descriptionItemId);
+    if (!item) return;
+    /** @type {Preview} */
+    const entry = {
+      anchor: card,
+      item,
+      owner: Boolean(item.isOwner ?? item.actor?.isOwner),
+      popup: null,
+      id: `ws-item-preview-${Math.random().toString(36).slice(2)}`,
+      pinned: false,
+      left: null,
+      top: null
+    };
+    active = entry;
     try {
-      const html = await enrich(currentItem);
-      if (operation !== revision) return;
-      if (!valid()) return close();
-      popup = doc.createElement("section");
+      const html = await enrich(item);
+      if (active !== entry) return;
+      if (!valid(entry)) return remove(entry);
+      const popup = doc.createElement("section");
+      entry.popup = popup;
       popup.className = "ws-item-preview";
-      popup.id = id;
+      popup.id = entry.id;
       popup.setAttribute("popover", "manual");
-      popup.setAttribute("role", pinned ? "dialog" : "region");
-      popup.setAttribute("aria-label", currentItem.name);
+      popup.setAttribute("role", "region");
+      popup.setAttribute("aria-label", item.name);
       const header = doc.createElement("header");
       const title = doc.createElement("strong");
-      title.textContent = currentItem.name;
+      title.textContent = item.name;
       header.append(title);
       const button = (label, icon, callback) => {
         const control = doc.createElement("button");
@@ -112,20 +147,37 @@ export function createItemPreview({
         t("Combat.PinDescription"),
         "fa-thumbtack",
         () => {
-          pinned = !pinned;
-          pinButton.setAttribute("aria-pressed", String(pinned));
-          popup.setAttribute("role", pinned ? "dialog" : "region");
+          if (!valid(entry)) return remove(entry);
+          entry.pinned = !entry.pinned;
+          if (entry.pinned) {
+            clearTimer();
+            active = null;
+            locked.add(entry);
+            position(entry);
+            header.tabIndex = 0;
+            header.title = t("Combat.MoveDescription");
+            header.setAttribute("aria-label", t("Combat.MoveDescription"));
+          } else {
+            closeActive();
+            locked.delete(entry);
+            active = entry;
+            entry.left = entry.top = null;
+            header.removeAttribute("tabindex");
+            header.removeAttribute("title");
+            header.removeAttribute("aria-label");
+          }
+          pinButton.setAttribute("aria-pressed", String(entry.pinned));
+          popup.setAttribute("role", entry.pinned ? "dialog" : "region");
         }
       );
-      pinButton.setAttribute("aria-pressed", String(pinned));
+      pinButton.setAttribute("aria-pressed", "false");
       button(t("Window.Close"), "fa-xmark", () => {
-        const focus = anchor;
-        close();
-        restoreFocus(focus);
+        remove(entry);
+        restoreFocus(card);
       });
       const body = doc.createElement("div");
       body.className = "ws-item-preview-body";
-      // Enrichment is owned by Foundry's TextEditor, with document-relative links.
+      // Native TextEditor enrichment preserves document-relative links.
       if (html?.trim()) body.innerHTML = html;
       else body.textContent = t("Combat.NoDescription");
       popup.append(header, body);
@@ -133,58 +185,114 @@ export function createItemPreview({
         popup
       );
       popup.showPopover?.();
-      const described = anchor.getAttribute("aria-describedby");
-      anchor.setAttribute(
+      card.setAttribute(
         "aria-describedby",
-        [described, id].filter(Boolean).join(" ")
+        [card.getAttribute("aria-describedby"), entry.id]
+          .filter(Boolean)
+          .join(" ")
       );
-      position();
-      if (pin) pinButton.focus();
+      position(entry);
     } catch (error) {
-      if (operation === revision) close();
+      if (active === entry) remove(entry);
       onError(error);
     }
   };
+  const excluded = target =>
+    target?.closest?.(".ws-item-side-actions, .ws-item-open");
+  const cardFor = target =>
+    excluded(target) ? null : target?.closest?.("[data-description-item-id]");
+  const previewFor = target =>
+    entries().find(entry => entry.popup?.contains(target));
   const schedule = card => {
-    if (!enabled() || !isActive() || pinned || !card || card === anchor) return;
-    close();
+    if (card && card === active?.anchor) return clearTimer();
+    if (!enabled() || !isActive() || !card) return;
+    closeActive();
+    if ([...locked].some(entry => entry.anchor === card)) return;
     timer = setTimeout(() => {
       timer = null;
       if (enabled()) void show(card);
     }, delay);
   };
-  const cardFor = target =>
-    target?.closest?.(".ws-item-side-actions")
-      ? null
-      : target?.closest?.("[data-description-item-id]");
   const enter = event => {
     if (event.type === "focusin" && restoringFocus) return;
-    if (popup?.contains(event.target)) return clearTimer();
-    if (event.target?.closest?.(".ws-item-side-actions")) {
-      if (!pinned) close();
+    if (previewFor(event.target)) return clearTimer();
+    if (excluded(event.target)) {
+      clearTimer();
+      timer = setTimeout(closeActive, 500);
       return;
     }
     schedule(cardFor(event.target));
   };
   const leave = event => {
-    if (pinned) return;
-    const from = cardFor(event.target);
-    const to = cardFor(event.relatedTarget);
-    if ((from && from === to) || popup?.contains(event.relatedTarget)) return;
+    const from = cardFor(event.target),
+      to = cardFor(event.relatedTarget);
+    if ((from && from === to) || previewFor(event.relatedTarget)) return;
     clearTimer();
-    timer = setTimeout(close, 150);
+    timer = setTimeout(closeActive, 500);
   };
   const keydown = event => {
-    if (event.key === "Escape" && (popup || anchor)) {
+    const entry = previewFor(event.target);
+    if (
+      entry?.pinned &&
+      event.target === entry.popup?.querySelector("header") &&
+      ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
+    ) {
       event.preventDefault();
       event.stopPropagation();
-      const focus = anchor;
-      close();
-      restoreFocus(focus);
+      const step = event.shiftKey ? 40 : 10;
+      entry.left +=
+        event.key === "ArrowLeft"
+          ? -step
+          : event.key === "ArrowRight"
+            ? step
+            : 0;
+      entry.top +=
+        event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0;
+      position(entry);
+      return;
+    }
+    if (event.key === "Escape" && entries().length) {
+      event.preventDefault();
+      event.stopPropagation();
+      const closing = entry ?? active ?? [...locked].at(-1);
+      remove(closing);
+      restoreFocus(closing.anchor);
     }
   };
+  const down = event => {
+    const entry = previewFor(event.target);
+    if (
+      !entry?.pinned ||
+      event.button !== 0 ||
+      event.target.closest("button, a") ||
+      !event.target.closest(".ws-item-preview > header")
+    )
+      return;
+    event.preventDefault();
+    event.stopPropagation();
+    drag = {
+      entry,
+      x: event.clientX,
+      y: event.clientY,
+      left: entry.left,
+      top: entry.top
+    };
+    entry.popup.classList.add("ws-preview-dragging");
+    entry.popup.querySelector("header").focus({ preventScroll: true });
+  };
+  const move = event => {
+    if (!drag) return;
+    if (!valid(drag.entry)) return remove(drag.entry);
+    drag.entry.left = drag.left + event.clientX - drag.x;
+    drag.entry.top = drag.top + event.clientY - drag.y;
+    position(drag.entry);
+  };
+  const end = () => {
+    drag?.entry.popup?.classList.remove("ws-preview-dragging");
+    drag = null;
+  };
   const changed = () => {
-    if (anchor && !valid()) close();
+    for (const entry of entries()) if (!valid(entry)) remove(entry);
   };
   const observer = view.MutationObserver
     ? new view.MutationObserver(changed)
@@ -195,16 +303,21 @@ export function createItemPreview({
     ["focusin", enter],
     ["mouseout", leave],
     ["focusout", leave],
-    ["keydown", keydown]
+    ["keydown", keydown],
+    ["pointerdown", down]
   ];
   for (const [type, handler] of listeners)
     element.addEventListener(type, handler);
-  view.addEventListener?.("resize", position);
-  const scroll = event => {
-    if (popup?.contains(event.target)) return;
-    if (pinned) position();
-    else close();
+  const resize = () => {
+    for (const entry of entries()) position(entry);
   };
+  const scroll = event => {
+    if (!previewFor(event.target)) closeActive();
+  };
+  view.addEventListener?.("resize", resize);
+  doc.addEventListener("pointermove", move);
+  doc.addEventListener("pointerup", end);
+  doc.addEventListener("pointercancel", end);
   element.addEventListener("scroll", scroll, true);
   return {
     close,
@@ -215,7 +328,10 @@ export function createItemPreview({
       for (const [type, handler] of listeners)
         element.removeEventListener(type, handler);
       element.removeEventListener("scroll", scroll, true);
-      view.removeEventListener?.("resize", position);
+      view.removeEventListener?.("resize", resize);
+      doc.removeEventListener("pointermove", move);
+      doc.removeEventListener("pointerup", end);
+      doc.removeEventListener("pointercancel", end);
     }
   };
 }

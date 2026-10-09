@@ -13,6 +13,10 @@ export const SETTINGS = Object.freeze({
   twoColumnWidth: "twoColumnWidth",
   playerFooter: "playerFooter",
   playerColumnRatio: "playerColumnRatio",
+  gmRosterColumnRatio: "gmRosterColumnRatio",
+  gmInfoColumnRatio: "gmInfoColumnRatio",
+  playerExtraColumnRatio: "playerExtraColumnRatio",
+  gmExtraColumnRatio: "gmExtraColumnRatio",
   autoScrollExpanded: "autoScrollExpanded",
   gmWindowGeometry: "gmWindowGeometry",
   showTokenControl: "showTokenControl",
@@ -38,6 +42,7 @@ export const SETTINGS = Object.freeze({
   gmFollowTurn: "gmFollowTurn",
   gmAutoAdvance: "gmAutoAdvance",
   gmIncludePlayerNpcs: "gmIncludePlayerNpcs",
+  gmActorDrop: "gmActorDrop",
   gmShowItemDetails: "gmShowItemDetails",
   gmShowAttackDetails: "gmShowAttackDetails",
   gmHideSearch: "gmHideSearch",
@@ -169,6 +174,37 @@ export const SETTING_DEFINITIONS = Object.freeze({
     refresh: "runtime",
     type: Number
   }),
+  [SETTINGS.gmRosterColumnRatio]: defineSetting("interface", {
+    defaultValue: 0,
+    placement: "internal",
+    refresh: "runtime",
+    type: Number,
+    gmOnly: true,
+    range: { min: 0, max: 0.85, step: 0.01 }
+  }),
+  [SETTINGS.gmInfoColumnRatio]: defineSetting("interface", {
+    defaultValue: 0,
+    placement: "internal",
+    refresh: "runtime",
+    type: Number,
+    gmOnly: true,
+    range: { min: 0, max: 0.7, step: 0.01 }
+  }),
+  [SETTINGS.playerExtraColumnRatio]: defineSetting("interface", {
+    defaultValue: 0.5,
+    placement: "internal",
+    refresh: "runtime",
+    type: Number,
+    range: { min: 0.25, max: 0.7, step: 0.01 }
+  }),
+  [SETTINGS.gmExtraColumnRatio]: defineSetting("interface", {
+    defaultValue: 0.5,
+    placement: "internal",
+    refresh: "runtime",
+    type: Number,
+    gmOnly: true,
+    range: { min: 0.25, max: 0.7, step: 0.01 }
+  }),
   [SETTINGS.autoScrollExpanded]: defineSetting("interface", {
     placement: "advanced",
     refresh: "none"
@@ -223,6 +259,11 @@ export const SETTING_DEFINITIONS = Object.freeze({
     gmOnly: true,
     defaultValue: false,
     refresh: "reopen"
+  }),
+  [SETTINGS.gmActorDrop]: defineSetting("gm", {
+    placement: "gm",
+    gmOnly: true,
+    refresh: "runtime"
   }),
   [SETTINGS.gmFollowTurn]: defineSetting("gm", {
     defaultValue: false,
@@ -286,6 +327,7 @@ export const getSettingDefinitions = () => SETTING_DEFINITIONS;
 export const getGmSettingGroups = () => ({
   gmWindow: [
     SETTINGS.gmEnabled,
+    SETTINGS.gmActorDrop,
     SETTINGS.gmOpenOnCombat,
     SETTINGS.gmCloseAfterCombat
   ],
@@ -313,8 +355,7 @@ export const getSettingsViewDefinitions = () => ({
     type: String,
     choices: {
       manual: "ADVENTURER_HUD.Settings.gmSelectionMode.Manual",
-      turn: "ADVENTURER_HUD.Settings.gmSelectionMode.Turn",
-      next: "ADVENTURER_HUD.Settings.gmSelectionMode.Next"
+      turn: "ADVENTURER_HUD.Settings.gmSelectionMode.Turn"
     }
   },
   gmActionDisplay: {

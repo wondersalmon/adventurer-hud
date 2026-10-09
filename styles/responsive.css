@@ -77,16 +77,6 @@
   display: flex;
 }
 
-.ws-rolls-dialog .ws-player-columns .ws-exploration-nav {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 165px), 1fr));
-  gap: 7px;
-}
-
-.ws-rolls-dialog .ws-player-columns .ws-exploration-section {
-  display: contents;
-}
-
 .ws-rolls-dialog .ws-player-columns .ws-exploration-section > .ws-nav {
   display: flex;
   padding: 8px 10px;
@@ -188,6 +178,10 @@
     auto-fill,
     minmax(min(100%, calc(190px * var(--ws-type-scale, 1.15))), 1fr)
   );
+}
+
+.ws-rolls-dialog .ws-favorites .ws-combat-item-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr));
 }
 
 .ws-rolls-dialog .ws-player-columns .ws-entry-grid {
@@ -369,7 +363,9 @@
   grid-row: 1;
 }
 
-.ws-rolls-dialog .ws-player-columns > .ws-column-divider {
+.ws-rolls-dialog .ws-player-columns > .ws-column-divider,
+.ws-rolls-dialog .ws-gm-column-divider,
+.ws-rolls-dialog .ws-extra-column-divider {
   display: block;
   grid-column: 2;
   grid-row: 1;
@@ -389,6 +385,139 @@
   );
   cursor: col-resize;
   touch-action: none;
+}
+
+.ws-rolls-dialog .ws-gm-column-divider {
+  display: none;
+}
+
+.ws-rolls-dialog .ws-extra-column-divider {
+  display: none;
+}
+
+.ws-rolls-dialog .ws-hud-secondary-columns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.ws-rolls-dialog .ws-player-columns > .ws-hud-secondary-columns {
+  grid-column: 3;
+  grid-row: 1;
+  overflow: hidden auto;
+}
+
+.ws-rolls-dialog
+  .ws-player-columns:has(> .ws-mode-navigation)
+  > .ws-hud-secondary-columns {
+  grid-row: 2;
+}
+
+.ws-rolls-dialog .ws-hud-extra-lane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.ws-rolls-dialog .ws-hud-secondary-wide {
+  display: grid;
+  grid-template-columns: var(--ws-hud-main-width) 8px minmax(0, 1fr);
+  gap: 4px;
+  overflow: hidden;
+}
+
+.ws-rolls-dialog .ws-hud-secondary-wide > .ws-extra-column-divider {
+  display: block;
+}
+
+.ws-rolls-dialog
+  .ws-hud-secondary-wide
+  > :is(.ws-player-actions, .ws-gm-action-column, .ws-hud-extra-lane) {
+  min-height: 0;
+  overflow: hidden auto;
+}
+
+.ws-rolls-dialog .ws-extra-column-hint {
+  display: none;
+}
+
+.ws-rolls-dialog.ws-hud-editing
+  .ws-hud-extra-lane:not(:has([data-hud-block]))
+  > .ws-extra-column-hint {
+  display: block;
+  min-height: 100px;
+  padding: 12px;
+  border: 1px dashed var(--accent);
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@container ws-rolls (min-width: 740px) {
+  .ws-rolls-dialog .ws-gm-view > [data-gm-divider="roster"] {
+    display: block;
+  }
+}
+
+@container ws-rolls (min-width: 900px) {
+  .ws-rolls-dialog .ws-gm-body > [data-gm-divider="info"] {
+    display: block;
+  }
+
+  .ws-rolls-dialog .ws-gm-body > .ws-gm-info {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .ws-rolls-dialog .ws-gm-body > .ws-gm-action-column {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .ws-rolls-dialog .ws-gm-body > .ws-hud-secondary-columns {
+    grid-column: 3;
+    grid-row: 1;
+    overflow: hidden auto;
+  }
+}
+
+.ws-rolls-dialog .ws-player-columns:has(> .ws-mode-navigation) {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.ws-rolls-dialog .ws-player-columns > .ws-mode-navigation {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.ws-rolls-dialog
+  .ws-player-columns:has(> .ws-mode-navigation)
+  > .ws-player-info,
+.ws-rolls-dialog
+  .ws-player-columns:has(> .ws-mode-navigation)
+  > .ws-player-actions,
+.ws-rolls-dialog
+  .ws-player-columns:has(> .ws-mode-navigation)
+  > .ws-column-divider {
+  grid-row: 2;
+}
+
+.ws-rolls-dialog.ws-hud-editing .ws-player-detail > .ws-player-info {
+  display: flex;
+}
+
+.ws-rolls-dialog.ws-hud-editing
+  .ws-player-detail
+  .ws-exploration-section:not(.ws-hud-block-hidden),
+.ws-rolls-dialog.ws-hud-editing
+  .ws-player-detail
+  .ws-exploration-section
+  > .ws-nav {
+  display: flex;
 }
 
 .ws-rolls-dialog .ws-column-divider:focus-visible {
@@ -420,7 +549,7 @@
 .ws-rolls-dialog .ws-player-footer {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
@@ -430,6 +559,64 @@
 
 .ws-rolls-dialog .ws-footer-effects {
   min-width: 0;
+}
+
+.ws-rolls-dialog .ws-footer-recent {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+  gap: 4px;
+}
+
+.ws-rolls-dialog .ws-recent-action {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 3px;
+}
+
+.ws-rolls-dialog .ws-recent-action img {
+  width: 24px;
+  height: 24px;
+  object-fit: cover;
+  border: 0;
+  border-radius: 3px;
+}
+
+.ws-rolls-dialog:is(.ws-theme-dark, [data-ws-auto-theme="dark"])
+  .ws-recent-action
+  img[src*="icons/svg/"] {
+  filter: brightness(0) invert(0.9);
+}
+
+.ws-rolls-dialog .ws-recent-empty {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.ws-rolls-dialog .ws-recent-empty span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ws-rolls-dialog .ws-inventory-weight[data-load="normal"] strong {
+  color: var(--success);
+}
+
+.ws-rolls-dialog .ws-inventory-weight[data-load="encumbered"] strong {
+  color: var(--warning);
+}
+
+.ws-rolls-dialog
+  .ws-inventory-weight:is([data-load="heavy"], [data-load="overloaded"])
+  strong {
+  color: var(--danger);
 }
 
 .ws-rolls-dialog .ws-footer-effects .ws-active-conditions {
@@ -494,6 +681,22 @@
 }
 
 @container ws-rolls (max-width: 449px) {
+  .ws-rolls-dialog .ws-recent-action:nth-child(n + 3) {
+    display: none;
+  }
+
+  .ws-rolls-dialog .ws-player-footer {
+    grid-template-columns: minmax(26px, 1fr) minmax(76px, 1fr) auto;
+    gap: 4px;
+    padding-inline: 6px;
+  }
+
+  .ws-rolls-dialog .ws-footer-controls > button {
+    min-width: 26px;
+    width: 26px;
+    padding-inline: 3px;
+  }
+
   .ws-rolls-dialog .ws-footer-controls .ws-header-end-turn > span {
     display: none;
   }

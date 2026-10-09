@@ -14,7 +14,7 @@ In **All**, **Add to scene** places an absent creature from its prototype token.
 
 Grant Actor or token ownership to make companions available. Token-only ownership gives access to that instance; directory placement requires Actor ownership. Configure the prototype token and sight beforehand. Cast summon spells through native D&D activities rather than creating manual HUD links.
 
-![Companions panel](../media/summons-panel.png)
+![Companions panel](../media/summons-panel.webp)
 
 ## Shared senses
 

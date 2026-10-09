@@ -16,6 +16,9 @@ export function createGmSelection({
   /** @type {Promise<unknown> | null} */
   let opening = null;
   let previousFollow = controller ? readSetting(SETTINGS.gmFollowTurn) : false;
+  let sceneActions = 0;
+  let deferredChange = false;
+  let deferredFollow = false;
 
   const reopen = () => {
     if (!isCurrent() || !getApp()?.rendered) return Promise.resolve();
@@ -26,6 +29,13 @@ export function createGmSelection({
   const onCombatChange = ({ follow = true } = {}) => {
     const app = getApp();
     if (!controller || !app?.rendered || !isCurrent()) return;
+    // Native deletion hooks must not replace the owning session mid-batch.
+    // Explicit navigation/close still invalidates it immediately.
+    if (sceneActions) {
+      deferredChange = true;
+      deferredFollow ||= follow;
+      return;
+    }
     if (!controller.isGM()) {
       void app.close();
       return;
@@ -59,6 +69,20 @@ export function createGmSelection({
     reopen,
     onCombatChange,
     scheduleCombatChange,
+    /** @param {() => unknown} callback */
+    async duringSceneAction(callback) {
+      sceneActions++;
+      try {
+        return await callback();
+      } finally {
+        sceneActions--;
+        if (!sceneActions && deferredChange) {
+          const follow = deferredFollow;
+          deferredChange = deferredFollow = false;
+          onCombatChange({ follow });
+        }
+      }
+    },
     async selectCombat(id) {
       if (isCurrent() && controller?.chooseCombat(id)) await reopen();
     },

@@ -1,4 +1,8 @@
-import { checkIntegrity, repairSavedData } from "./integrity.js";
+import {
+  checkIntegrity,
+  repairSavedData,
+  canRepairIssue
+} from "./integrity.js";
 import { createModuleTranslator } from "./localization.js";
 import { MODULE_ID } from "./module-id.js";
 import { SETTINGS, getSettingDefinitions } from "./settings-schema.js";
@@ -101,6 +105,23 @@ export function createIntegrityApplication({
             reportFailure("settings.backup", error, { t: this.t });
           }
         },
+        backuprepair: async function () {
+          try {
+            const backup = game.settings.get(MODULE_ID, SETTINGS.repairBackup);
+            if (!backup?.createdAt || !backup.values) return;
+            foundry.utils.saveDataToFile(
+              JSON.stringify(
+                { module: MODULE_ID, format: 1, settings: backup.values },
+                null,
+                2
+              ),
+              "application/json",
+              "adventurer-hud-before-repair.json"
+            );
+          } catch (error) {
+            reportFailure("integrity.backup", error, { t: this.t });
+          }
+        },
         restoresettings: async function () {
           const text = await foundry.applications.api.DialogV2.prompt({
             window: { title: this.t("Troubleshooting.RestoreSettings") },
@@ -194,17 +215,47 @@ export function createIntegrityApplication({
           return this.runCheck();
         },
         repair: async function () {
-          if (this.busy || !this.report?.issues.some(issue => issue.repairable))
-            return;
+          if (this.busy || !this.report?.issues.some(canRepairIssue)) return;
           this.busy = true;
           this.failure = false;
-          await this.render({ force: true });
           try {
-            this.repaired = await repairSavedData();
+            await this.render({ force: true });
+            const repairs = this.report.issues.filter(canRepairIssue);
+            const escape = foundry.utils.escapeHTML;
+            const accepted = await foundry.applications.api.DialogV2.confirm({
+              window: { title: this.t("Integrity.Repair") },
+              content: `<p>${escape(this.t("Integrity.ConfirmRepair"))}</p><ul>${repairs
+                .flatMap(issue =>
+                  (issue.changes?.length
+                    ? issue.changes
+                    : [{ path: issue.key }]
+                  ).map(
+                    change =>
+                      `<li>${escape(`${issue.key}: ${change.path}`)}</li>`
+                  )
+                )
+                .join("")}</ul>`
+            });
+            if (!accepted) return;
+            this.repaired = await repairSavedData(repairs);
             this.report = await checkIntegrity();
           } catch (error) {
+            if (error?.message === "repair-plan-changed") {
+              this.report = await checkIntegrity();
+              ui.notifications.warn(this.t("Integrity.PlanChanged"));
+              return;
+            }
             this.failure = true;
-            reportFailure("integrity.repair", error, { t: this.t });
+            if (error instanceof SettingsSaveError) {
+              ui.notifications.warn(
+                this.t(
+                  error.rollbackFailedKeys.length
+                    ? "Integrity.RepairPartial"
+                    : "Integrity.RepairRolledBack"
+                )
+              );
+              reportFailure("integrity.repair", error, { notify: false });
+            } else reportFailure("integrity.repair", error, { t: this.t });
           } finally {
             this.busy = false;
             await this.render({ force: true });
@@ -302,7 +353,6 @@ export function createIntegrityApplication({
         resetsLabel: t("Troubleshooting.Resets"),
         reportHelpLabel: t("Troubleshooting.ReportHelp"),
         recordingHint: t("Troubleshooting.RecordingHint"),
-        saveHint: t("Troubleshooting.SaveHint"),
         intro: t("Integrity.Intro"),
         recording: diagnostics.summary.recording,
         recordLabel: t("Diagnostics.Record"),
@@ -342,6 +392,10 @@ export function createIntegrityApplication({
         restoreLabel: t("Troubleshooting.RestoreSettings"),
         backupSectionLabel: t("Troubleshooting.BackupSection"),
         backupHint: t("Troubleshooting.BackupHint"),
+        repairBackupLabel: t("Integrity.DownloadRepairBackup"),
+        repairBackupHint: t("Integrity.RepairBackupHint"),
+        repairBackupDate:
+          game.settings.get(MODULE_ID, SETTINGS.repairBackup)?.createdAt ?? "",
         isGM: Boolean(game.user?.isGM),
         diagnosticsHint: tf("Diagnostics.Hint", {
           count: diagnosticReport().events.length
@@ -351,7 +405,28 @@ export function createIntegrityApplication({
         repairLabel: t("Integrity.Repair"),
         closeLabel: t("Window.Close"),
         busy: this.busy,
-        canRepair: !this.busy && issues.some(issue => issue.repairable),
+        canRepair: !this.busy && issues.some(canRepairIssue),
+        layoutHint: issues.some(issue => issue.code === "Layout")
+          ? t("Integrity.LayoutHint")
+          : "",
+        checks: this.report
+          ? [
+              ["Preferences", ["SavedData", "Registration"]],
+              ["Layouts", ["Layout", SETTINGS.panelStates]],
+              ["Files", ["File"]],
+              ["Features", ["Api", "System"]]
+            ].map(([name, codes]) => ({
+              label: t(`Integrity.Check${name}`),
+              status: t(
+                issues.some(
+                  issue =>
+                    codes.includes(issue.code) || codes.includes(issue.key)
+                )
+                  ? "Integrity.CheckProblems"
+                  : "Integrity.CheckPassed"
+              )
+            }))
+          : [],
         summary: t(
           this.busy
             ? "Integrity.Checking"
@@ -366,10 +441,23 @@ export function createIntegrityApplication({
         repaired: this.repaired
           ? tf("Integrity.Repaired", { count: this.repaired })
           : "",
-        manualHint: issues.some(issue => !issue.repairable)
+        manualHint: issues.some(issue =>
+          ["File", "Api", "System", "Registration"].includes(issue.code)
+        )
           ? t("Integrity.ManualHint")
           : "",
         issues: issues.map(issue => ({
+          changes:
+            issue.changes?.map(change => ({
+              path: change.path,
+              kind: t(
+                change.legacy
+                  ? "Integrity.LegacyCleanup"
+                  : "Integrity.PreferenceRepair"
+              ),
+              before: JSON.stringify(change.before).slice(0, 120),
+              after: JSON.stringify(change.after).slice(0, 120)
+            })) ?? [],
           message: tf(`Integrity.${issue.code}`, {
             detail: Object.hasOwn(getSettingDefinitions(), issue.detail)
               ? t(`Settings.${issue.detail}.Name`)
@@ -384,7 +472,13 @@ export function createIntegrityApplication({
                 : issue.detail
           }),
           action: t(
-            issue.repairable ? "Integrity.Automatic" : "Integrity.Manual"
+            issue.repairable
+              ? canRepairIssue(issue)
+                ? "Integrity.Automatic"
+                : "Integrity.GmRequired"
+              : issue.code === "Layout"
+                ? "Integrity.ReviewLayout"
+                : "Integrity.Manual"
           )
         }))
       };

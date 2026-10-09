@@ -1,12 +1,22 @@
 import { setForcedMode, setRegularView } from "./state.js";
 import { moveItemLayout } from "./items/item-layout.js";
-import { changeHudLayout } from "./window/hud-layout.js";
+import {
+  changeHudLayout,
+  resetHudBlock,
+  resetHudLayout,
+  undoHudLayout
+} from "./window/hud-layout.js";
+import {
+  captureHudLayoutUndo,
+  rememberHudLayoutChange
+} from "./window/hud-layout-model.js";
 import { getSetting, setSetting, SETTINGS } from "../settings-access.js";
 import { openSettings, openTroubleshooting } from "../settings-navigation.js";
 
 /** @param {import('../../types/hud.js').HudActionsOptions} options */
 export function createViewActions({
   actor,
+  gmController,
   canRollActor = false,
   combatModeAvailable,
   currentMode,
@@ -20,7 +30,17 @@ export function createViewActions({
   togglePin
 }) {
   const canAct = () => Boolean(actor?.isOwner ?? canRollActor);
+  const canEditLayout = () => canAct() || Boolean(gmController?.isGM());
   const itemLayout = target => target?.closest?.("[data-layout-scope]");
+  const layoutSnapshot = root =>
+    captureHudLayoutUndo(
+      hudState,
+      root
+        ?.querySelector("[data-hud-layout-mode]")
+        ?.getAttribute("data-hud-layout-mode") ??
+        hudState.renderedMode ??
+        "regular"
+    );
   const moveItem = (target, direction) => {
     const list = itemLayout(target);
     if (!canAct() || !list || !hudState.hudEditing) return;
@@ -32,6 +52,7 @@ export function createViewActions({
     const destination = direction
       ? keys[keys.indexOf(key) + direction]
       : target.dataset.layoutTarget;
+    const snapshot = layoutSnapshot(target.closest(".ws-rolls-dialog"));
     if (
       !destination ||
       !moveItemLayout(
@@ -43,27 +64,87 @@ export function createViewActions({
       )
     )
       return;
+    rememberHudLayoutChange(hudState, snapshot);
     savePanelState?.();
     refreshHud();
   };
   return {
+    hudlayoutreset: function (_event, target) {
+      const root = this?.element ?? target?.closest?.(".ws-rolls-dialog");
+      if (!canEditLayout() || !root) return;
+      const snapshot = layoutSnapshot(root);
+      if (!resetHudLayout(root, hudState)) return;
+      rememberHudLayoutChange(hudState, snapshot);
+      savePanelState?.();
+      refreshHud();
+    },
+    hudcolumnadd: function (_event, target) {
+      const root = this?.element ?? target?.closest?.(".ws-rolls-dialog");
+      const mode = root
+        ?.querySelector("[data-hud-layout-mode]")
+        ?.getAttribute("data-hud-layout-mode");
+      if (
+        !canEditLayout() ||
+        !hudState.hudEditing ||
+        !mode ||
+        mode === "preparation"
+      )
+        return;
+      const snapshot = layoutSnapshot(root);
+      const scope = `${mode}:extra`;
+      const extra = hudState.hudLayouts[scope];
+      if (extra) {
+        const actions = hudState.hudLayouts[`${mode}:actions`] ?? {
+          order: [],
+          hidden: []
+        };
+        hudState.hudLayouts[`${mode}:actions`] = {
+          order: [...new Set([...actions.order, ...extra.order])],
+          hidden: [...new Set([...actions.hidden, ...extra.hidden])]
+        };
+        delete hudState.hudLayouts[scope];
+      } else hudState.hudLayouts[scope] = { order: [], hidden: [] };
+      rememberHudLayoutChange(hudState, snapshot);
+      savePanelState?.();
+      refreshHud();
+    },
     hudblockmove: function (_event, target) {
       const root = this?.element ?? target?.closest?.(".ws-rolls-dialog");
-      if (canAct() && root && changeHudLayout(root, hudState, target)) {
+      const snapshot = layoutSnapshot(root);
+      if (canEditLayout() && root && changeHudLayout(root, hudState, target)) {
+        rememberHudLayoutChange(hudState, snapshot);
         savePanelState?.();
         refreshHud();
       }
     },
     hudblockhide: function (_event, target) {
       const root = this?.element ?? target?.closest?.(".ws-rolls-dialog");
+      const snapshot = layoutSnapshot(root);
       if (canAct() && root && changeHudLayout(root, hudState, target, true)) {
+        rememberHudLayoutChange(hudState, snapshot);
         savePanelState?.();
         refreshHud();
       }
     },
+    hudblockreset: function (_event, target) {
+      const root = this?.element ?? target?.closest?.(".ws-rolls-dialog");
+      if (!canAct() || !root) return;
+      const snapshot = layoutSnapshot(root);
+      if (!resetHudBlock(root, hudState, target)) return;
+      rememberHudLayoutChange(hudState, snapshot);
+      savePanelState?.();
+      refreshHud();
+    },
+    hudlayoutundo: function (_event, target) {
+      const root = this?.element ?? target?.closest?.(".ws-rolls-dialog");
+      if (!canEditLayout() || !root || !undoHudLayout(root, hudState)) return;
+      savePanelState?.();
+      refreshHud();
+    },
     togglehudedit: function () {
-      if (!canAct()) return;
+      if (!canEditLayout()) return;
       hudState.hudEditing = !hudState.hudEditing;
+      hudState.hudLayoutUndo = null;
       refreshHud();
     },
     togglehiddenitems: function (_event, target) {
@@ -84,12 +165,14 @@ export function createViewActions({
         order: [],
         hidden: []
       };
+      const snapshot = layoutSnapshot(target.closest(".ws-rolls-dialog"));
       hudState.itemLayouts[scope] = {
         ...preference,
         hidden: preference.hidden.includes(key)
           ? preference.hidden.filter(value => value !== key)
           : [...preference.hidden, key]
       };
+      rememberHudLayoutChange(hudState, snapshot);
       savePanelState?.();
       refreshHud();
     },
@@ -127,6 +210,24 @@ export function createViewActions({
       refreshHud();
     },
     combatfilter: function (_event, target) {
+      if (target.closest?.(".ws-combat-category-section")) {
+        const expanded = hudState.hudLayouts["combat:expanded"] ?? {
+          order: hudState.combatCategory ? [hudState.combatCategory] : [],
+          hidden: []
+        };
+        const key = target.dataset.category;
+        hudState.hudLayouts["combat:expanded"] = {
+          order: expanded.order.includes(key)
+            ? expanded.order.filter(value => value !== key)
+            : [...expanded.order, key],
+          hidden: []
+        };
+        hudState.combatCategory =
+          hudState.hudLayouts["combat:expanded"].order.at(-1) ?? null;
+        savePanelState?.();
+        refreshHud("actions");
+        return;
+      }
       hudState.combatCategory =
         hudState.combatCategory === target.dataset.category
           ? null
@@ -154,7 +255,6 @@ export function createViewActions({
       if (hudState.proficientSkillsOnly === proficientOnly) return;
       await setSetting(SETTINGS.proficientSkillsOnly, proficientOnly);
       hudState.proficientSkillsOnly = proficientOnly;
-      refreshHud();
     },
     togglespeeds: function () {
       hudState.gmSpeedsExpanded = !hudState.gmSpeedsExpanded;

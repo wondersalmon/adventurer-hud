@@ -1,3 +1,4 @@
+import { activeEffectSummaries } from "../effect-summaries.js";
 import { getCurrentCombat } from "../../runtime-helpers.js";
 import { getSetting, setSetting, SETTINGS } from "../../settings-access.js";
 
@@ -15,8 +16,9 @@ export function gmWindowTitle(combat, actorName, t, tf) {
     .join(" · ");
 }
 export const defeated = combatant =>
-  Boolean(combatant?.isDefeated ?? combatant?.defeated) ||
   Boolean(
+    combatant?.isDefeated ??
+    combatant?.defeated ??
     (combatant?.token?.actor ?? combatant?.actor)?.statuses?.has(
       globalThis.CONFIG?.specialStatusEffects?.DEFEATED ?? "dead"
     )
@@ -45,9 +47,14 @@ export function gmRoster(
         (includeCharacters && actor?.type === "character")) &&
       actor.isOwner &&
       combatant.token &&
+      (!globalThis.canvas?.scene?.tokens?.get ||
+        globalThis.canvas.scene.tokens.get(
+          combatant.tokenId ?? combatant.token.id
+        ) === combatant.token) &&
       (!sceneId || combatant.sceneId === sceneId) &&
       (actor.type === "character" ||
         includePlayerNpcs ||
+        (includeCharacters && combatant.id === combat.combatant?.id) ||
         !(combatant.players ?? []).some(user => user.active && !user.isGM))
     );
   });
@@ -128,14 +135,7 @@ export function createGmCombatController({
               (entry.token.actor ?? entry.actor)?.type === "npc" &&
               !defeated(entry)
           )?.id;
-      const active = list.find(
-        combatant =>
-          combatant.id === followedId &&
-          (combatant.token.actor ?? combatant.actor)?.type === "npc" &&
-          (!defeated(combatant) ||
-            forceFollow ||
-            readSetting(SETTINGS.gmHighlightDead))
-      );
+      const active = list.find(combatant => combatant.id === followedId);
       if (active) return remember(active, combat, list);
     }
     if (current) return current;
@@ -144,10 +144,7 @@ export function createGmCombatController({
       ? list.find(combatant => combatant.tokenId === token.id)
       : null;
     const active = list.find(
-      combatant =>
-        combatant.id === combat?.combatant?.id &&
-        (combatant.token.actor ?? combatant.actor)?.type === "npc" &&
-        !defeated(combatant)
+      combatant => combatant.id === combat?.combatant?.id
     );
     const eligible = list.filter(
       combatant =>
@@ -182,32 +179,17 @@ export function createGmCombatController({
     return true;
   };
   const endTurn = async (expectedId, execute) => {
-    if (
-      !isGM() ||
-      memory.combatantId !== expectedId ||
-      getCombat()?.combatant?.id !== expectedId
-    )
-      return;
-    const before = sync();
+    if (!isGM() || memory.combatantId !== expectedId) return;
+    sync();
+    const beforeCombat = getCombat();
     memory.endingTurn = true;
     try {
       await execute();
       const combat = getCombat();
-      memory.suppressedTurn = `${combat?.id}:${combat?.round}:${combat?.turn}:${combat?.combatant?.id}`;
-      if (isGM() && readSetting(SETTINGS.gmAutoAdvance)) {
-        const list = roster();
-        const index = list.findIndex(entry => entry.id === expectedId);
-        const ordered = [...list.slice(index + 1), ...list.slice(0, index + 1)];
-        remember(
-          ordered.find(
-            entry =>
-              (entry.token.actor ?? entry.actor)?.type === "npc" &&
-              entry.id !== expectedId &&
-              !defeated(entry)
-          ) ?? before
-        );
-      }
-      return sync();
+      if (combat !== beforeCombat || !isGM()) return null;
+      memory.endingTurn = false;
+      memory.suppressedTurn = null;
+      return sync({ forceFollow: true });
     } finally {
       memory.endingTurn = false;
     }
@@ -241,7 +223,13 @@ export function renderGmCombatHeader({
   const combat = controller.getCombat();
   const list = controller.roster();
   const preparing = !combat?.started;
-  const initiativeOrder = combat?.turns ?? entries(combat?.combatants);
+  const initiativeOrder = (combat?.turns ?? entries(combat?.combatants)).filter(
+    entry =>
+      entry.token &&
+      (!globalThis.canvas?.scene?.tokens?.get ||
+        globalThis.canvas.scene.tokens.get(entry.tokenId ?? entry.token.id) ===
+          entry.token)
+  );
   const isPlayer = entry => {
     const actor = entry.token?.actor ?? entry.actor;
     return (
@@ -253,19 +241,34 @@ export function renderGmCombatHeader({
   const monsters = preparing
     ? list.filter(entry => !players.some(player => player.id === entry.id))
     : initiativeOrder;
+  const statusDefinitions = adapter.statusDefinitions?.() ?? [];
   const renderCard = (combatant, selectable = true) => {
     const actor = combatant.token?.actor ?? combatant.actor;
+    const name =
+      actor?.type === "character"
+        ? actor.name || combatant.name
+        : (combatant.name ?? actor?.name);
     const hp = actor ? adapter.combatStats(actor).hp : { value: "—", max: "—" };
     const tag = selectable ? "button" : "div";
-    return `<${tag} data-combatant-id="${escapeHTML(combatant.id)}" ${preparing ? `data-reset-initiative-id="${escapeHTML(combatant.id)}"` : ""} ${selectable ? `type="button" data-action="gmselect" aria-pressed="${combatant.id === selectedId}"` : 'tabindex="0"'} class="ws-button ws-gm-creature ${isPlayer(combatant) ? "ws-gm-player-creature" : ""} ${defeated(combatant) ? "ws-gm-defeated" : ""} ${selectable && combatant.id === selectedId ? "ws-selected" : ""} ${combatant.id === combat?.combatant?.id ? "ws-active" : ""}" title="${escapeHTML(combatant.name ?? actor?.name)}${preparing ? ` · ${escapeHTML(t("GM.ResetInitiativeHint"))}` : ""}">
-      <span class="ws-gm-token-hp" title="${hp.value}/${hp.max}${hp.temp ? ` +${hp.temp}` : ""}"><span style="width:${hp.max > 0 ? Math.min(100, Math.max(0, (hp.value / hp.max) * 100)) : 0}%"></span><b>${hp.value}/${hp.max}${hp.temp ? ` +${hp.temp}` : ""}</b></span>
-      <img src="${escapeHTML(combatant.token?.texture?.src || actor?.img || "icons/svg/mystery-man.svg")}" alt="" loading="lazy">
-      <strong>${isPlayer(combatant) ? `<i class="fa-solid fa-user ws-gm-player-marker" title="${t("GM.Players")}" aria-label="${t("GM.Players")}"></i> ` : ""}${escapeHTML(combatant.name ?? actor?.name)}</strong>
-      <small>${escapeHTML(combatant.initiative ?? "—")}</small>
-      ${combatant.hidden ? `<i class="fa-solid fa-eye-slash" title="${t("GM.Hidden")}"></i>` : ""}${defeated(combatant) ? `<i class="fa-solid fa-skull" title="${t("GM.Defeated")}"></i>` : ""}
-    </${tag}>`;
+    const statuses = actor
+      ? activeEffectSummaries(actor, statusDefinitions)
+      : [];
+    const hpRatio =
+      hp.max > 0 ? Math.min(1, Math.max(0, hp.value / hp.max)) : 0;
+    const effectLabels = statuses.map(status =>
+      game.i18n.localize(status.name ?? status.label ?? status.id)
+    );
+    const tooltip = `<strong>${escapeHTML(name)}</strong><div>${t("Combat.HP")} ${escapeHTML(hp.value)}/${escapeHTML(hp.max)}${hp.temp ? ` +${escapeHTML(hp.temp)}` : ""}</div>${statuses.length ? `<div class="ws-gm-hover-effects">${statuses.map((status, index) => `<span><img src="${escapeHTML(status.img ?? status.icon ?? "icons/svg/aura.svg")}" alt=""><span>${escapeHTML(effectLabels[index])}</span></span>`).join("")}</div>` : `<div>${t("GM.NoEffects")}</div>`}`;
+    return `<div class="ws-gm-roster-entry"><${tag} data-combatant-id="${escapeHTML(combatant.id)}" ${preparing ? `data-reset-initiative-id="${escapeHTML(combatant.id)}"` : ""} ${selectable ? `type="button" data-action="gmselect" aria-pressed="${combatant.id === selectedId}"` : 'tabindex="0"'} ${tooltip ? `data-tooltip="${escapeHTML(tooltip)}" data-tooltip-class="ws-gm-effects-tooltip"` : ""} class="ws-button ws-gm-creature ${isPlayer(combatant) ? "ws-gm-player-creature" : ""} ${defeated(combatant) ? "ws-gm-defeated" : ""} ${selectable && combatant.id === selectedId ? "ws-selected" : ""} ${combatant.id === combat?.combatant?.id ? "ws-active" : ""}" title="${escapeHTML(name)}">
+      <span class="ws-gm-token-hp ${hpRatio <= 0 ? "ws-hp-empty" : hpRatio <= 0.5 ? "ws-hp-low" : "ws-hp-healthy"}" title="${hp.value}/${hp.max}${hp.temp ? ` +${hp.temp}` : ""}"><span style="width:${hp.max > 0 ? Math.min(100, Math.max(0, (hp.value / hp.max) * 100)) : 0}%"></span><b>${hp.value}/${hp.max}${hp.temp ? `<span class="ws-gm-temp-hp"> +${hp.temp}</span>` : ""}</b></span>
+      <span class="ws-gm-portrait-slot" aria-hidden="true"></span>
+      <strong>${isPlayer(combatant) ? `<i class="fa-solid fa-user ws-gm-player-marker" title="${t("GM.Players")}" aria-label="${t("GM.Players")}"></i> ` : ""}${escapeHTML(name)}</strong>
+      ${statuses.length ? `<span class="ws-gm-roster-effect-marker" role="img" aria-label="${escapeHTML(t("HudLayout.Effects") + ": " + statuses.length)}"></span>` : ""}
+
+      ${defeated(combatant) ? `<i class="fa-solid fa-skull" title="${t("GM.Defeated")}"></i>` : ""}
+    </${tag}><button type="button" class="ws-button ws-gm-roster-image" data-action="gmimage" data-combatant-id="${escapeHTML(combatant.id)}" title="${t("GM.OpenImage")}" aria-label="${escapeHTML(t("GM.OpenImage") + ": " + name)}"><img src="${escapeHTML(combatant.token?.texture?.src || actor?.img || "icons/svg/mystery-man.svg")}" alt="" loading="lazy"></button><button type="button" class="ws-button ws-gm-roster-initiative" ${combatant.initiative != null ? 'aria-haspopup="dialog"' : ""} data-action="gmeditinitiative" data-combatant-id="${escapeHTML(combatant.id)}" title="${t(combatant.initiative == null ? "GM.RollSelectedInitiative" : "GM.EditInitiative")}" aria-label="${escapeHTML(t("GM.EditInitiative") + ": " + name + " · " + (combatant.initiative ?? "—"))}">${escapeHTML(combatant.initiative ?? "—")}<i class="fa-solid fa-pen" aria-hidden="true"></i></button><div class="ws-gm-roster-flags">${renderGmHiddenButton(combatant, t, escapeHTML)}${renderGmDefeatedButton(combatant, t, escapeHTML)}<button type="button" class="ws-button" data-action="gmping" data-combatant-id="${escapeHTML(combatant.id)}" title="${t("GM.Ping")}" aria-label="${escapeHTML(t("GM.Ping") + ": " + name)}"><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i></button><button type="button" class="ws-button" data-action="gmcenter" data-combatant-id="${escapeHTML(combatant.id)}" title="${t("GM.ToToken")}" aria-label="${escapeHTML(t("GM.ToToken") + ": " + name)}"><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i></button>${preparing ? `<button type="button" class="ws-button ws-gm-roster-remove" data-action="gmremovecombatants" data-combatant-id="${escapeHTML(combatant.id)}" title="${t("GM.RemoveCombatants")}" aria-label="${escapeHTML(t("GM.RemoveCombatants") + ": " + name)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>` : ""}</div></div>`;
   };
-  return `<section class="ws-gm-combat ${preparing ? "ws-gm-preparation" : ""}">
+  return `${preparing ? '<div class="ws-gm-preparation-frame">' : ""}<section class="ws-gm-combat ${preparing ? "ws-gm-preparation" : ""}">
     <div class="ws-gm-toolbar">
       ${
         controller.combats().length > 1
@@ -279,43 +282,29 @@ export function renderGmCombatHeader({
           : ""
       }
     </div>
+    ${preparing ? '<section class="ws-gm-preparation-controls">' : ""}
     ${!combat ? `<button type="button" class="ws-button" data-action="gmcreatecombat"><i class="fa-solid fa-plus" aria-hidden="true"></i>${t("GM.CreateCombat")}</button>` : ""}
     ${
       preparing
-        ? `<section class="ws-gm-encounter-tools"><h3>${t("GM.CombatSetup")}</h3>
+        ? `<section class="ws-gm-encounter-tools"><h3>${t("GM.CombatSetup")}</h3><p class="ws-gm-readiness">${t("GM.InitiativeReady")} · ${initiativeOrder.filter(entry => entry.initiative != null).length}/${initiativeOrder.length}</p>
     <div class="ws-gm-setup"><button type="button" class="ws-button" data-action="gmaddcreatures"><i class="fa-solid fa-users" aria-hidden="true"></i>${t("GM.AddCreatures")}</button><button type="button" class="ws-button" data-action="gmaddcreatures" data-scope="all"><i class="fa-solid fa-layer-group" aria-hidden="true"></i>${t("GM.AddSceneCreatures")}</button></div>
-    <div class="ws-gm-initiative-controls">${renderGmInitiativeButtons(combat, list, t)}</div>
-    <details class="ws-gm-initiative-options"><summary data-gm-initiative-options>${t("GM.MoreInitiative")}</summary><div class="ws-gm-initiative-controls">${(combat &&
-    list.length
-      ? [
-          ["selected", false, "GM.RollSelectedInitiative"],
-          ["selected", true, "GM.RerollSelectedInitiative"],
-          ["all", true, "GM.RerollAllInitiative"]
-        ]
-      : []
-    )
-      .map(
-        ([scope, reroll, label]) =>
-          `<button type="button" class="ws-button" data-action="gmrollinitiative" data-scope="${scope}" data-reroll="${reroll}" ${combat && list.length ? "" : "disabled"}><i class="fa-solid ${reroll ? "fa-rotate" : "fa-dice-d20"}" aria-hidden="true"></i>${t(label)}</button>`
-      )
-      .join(
-        ""
-      )}</div>${combat ? `<button type="button" class="ws-button" data-action="gmresetinitiative" ${(combat.turns ?? entries(combat.combatants)).some(entry => entry.initiative != null) ? "" : "disabled"}><i class="fa-solid fa-eraser" aria-hidden="true"></i>${t("GM.ResetInitiative")}</button>` : ""}</details></section>`
+    <div class="ws-gm-initiative-controls">${renderGmInitiativeButtons(combat, list, t, { resets: true })}</div>
+    ${combat ? `<div class="ws-gm-initiative-controls"><button type="button" class="ws-button" data-action="gmremovecombatants" data-scope="all" ${initiativeOrder.length ? "" : "disabled"}><i class="fa-solid fa-user-minus" aria-hidden="true"></i>${t("GM.RemoveAllCombatants")}</button><button type="button" class="ws-button" data-action="gmremovecombatants" data-scope="npc" ${initiativeOrder.some(entry => entry.isNPC ?? !hasPlayerOwner(entry)) ? "" : "disabled"}><i class="fa-solid fa-user-minus" aria-hidden="true"></i>${t("GM.RemoveNpcCombatants")}</button></div>` : ""}
+</section>`
         : ""
     }
-    ${combat && !combat.started ? `<button type="button" class="ws-button ws-gm-start" data-action="gmstartcombat"><i class="fa-solid fa-play" aria-hidden="true"></i>${t("GM.StartCombat")}</button>` : ""}
-    ${preparing ? '<div class="ws-gm-preparation-rosters">' : ""}
-    ${preparing ? `<details class="ws-gm-list" ${controller.memory?.collapsed ? "" : "open"}><summary>${t("GM.Creatures")} · ${monsters.length}</summary>` : '<section class="ws-gm-list">'}<div class="ws-gm-roster">${monsters
+    ${preparing ? '</section><div class="ws-gm-preparation-rosters">' : ""}
+    ${preparing ? `<section class="ws-gm-preparation-creatures"><details class="ws-gm-list" ${controller.memory?.collapsed ? "" : "open"}><summary>${t("GM.Creatures")} · ${monsters.length}</summary>` : '<section class="ws-gm-list">'}<div class="ws-gm-roster">${monsters
       .map(entry =>
         renderCard(
           entry,
           list.some(npc => npc.id === entry.id)
         )
       )
-      .join("")}</div>${preparing ? "</details>" : "</section>"}
+      .join("")}</div>${preparing ? "</details></section>" : "</section>"}
     ${
       preparing
-        ? `<details class="ws-gm-list ws-gm-player-roster" open><summary>${t("GM.Players")} · ${players.length}</summary><div class="ws-gm-roster">${players
+        ? `<section class="ws-gm-preparation-players"><details class="ws-gm-list ws-gm-player-roster" open><summary>${t("GM.Players")} · ${players.length}</summary><div class="ws-gm-roster">${players
             .map(entry =>
               renderCard(
                 entry,
@@ -324,12 +313,12 @@ export function renderGmCombatHeader({
             )
             .join(
               ""
-            )}</div>${players.length ? "" : `<div class="ws-empty">${t("GM.NoPlayers")}</div>`}</details></div>`
+            )}</div>${players.length ? "" : `<div class="ws-empty">${t("GM.NoPlayers")}</div>`}</details></section></div>`
         : ""
     }
-    ${showRemoval && combat?.started ? `<div class="ws-gm-tools">${renderGmTurnControls(combat, t)}${renderGmInitiativeButtons(combat, list, t)}${renderGmRemovalButton(list, t)}${renderGmEndCombatButton(combat, t)}</div>` : ""}
+    ${showRemoval && combat?.started ? `<div class="ws-gm-tools">${renderGmTurnControls(combat, t)}${renderGmInitiativeButtons(combat, list, t)}${renderGmRemovalButton(list, t)}${renderGmRevealButton(combat, t)}${renderGmEndCombatButton(combat, t)}</div>` : ""}
     ${combat && !list.length ? `<div class="ws-empty">${t("GM.NoCreatures")}</div>` : ""}
-  </section>`;
+  </section>${preparing ? `${combat ? `<footer class="ws-gm-preparation-footer">${renderGmRevealButton(combat, t)}<button type="button" class="ws-button ws-gm-start" data-action="gmstartcombat"><i class="fa-solid fa-play" aria-hidden="true"></i>${t("GM.StartCombat")}</button></footer>` : ""}</div>` : ""}`;
 }
 
 export function renderGmRemovalButton(list, t) {
@@ -339,17 +328,66 @@ export function renderGmRemovalButton(list, t) {
   return `<button type="button" class="ws-button" data-action="gmremovedead" ${count ? "" : "disabled"}><i class="fa-solid fa-skull" aria-hidden="true"></i>${t("GM.RemoveDead")} · ${count}</button>`;
 }
 
-export function renderGmInitiativeButtons(combat, list, t) {
+export const canHideCombatant = combatant => {
+  const token = combatant?.token;
+  return Boolean(
+    token?.isOwner &&
+    (token.actor ?? combatant.actor)?.type === "npc" &&
+    !hasPlayerOwner(combatant)
+  );
+};
+
+export function renderGmHiddenButton(combatant, t, escapeHTML) {
+  if (!canHideCombatant(combatant)) return "";
+  const hidden = Boolean(combatant.token.hidden);
+  const label = t(hidden ? "GM.ShowToken" : "GM.HideToken");
+  return `<button type="button" class="ws-button ws-gm-hidden-toggle ${hidden ? "ws-active" : ""}" data-action="gmhidden" data-combatant-id="${escapeHTML(combatant.id)}" aria-pressed="${hidden}" title="${label}" aria-label="${escapeHTML(label + ": " + (combatant.name ?? combatant.actor?.name ?? ""))}"><i class="fa-solid ${hidden ? "fa-eye-slash" : "fa-eye"}" aria-hidden="true"></i><span>${t(hidden ? "GM.Hidden" : "GM.Visible")}</span></button>`;
+}
+
+export function renderGmDefeatedButton(combatant, t, escapeHTML) {
+  if (!(combatant?.token?.actor ?? combatant?.actor)?.isOwner) return "";
+  const active = defeated(combatant);
+  const label = t(active ? "GM.UnmarkDefeated" : "GM.MarkDefeated");
+  return `<button type="button" class="ws-button ws-gm-defeated-toggle ${active ? "ws-active" : ""}" data-action="gmdefeated" data-combatant-id="${escapeHTML(combatant.id)}" aria-pressed="${active}" title="${label}" aria-label="${escapeHTML(label + ": " + (combatant.name ?? combatant.actor?.name ?? ""))}"><i class="fa-solid fa-skull" aria-hidden="true"></i><span>${label}</span></button>`;
+}
+
+export function renderGmRevealButton(combat, t) {
   if (!combat) return "";
-  return [
-    ["all", "GM.RollAllInitiative", "fa-dice-d20"],
-    ["npc", "GM.RollNpcInitiative", "fa-dragon"]
-  ]
-    .map(
-      ([scope, label, icon]) =>
-        `<button type="button" class="ws-button" data-action="gmrollinitiative" data-scope="${scope}" data-reroll="false" ${(combat.combatants?.size ?? list.length) ? "" : "disabled"}><i class="fa-solid ${icon}" aria-hidden="true"></i>${t(label)}</button>`
-    )
-    .join("");
+  const count = entries(combat.combatants).filter(
+    entry => canHideCombatant(entry) && entry.token.hidden
+  ).length;
+  return `<button type="button" class="ws-button ws-gm-reveal-all" data-action="gmrevealhidden" ${count ? "" : "disabled"}><i class="fa-solid fa-eye" aria-hidden="true"></i>${t("GM.RevealHidden")} · ${count}</button>`;
+}
+
+export function renderGmInitiativeButtons(
+  combat,
+  list,
+  t,
+  { resets = false } = {}
+) {
+  if (!combat) return "";
+  return (
+    [
+      ["all", "GM.RollAllInitiative", "fa-dice-d20"],
+      ["npc", "GM.RollNpcInitiative", "fa-dragon"]
+    ]
+      .map(
+        ([scope, label, icon]) =>
+          `<button type="button" class="ws-button" data-action="gmrollinitiative" data-scope="${scope}" data-reroll="false" ${(combat.combatants?.size ?? list.length) ? "" : "disabled"}><i class="fa-solid ${icon}" aria-hidden="true"></i>${t(label)}</button>`
+      )
+      .join("") +
+    (resets
+      ? [
+          ["all", "GM.ResetAllInitiative"],
+          ["npc", "GM.ResetNpcInitiative"]
+        ]
+          .map(
+            ([scope, label]) =>
+              `<button type="button" class="ws-button" data-action="gmresetinitiative" data-scope="${scope}" ${combat && (combat.turns ?? entries(combat.combatants)).some(entry => entry.initiative != null && (scope === "all" || (entry.isNPC ?? !hasPlayerOwner(entry)))) ? "" : "disabled"}><i class="fa-solid fa-eraser" aria-hidden="true"></i>${t(label)}</button>`
+          )
+          .join("")
+      : "")
+  );
 }
 
 export function renderGmEndCombatButton(combat, t) {
@@ -361,5 +399,10 @@ export function renderGmEndCombatButton(combat, t) {
 export function renderGmTurnControls(combat, t) {
   const control = (action, icon, label, disabled = false) =>
     `<button type="button" class="ws-button" data-action="${action}" title="${t(label)}" aria-label="${t(label)}" ${disabled ? "disabled" : ""}><i class="fa-solid ${icon}"></i></button>`;
-  return `<div class="ws-gm-navigation">${control("gmprevious", "fa-backward-step", "GM.PreviousTurn", !combat?.started)}<button type="button" class="ws-button ${getSetting(SETTINGS.gmFollowTurn) ? "ws-active" : ""}" data-action="gmfollow" title="${t("GM.Follow")}" aria-label="${t("GM.Follow")}" aria-pressed="${Boolean(getSetting(SETTINGS.gmFollowTurn))}"><i class="fa-solid fa-crosshairs" aria-hidden="true"></i><span>${t("GM.Follow")}</span></button>${control("gmnext", "fa-forward-step", "GM.NextTurn", !combat?.started)}</div>`;
+  return `<div class="ws-gm-navigation">${control("gmprevious", "fa-backward-step", "GM.PreviousTurn", !canGoToPreviousTurn(combat))}<button type="button" class="ws-button ${getSetting(SETTINGS.gmFollowTurn) ? "ws-active" : ""}" data-action="gmfollow" title="${t("GM.Follow")}" aria-label="${t("GM.Follow")}" aria-pressed="${Boolean(getSetting(SETTINGS.gmFollowTurn))}"><i class="fa-solid fa-crosshairs" aria-hidden="true"></i><span>${t("GM.Follow")}</span></button>${control("gmnext", "fa-forward-step", "GM.NextTurn", !combat?.started)}</div>`;
 }
+
+export const canGoToPreviousTurn = combat =>
+  Boolean(
+    combat?.started && (Number(combat.round) > 1 || Number(combat.turn) > 0)
+  );

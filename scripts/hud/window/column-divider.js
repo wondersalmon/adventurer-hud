@@ -1,6 +1,16 @@
 export function bindPlayerDivider(
   root,
-  { readRatio = () => 0.48, saveRatio, isPinned = () => false, sync } = {}
+  {
+    readRatio = () => 0.48,
+    saveRatio,
+    isPinned = () => false,
+    sync,
+    handleSelector = ".ws-player-layout > .ws-column-divider",
+    viewSelector = ".ws-player-layout",
+    infoSelector = ".ws-player-info",
+    widthProperty = "--ws-player-left-width",
+    limits = () => ({ min: 0.25, max: 0.7, left: 210, right: 232 })
+  } = {}
 ) {
   const doc = root?.ownerDocument;
   let drag = null;
@@ -15,17 +25,26 @@ export function bindPlayerDivider(
   const apply = (view, ratio) => {
     const width = contentWidth(view);
     if (!width) return readRatio();
-    const boundedRatio = Math.max(0.25, Math.min(0.7, ratio));
-    const left = Math.max(210, Math.min(width - 232, width * boundedRatio));
-    const value = Math.max(0.25, Math.min(0.7, left / width));
-    view.style.setProperty("--ws-player-left-width", `${left}px`);
+    const bounds = limits(view);
+    const boundedRatio = Math.max(bounds.min, Math.min(bounds.max, ratio));
+    const left = Math.max(
+      bounds.left,
+      Math.min(width - bounds.right, width * boundedRatio)
+    );
+    const value = Math.max(bounds.min, Math.min(bounds.max, left / width));
+    view.style.setProperty(widthProperty, `${left}px`);
     view
-      .querySelector(".ws-column-divider")
+      .querySelector(handleSelector)
       ?.setAttribute("aria-valuenow", String(Math.round(value * 100)));
     return value;
   };
   const move = event => {
     if (!drag || isPinned()) return;
+    if (
+      drag.view.querySelector(handleSelector)?.getAttribute("aria-disabled") ===
+      "true"
+    )
+      return cancel();
     if (!root.contains(drag.view)) return cancel();
     drag.ratio = apply(
       drag.view,
@@ -36,14 +55,20 @@ export function bindPlayerDivider(
     if (!drag) return;
     const { ratio, view } = drag;
     drag = null;
-    if (!isPinned() && root.contains(view)) saveRatio?.(ratio);
+    if (
+      !isPinned() &&
+      root.contains(view) &&
+      view.querySelector(handleSelector)?.getAttribute("aria-disabled") !==
+        "true"
+    )
+      saveRatio?.(ratio);
   };
   const cancel = () => {
     drag = null;
     sync?.();
   };
   const down = event => {
-    const handle = event.target?.closest?.(".ws-column-divider");
+    const handle = event.target?.closest?.(handleSelector);
     if (
       !handle ||
       !root.contains(handle) ||
@@ -55,29 +80,28 @@ export function bindPlayerDivider(
     event.preventDefault();
     handle.focus({ preventScroll: true });
     handle.setPointerCapture?.(event.pointerId);
-    const view = handle.closest(".ws-player-layout");
+    const view = handle.closest(viewSelector);
     drag = {
       view,
       ratio: readRatio(),
       startX: event.clientX,
-      left: view.querySelector(".ws-player-info").getBoundingClientRect().width
+      left: view.querySelector(infoSelector).getBoundingClientRect().width
     };
   };
   const key = event => {
-    const handle = event.target?.closest?.(".ws-column-divider");
+    const handle = event.target?.closest?.(handleSelector);
     if (
       !handle ||
+      !root.contains(handle) ||
       isPinned() ||
       handle.getAttribute("aria-disabled") === "true" ||
       !["ArrowLeft", "ArrowRight"].includes(event.key)
     )
       return;
     event.preventDefault();
-    const view = handle.closest(".ws-player-layout");
+    const view = handle.closest(viewSelector);
     const width = contentWidth(view);
-    const left = view
-      .querySelector(".ws-player-info")
-      .getBoundingClientRect().width;
+    const left = view.querySelector(infoSelector).getBoundingClientRect().width;
     const current = width && left ? left / width : Number(readRatio());
     const ratio = apply(
       view,

@@ -14,14 +14,18 @@ const REFRESH_PRIORITY = Object.freeze({
 });
 const renderedMarkup = new WeakMap();
 
-export function refreshHudShell(shell, body) {
+export function refreshHudShell(shell, body, { syncLayout } = {}) {
   if (!shell) return;
-  if (renderedMarkup.get(shell) === body) return;
+  if (renderedMarkup.get(shell) === body) {
+    syncLayout?.();
+    return;
+  }
   const domState = captureHudDomState(shell);
 
   shell.innerHTML = body;
   renderedMarkup.set(shell, body);
-  restoreHudDomState(shell, domState);
+  syncLayout?.();
+  restoreHudDomState(shell, domState, { layoutApplied: Boolean(syncLayout) });
 }
 
 export function createRefreshScheduler(
@@ -100,12 +104,18 @@ export function refreshHudView({
   region,
   renderers,
   setView,
-  title
+  title,
+  syncLayout,
+  beforeReplace
 }) {
   if (!app?.rendered) return;
   const shell = app.element.querySelector(".ws-shell");
   if (!shell) return;
   const domState = captureHudDomState(shell);
+  const restore = () => {
+    syncLayout?.();
+    restoreHudDomState(shell, domState, { layoutApplied: Boolean(syncLayout) });
+  };
 
   if (
     region === "search" &&
@@ -120,10 +130,13 @@ export function refreshHudView({
       const input = panel.querySelector('[data-action="searchitems"]');
       if (input && input.value !== hudState.searchQuery)
         input.value = hudState.searchQuery;
-      if (previous && next) previous.replaceWith(next);
-      else if (next) panel.append(next);
-      else previous?.remove();
-      renderedMarkup.delete(shell);
+      if (previous?.outerHTML !== next?.outerHTML) {
+        beforeReplace?.();
+        if (previous && next) previous.replaceWith(next);
+        else if (next) panel.append(next);
+        else previous?.remove();
+        renderedMarkup.delete(shell);
+      }
       // Keep the input node, selection and IME session throughout typing.
       return;
     }
@@ -146,23 +159,77 @@ export function refreshHudView({
       const markup = renderers.actions();
       if (renderedMarkup.get(current) === markup) return;
       template.innerHTML = markup;
+      const sections = [
+        ...template.content.querySelectorAll(".ws-combat-category-section")
+      ];
+      const previous = [
+        ...shell.querySelectorAll(".ws-combat-category-section")
+      ];
+      if (previous.length) {
+        const updates = sections
+          .map(next => ({
+            next,
+            old: previous.find(
+              node =>
+                node.getAttribute("data-hud-block") ===
+                next.getAttribute("data-hud-block")
+            )
+          }))
+          .filter(
+            ({ next, old }) =>
+              !old || renderedMarkup.get(old) !== next.outerHTML
+          );
+        const removed = previous.filter(
+          old =>
+            !sections.some(
+              next =>
+                next.getAttribute("data-hud-block") ===
+                old.getAttribute("data-hud-block")
+            )
+        );
+        if (updates.length || removed.length) {
+          beforeReplace?.();
+          for (const { next, old } of updates) {
+            renderedMarkup.set(next, next.outerHTML);
+            if (old) old.replaceWith(next);
+            else
+              (
+                current.querySelector(".ws-combat-category-sections") ?? current
+              ).append(next);
+          }
+          for (const old of removed) old.remove();
+          if (!sections.length) {
+            const next = template.content.firstElementChild;
+            if (next) current.replaceWith(next);
+            else current.remove();
+          }
+          renderedMarkup.delete(shell);
+        }
+        renderedMarkup.set(current, markup);
+        restore();
+        return;
+      }
+      beforeReplace?.();
       const next = template.content.firstElementChild;
       if (next) {
         current.replaceWith(next);
         renderedMarkup.set(next, markup);
       } else current.remove();
       renderedMarkup.delete(shell);
-      restoreHudDomState(shell, domState);
+      restore();
       return;
     }
   }
 
   const markup = renderHudMode(mode, renderers);
   if (renderedMarkup.get(shell) !== markup) {
+    beforeReplace?.();
     shell.innerHTML = markup;
     renderedMarkup.set(shell, markup);
-    restoreHudDomState(shell, domState);
+    for (const section of shell.querySelectorAll(".ws-combat-category-section"))
+      renderedMarkup.set(section, section.outerHTML);
   }
+  restore();
   hudState.renderedMode = mode;
   const windowTitle = app.element.querySelector(".window-title");
   if (windowTitle && windowTitle.textContent !== title)

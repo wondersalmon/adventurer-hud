@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { extractReleaseNotes } from "../tools/changelog.mjs";
+import {
+  extractReleaseNotes,
+  assertReleaseReady
+} from "../tools/changelog.mjs";
 
 test("release notes contain only the requested changelog section", () => {
   const changelog = `# Changelog
@@ -30,5 +33,18 @@ test("release notes fail when a version is missing or empty", () => {
   assert.throws(
     () => extractReleaseNotes("# Changelog\n\n## 1.2.0\n", "1.2.0"),
     /is empty/
+  );
+});
+
+test("publication rejects unfinished notes while normal release notes remain valid", () => {
+  for (const marker of [
+    "Prepared for the next minor release; not yet released.",
+    "TODO: finalize notes",
+    "TBA",
+    "Ещё не выпущено"
+  ])
+    assert.throws(() => assertReleaseReady(marker, "2.1.0"), /not finalized/);
+  assert.doesNotThrow(() =>
+    assertReleaseReady("- Fixed preparation and initiative controls.", "2.1.0")
   );
 });

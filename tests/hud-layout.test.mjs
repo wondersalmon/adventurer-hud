@@ -10,11 +10,341 @@ import {
 } from "../scripts/hud/panel-state.js";
 import {
   synchronizeHudLayout,
-  changeHudLayout
+  changeHudLayout,
+  resetHudBlock,
+  captureHudLayoutUndo,
+  rememberHudLayoutChange,
+  undoHudLayout
 } from "../scripts/hud/window/hud-layout.js";
 import { fragment } from "./helpers/rendering.mjs";
+import { flushPanelPreferences } from "../scripts/hud/panel-preferences.js";
 
 restoreGlobalsAfterEach();
+
+test("block reset restores only its default position and undo preserves other blocks, mode data and native controls", () => {
+  const root = fragment(
+    '<div id="ws-main" class="ws-player-layout"><section class="ws-player-info"><div class="ws-actor-header"><button data-action="gmsheet">Hero</button></div><div class="ws-health-stack">HP</div><section class="ws-ability-table">Abilities</section></section><section class="ws-player-actions"><div class="ws-combat-actions">Actions</div></section></div>'
+  );
+  const state = createHudState({
+    hudEditing: true,
+    hudLayouts: { "combat:info": { order: ["stats"], hidden: ["hp"] } }
+  });
+  const sync = () => synchronizeHudLayout(root, state, key => key);
+  const keys = lane =>
+    [...root.querySelector(`[data-hud-lane="${lane}"]`).children]
+      .filter(node => node.dataset.hudBlock)
+      .map(node => node.dataset.hudBlock);
+  sync();
+  const identity = root.querySelector('[data-hud-block="identity"]');
+  const native = identity.querySelector('[data-action="gmsheet"]');
+  assert.equal(
+    identity.querySelector('[data-hud-direction="up"]').disabled,
+    true
+  );
+  assert.equal(
+    root.querySelector(
+      '[data-hud-block="abilities"] [data-hud-direction="down"]'
+    ).disabled,
+    true
+  );
+  changeHudLayout(
+    root,
+    state,
+    identity.querySelector('[data-hud-direction="right"]')
+  );
+  sync();
+  const beforeReset = captureHudLayoutUndo(state, "regular");
+  assert.equal(
+    resetHudBlock(
+      root,
+      state,
+      identity.querySelector('[data-action="hudblockreset"]')
+    ),
+    true
+  );
+  rememberHudLayoutChange(state, beforeReset);
+  sync();
+  assert.deepEqual(keys("info"), ["identity", "hp", "abilities"]);
+  assert.deepEqual(keys("actions"), ["actions"]);
+  assert.equal(identity.querySelector('[data-action="gmsheet"]'), native);
+  assert.deepEqual(state.hudLayouts["combat:info"], {
+    order: ["stats"],
+    hidden: ["hp"]
+  });
+  state.searchQuery = "new query after reset";
+  assert.equal(undoHudLayout(root, state), true);
+  sync();
+  assert.deepEqual(keys("info"), ["hp", "abilities"]);
+  assert.deepEqual(keys("actions"), ["actions", "identity"]);
+  assert.equal(state.searchQuery, "new query after reset");
+  assert.equal(undoHudLayout(root, state), false);
+  assert.equal(panelStateSnapshot(state).hudLayoutUndo, undefined);
+});
+
+test("absent hidden sections have localized names and reset clears only the chosen section", () => {
+  const root = fragment(
+    '<div id="ws-main" class="ws-player-layout"><section class="ws-player-info"><div class="ws-actor-header">Hero</div></section><section class="ws-player-actions"></section></div>'
+  );
+  const state = createHudState({
+    hudEditing: true,
+    hudLayouts: {
+      "regular:tabs": {
+        order: ["tab:spells", "tab:skills"],
+        hidden: ["tab:spells", "tab:skills"]
+      }
+    }
+  });
+  synchronizeHudLayout(
+    root,
+    state,
+    key =>
+      ({ "Combat.Spells": "Заклинания", "Labels.Skills": "Навыки" })[key] ?? key
+  );
+  const row = root.querySelector(
+    '.ws-hud-layout-restore [data-hud-key="tab:spells"]'
+  ).parentElement;
+  assert.equal(row.querySelector("span").textContent, "Заклинания");
+  resetHudBlock(
+    root,
+    state,
+    row.querySelector('[data-action="hudblockreset"]')
+  );
+  assert.deepEqual(state.hudLayouts["regular:tabs"], {
+    order: ["tab:skills"],
+    hidden: ["tab:skills"]
+  });
+});
+
+test("editing shows mode navigation despite its setting, keeps manual switching and restores compact rests after reset", async () => {
+  const f = await hudFixture({ values: { showModeNavigation: false } });
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  assert.equal(app.element.querySelector(".ws-mode-navigation"), null);
+  await app.hudActions.togglehudedit();
+  assert.ok(app.element.querySelector(".ws-mode-navigation"));
+  await app.hudActions.combatmode();
+  assert.ok(app.element.querySelector("#ws-combat"));
+  await app.hudActions.normal();
+  const rests = () => app.element.querySelector('[data-hud-block="rests"]');
+  await app.hudActions.hudblockmove(
+    null,
+    rests().querySelector('[data-hud-direction="right"]')
+  );
+  await app.hudActions.hudblockreset(
+    null,
+    rests().querySelector('[data-action="hudblockreset"]')
+  );
+  await app.hudActions.togglehudedit();
+  assert.equal(app.element.querySelector(".ws-mode-navigation"), null);
+  assert.equal(rests().parentElement.className, "ws-actor-inspiration-slot");
+  assert.equal(rests().querySelectorAll(".ws-rest-controls button").length, 2);
+  assert.equal(f.current.get("showModeNavigation"), false);
+  await flushPanelPreferences();
+  await app.close();
+});
+
+test("editor undo restores a hidden active section, is guarded and does not survive a new actor session", async () => {
+  const f = await hudFixture();
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  await app.hudActions.view(null, { dataset: { view: "skills" } });
+  await app.hudActions.togglehudedit();
+  await app.hudActions.hudblockhide(
+    null,
+    app.element.querySelector(
+      '[data-hud-block="tab:skills"] [data-action="hudblockhide"]'
+    )
+  );
+  assert.equal(app.element.querySelector("#ws-skills"), null);
+  f.actor.isOwner = false;
+  await app.hudActions.hudlayoutundo(
+    null,
+    app.element.querySelector('[data-action="hudlayoutundo"]')
+  );
+  assert.equal(app.element.querySelector("#ws-skills"), null);
+  f.actor.isOwner = true;
+  await app.hudActions.hudlayoutundo(
+    null,
+    app.element.querySelector('[data-action="hudlayoutundo"]')
+  );
+  assert.ok(app.element.querySelector("#ws-skills"));
+  assert.equal(
+    app.element.querySelector('[data-action="hudlayoutundo"]').disabled,
+    true
+  );
+  await app.hudActions.hudblockhide(
+    null,
+    app.element.querySelector(
+      '[data-hud-block="hp"] [data-action="hudblockhide"]'
+    )
+  );
+  await flushPanelPreferences();
+  await app.hudActions.togglehudedit();
+  await app.close();
+  await f.api.open(f.actor);
+  await __adventurerHud.app.hudActions.togglehudedit();
+  assert.equal(
+    __adventurerHud.app.element.querySelector('[data-action="hudlayoutundo"]')
+      .disabled,
+    true
+  );
+  await __adventurerHud.app.hudActions.togglehudedit();
+  await __adventurerHud.app.close();
+});
+
+test("exploration sections move independently and retain legacy order, hiding and native content after rendering", () => {
+  const html = `<div id="ws-main" class="ws-player-layout"><nav class="ws-mode-navigation">Modes</nav><section class="ws-player-info"><div class="ws-global-search">Search</div><div class="ws-actor-header">Hero</div></section><section class="ws-player-actions">${["skills", "spells", "inventory"].map(key => `<section class="ws-exploration-section"><button data-view="${key}"><span class="ws-nav-main">${key}</span></button><div class="ws-exploration-section-body"><button data-action="native">${key} content</button></div></section>`).join("")}</section></div>`;
+  const root = fragment(html);
+  const state = createHudState({
+    hudEditing: true,
+    hudLayouts: {
+      "regular:info": {
+        order: ["modes", "actions", "identity"],
+        hidden: ["modes"]
+      },
+      "regular:tabs": {
+        order: ["tab:spells", "tab:skills", "tab:inventory"],
+        hidden: []
+      }
+    }
+  });
+  const sync = () => synchronizeHudLayout(root, state, key => key);
+  sync();
+  const spells = root.querySelector('[data-hud-block="tab:spells"]');
+  const skills = root.querySelector('[data-hud-block="tab:skills"]');
+  const native = spells.querySelector('[data-action="native"]');
+  assert.equal(spells.nextElementSibling, skills);
+  assert.equal(spells.parentElement.dataset.hudLane, "info");
+  assert.equal(
+    root
+      .querySelector(".ws-mode-navigation")
+      .classList.contains("ws-hud-block-hidden"),
+    false
+  );
+  assert.equal(
+    root.querySelector(".ws-mode-navigation .ws-hud-block-tools"),
+    null
+  );
+  assert.equal(
+    changeHudLayout(
+      root,
+      state,
+      spells.querySelector('[data-hud-direction="right"]')
+    ),
+    true
+  );
+  sync();
+  assert.equal(spells.parentElement.dataset.hudLane, "actions");
+  assert.equal(skills.parentElement.dataset.hudLane, "info");
+  assert.equal(spells.querySelector('[data-action="native"]'), native);
+  root.innerHTML = html;
+  const loaded = createHudState(panelStateSnapshot(state));
+  synchronizeHudLayout(root, loaded, key => key);
+  assert.equal(
+    root.querySelector('[data-hud-block="tab:spells"]').parentElement.dataset
+      .hudLane,
+    "actions"
+  );
+  assert.equal(
+    root.querySelector('[data-hud-block="tab:skills"]').parentElement.dataset
+      .hudLane,
+    "info"
+  );
+  loaded.hudEditing = true;
+  loaded.hudLayouts["regular:actions"].hidden = ["actions"];
+  synchronizeHudLayout(root, loaded, key => key);
+  changeHudLayout(
+    root,
+    loaded,
+    root.querySelector('.ws-hud-layout-restore [data-hud-key="tab:spells"]'),
+    true
+  );
+  synchronizeHudLayout(root, loaded, key => key);
+  assert.equal(
+    root
+      .querySelector('[data-hud-block="tab:spells"]')
+      .classList.contains("ws-hud-block-hidden"),
+    false
+  );
+  assert.equal(
+    root
+      .querySelector('[data-hud-block="tab:skills"]')
+      .classList.contains("ws-hud-block-hidden"),
+    true
+  );
+  root.querySelector('[data-hud-block="tab:spells"]').remove();
+  loaded.hudLayouts["regular:actions"].hidden = ["actions"];
+  synchronizeHudLayout(root, loaded, key => key);
+  changeHudLayout(
+    root,
+    loaded,
+    root.querySelector('.ws-hud-layout-restore [data-hud-key="tab:skills"]'),
+    true
+  );
+  root.innerHTML = html;
+  synchronizeHudLayout(
+    root,
+    createHudState(panelStateSnapshot(loaded)),
+    key => key
+  );
+  assert.equal(
+    root
+      .querySelector('[data-hud-block="tab:spells"]')
+      .classList.contains("ws-hud-block-hidden"),
+    true
+  );
+  assert.equal(
+    root
+      .querySelector('[data-hud-block="tab:skills"]')
+      .classList.contains("ws-hud-block-hidden"),
+    false
+  );
+});
+
+test("player search defaults above identity and mode navigation stays first across views and saved layouts", async () => {
+  const f = await hudFixture({ values: { showModeNavigation: true } });
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  for (const view of ["main", "skills", "inventory"]) {
+    await app.hudActions.view(null, { dataset: { view } });
+    assert.equal(
+      app.element.querySelector(".ws-player-layout").firstElementChild
+        .className,
+      "ws-mode-navigation"
+    );
+    assert.equal(
+      app.element.querySelector(".ws-player-info > [data-hud-block]").dataset
+        .hudBlock,
+      "search"
+    );
+  }
+  await app.hudActions.togglehudedit();
+  await app.hudActions.hudblockmove(
+    null,
+    app.element.querySelector(
+      '[data-hud-block="search"] [data-hud-direction="right"]'
+    )
+  );
+  await app.hudActions.togglehudedit();
+  assert.equal(
+    app.element.querySelector('[data-hud-block="search"]').parentElement.dataset
+      .hudLane,
+    "actions"
+  );
+  await app.hudActions.combatmode();
+  assert.ok(app.element.querySelector("#ws-combat"));
+  assert.equal(
+    app.element.querySelector(".ws-player-layout").firstElementChild.className,
+    "ws-mode-navigation"
+  );
+  assert.equal(
+    app.element.querySelector(".ws-player-info > [data-hud-block]").dataset
+      .hudBlock,
+    "search"
+  );
+  await flushPanelPreferences();
+  await app.close();
+});
 
 for (const gm of [false, true]) {
   test(`${gm ? "GM" : "player"} block layouts move across columns, hide/restore and survive a fresh render without losing native controls`, () => {
@@ -33,7 +363,7 @@ for (const gm of [false, true]) {
       changeHudLayout(
         root,
         state,
-        hp.querySelector('[data-hud-direction="column"]')
+        hp.querySelector('[data-hud-direction="right"]')
       ),
       true
     );
@@ -262,7 +592,7 @@ test("compact rests retain independent editing, hiding and saved column placemen
   assert.equal(rests().parentElement.dataset.hudLane, "info");
   await app.hudActions.hudblockmove(
     null,
-    rests().querySelector('[data-hud-direction="column"]')
+    rests().querySelector('[data-hud-direction="right"]')
   );
   await app.hudActions.togglehudedit();
   assert.equal(rests().parentElement.dataset.hudLane, "actions");

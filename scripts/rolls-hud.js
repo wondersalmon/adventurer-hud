@@ -9,15 +9,24 @@ import { reportFailure } from "./diagnostics.js";
 const queueOpening = createTaskQueue();
 
 /** @type {import('../types/hud.js').OpenHud} */
-export function openRollsHud(actorOverride = null, navigation = null) {
-  return queueOpening(() => openHud(actorOverride, navigation));
+export function openRollsHud(
+  actorOverride = null,
+  navigation = null,
+  recovery = undefined
+) {
+  return queueOpening(() =>
+    recovery && !recovery.isCurrent()
+      ? undefined
+      : openHud(actorOverride, navigation, recovery)
+  );
 }
 
-async function openHud(actorOverride, navigation) {
+async function openHud(actorOverride, navigation, recovery) {
   try {
     const context = await prepareHudOpenContext({
       actorOverride,
       navigation,
+      recovery,
       adapter: dnd5eAdapter,
       openHud: openRollsHud
     });

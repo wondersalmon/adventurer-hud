@@ -4,7 +4,7 @@ import { createItemCategories } from "./item-categories.js";
 import { createCombatItemCardRenderer } from "./combat-item-card.js";
 import { createCombatSpellRenderer } from "./combat-spells.js";
 import { itemLayoutKey, renderItemLayout } from "./item-layout.js";
-import { hudElementHidden } from "../window/hud-layout.js";
+import { hudElementHidden } from "../window/hud-layout-model.js";
 import { matchesItemSearch } from "./quick-access.js";
 
 export function createItemPanelRenderer({
@@ -127,9 +127,13 @@ export function createItemPanelRenderer({
     </section>`;
   };
 
-  const organizedCards = (items, scope, activityEntries = false) => {
+  const organizedCards = (
+    items,
+    scope,
+    activityEntries = false,
+    category = hudState.combatCategory
+  ) => {
     const entries = items.flatMap(item => {
-      const category = hudState.combatCategory;
       if (!visibility.gm && category === "special") {
         const activities = adapter
           .itemActivities(item)
@@ -169,9 +173,62 @@ export function createItemPanelRenderer({
     });
   };
 
+  const independentCategories = () =>
+    Boolean(
+      hudState.hudEditing ||
+      ["info", "actions", "extra"].some(lane =>
+        hudState.hudLayouts?.[`combat:${lane}`]?.order.some(key =>
+          key.startsWith("tab:")
+        )
+      )
+    );
+  const categoryExpanded = key =>
+    independentCategories() && hudState.hudLayouts?.["combat:expanded"]
+      ? hudState.hudLayouts["combat:expanded"].order.includes(key)
+      : hudState.combatCategory === key;
+  const categoryBody = (key, items) => {
+    const isSkills = key === "skills";
+    return `          ${isSkills ? skillFilterHTML() : ""}
+
+          ${key === "spells" ? spellFilterHTML() : ""}
+          ${key === "features" ? `<div class="ws-feature-filter"><button type="button" class="ws-button ${hudState.showPassiveFeatures ? "ws-active" : ""}" data-action="featurefilter" aria-pressed="${Boolean(hudState.showPassiveFeatures)}">${t(hudState.showPassiveFeatures ? "Combat.ShowActiveFeatures" : "Combat.ShowPassiveFeatures")}</button></div>` : ""}
+
+          ${
+            key === "inventory"
+              ? renderInventoryPanel({
+                  combatItemButton,
+                  escapeHTML,
+                  hudState,
+                  inventoryCategories,
+                  inventoryItems,
+                  inventorySummary,
+                  sortItems,
+                  t
+                })
+              : key
+                ? `<div class="ws-combat-item-list">
+            ${
+              isSkills
+                ? `<div class="ws-combat-item-grid">${skillsHTML("combat")}</div>${trainedToolsHTML?.() ?? ""}`
+                : items.length
+                  ? key === "spells"
+                    ? spellGroups(items) ||
+                      `<div class="ws-empty">${t("Combat.EmptyPrepared")}</div>`
+                    : organizedCards(
+                        items,
+                        `combat:${key}${key === "features" ? (hudState.showPassiveFeatures ? ":passive" : ":active") : ""}`,
+                        true,
+                        key
+                      )
+                  : `<div class="ws-empty">${t(key === "features" ? (hudState.showPassiveFeatures ? "Combat.EmptyPassiveFeatures" : "Combat.EmptyActiveFeatures") : "Combat.Empty")}</div>`
+            }
+          </div>`
+                : ""
+          }`;
+  };
   const categoryButton = ([category, icon, label, items], extraClass = "") => `
-    <button type="button" class="ws-combat-filter ws-button ${extraClass} ${hudState.combatCategory === category ? "ws-active" : ""}"
-      data-action="combatfilter" data-category="${escapeHTML(category)}" aria-expanded="${hudState.combatCategory === category}">
+    <button type="button" class="ws-combat-filter ws-button ${extraClass} ${categoryExpanded(category) ? "ws-active" : ""}"
+      data-action="combatfilter" data-category="${escapeHTML(category)}" aria-expanded="${categoryExpanded(category)}">
       <i class="fa-solid ${icon}"></i><span>${escapeHTML(categoryLabel(category, label))}</span><small>${category === "features" ? featureItems(items).length : items.length}</small>
     </button>`;
   const combatActions = () => {
@@ -265,6 +322,15 @@ export function createItemPanelRenderer({
         category !== "inventory"
     );
 
+    if (independentCategories()) {
+      return `<div class="ws-combat-actions"><div class="ws-combat-category-sections">${categories
+        .map(entry => {
+          const key = entry[0];
+          const list = key === "features" ? featureItems(entry[3]) : entry[3];
+          return `<section class="ws-combat-category-section" data-hud-block="tab:${escapeHTML(key)}" data-hud-label="${escapeHTML(categoryLabel(key, entry[2]))}">${categoryButton(entry)}${categoryExpanded(key) ? categoryBody(key, key === "skills" ? [] : sortItems(list)) : ""}</section>`;
+        })
+        .join("")}</div></div>`;
+    }
     return `
         <div class="ws-combat-actions">
           <div class="ws-combat-filters">
@@ -275,42 +341,7 @@ export function createItemPanelRenderer({
             ${inventoryCategory ? categoryButton(inventoryCategory) : ""}
           </div>
 
-          ${isSkills ? skillFilterHTML() : ""}
-
-          ${hudState.combatCategory === "spells" ? spellFilterHTML() : ""}
-          ${hudState.combatCategory === "features" ? `<div class="ws-feature-filter"><button type="button" class="ws-button ${hudState.showPassiveFeatures ? "ws-active" : ""}" data-action="featurefilter" aria-pressed="${Boolean(hudState.showPassiveFeatures)}">${t(hudState.showPassiveFeatures ? "Combat.ShowActiveFeatures" : "Combat.ShowPassiveFeatures")}</button></div>` : ""}
-
-          ${
-            hudState.combatCategory === "inventory"
-              ? renderInventoryPanel({
-                  combatItemButton,
-                  escapeHTML,
-                  hudState,
-                  inventoryCategories,
-                  inventoryItems,
-                  inventorySummary,
-                  sortItems,
-                  t
-                })
-              : hudState.combatCategory
-                ? `<div class="ws-combat-item-list">
-            ${
-              isSkills
-                ? `<div class="ws-combat-item-grid">${skillsHTML("combat")}</div>${trainedToolsHTML?.() ?? ""}`
-                : items.length
-                  ? hudState.combatCategory === "spells"
-                    ? spellGroups(items) ||
-                      `<div class="ws-empty">${t("Combat.EmptyPrepared")}</div>`
-                    : organizedCards(
-                        items,
-                        `combat:${hudState.combatCategory}${hudState.combatCategory === "features" ? (hudState.showPassiveFeatures ? ":passive" : ":active") : ""}`,
-                        true
-                      )
-                  : `<div class="ws-empty">${t(hudState.combatCategory === "features" ? (hudState.showPassiveFeatures ? "Combat.EmptyPassiveFeatures" : "Combat.EmptyActiveFeatures") : "Combat.Empty")}</div>`
-            }
-          </div>`
-                : ""
-          }
+          ${categoryBody(hudState.combatCategory, items)}
         </div>
       `;
   };

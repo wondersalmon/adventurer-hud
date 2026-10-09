@@ -71,9 +71,9 @@ export function createCombatStatusRenderer({
         .filter(Boolean)
         .join(" ");
       return `
-        <span class="${classes}" role="img" tabindex="0" aria-label="${escapeHTML(label)}" data-status-id="${escapeHTML(status.id)}" data-tooltip="${escapeHTML(tooltip)}" ${uuid ? 'data-tooltip-class="dnd5e2 dnd5e-tooltip effect-tooltip" data-tooltip-direction="RIGHT"' : ""}>
+        <button type="button" class="${classes}" aria-label="${escapeHTML(label)}" aria-description="${escapeHTML(t("Combat.RemoveStatusHint"))}" data-status-id="${escapeHTML(status.id)}" data-tooltip="${escapeHTML(tooltip)}" ${uuid ? 'data-tooltip-class="dnd5e2 dnd5e-tooltip effect-tooltip" data-tooltip-direction="RIGHT"' : ""}>
           <img src="${escapeHTML(statusIcon(status))}" alt="">
-        </span>
+        </button>
       `;
     };
     const expanded = Boolean(hudState.conditionsExpanded);

@@ -20,3 +20,12 @@ export function extractReleaseNotes(changelog, version) {
 
   return notes;
 }
+
+export function assertReleaseReady(notes, version) {
+  if (
+    /not yet released|prepared for the next|\bTODO\b|\bTBA\b|(?:ещ[её]|пока) не (?:выпущен|опубликован)/iu.test(
+      notes
+    )
+  )
+    throw new Error(`Release notes for ${version} are not finalized.`);
+}

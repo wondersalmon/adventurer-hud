@@ -413,6 +413,19 @@
   display: none;
 }
 
+.ws-rolls-dialog:not(.ws-hud-editing)
+  .ws-player-detail:not(.ws-player-columns)
+  .ws-player-info {
+  display: contents;
+}
+
+.ws-rolls-dialog:not(.ws-hud-editing)
+  .ws-player-detail:not(.ws-player-columns)
+  .ws-player-info
+  > :not(.ws-global-search, .ws-exploration-section) {
+  display: none;
+}
+
 .ws-rolls-dialog .ws-player-detail:not(.ws-player-columns) .ws-player-favorites,
 .ws-rolls-dialog
   .ws-player-detail:not(.ws-player-columns)
@@ -427,6 +440,12 @@
 .ws-rolls-dialog .ws-exploration-section,
 .ws-rolls-dialog .ws-exploration-section-body {
   min-width: 0;
+}
+
+.ws-rolls-dialog .ws-exploration-section {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
 }
 
 .ws-rolls-dialog .ws-player-favorites {
@@ -698,6 +717,16 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   gap: 6px;
   margin-bottom: 8px;
+}
+
+.ws-rolls-dialog button.ws-inventory-summary {
+  width: 100%;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
 }
 
 .ws-rolls-dialog .ws-inventory-coins {

@@ -84,9 +84,9 @@ export function createCombatItemCardRenderer({
     const isSpell = role === "spell";
     const isWeapon = role === "weapon";
     const preparation = isSpell ? adapter.spellPreparation?.(item) : null;
-    const canPrepare = Boolean(preparation?.canPrepare);
+    const canPrepare = !inFavorites && Boolean(preparation?.canPrepare);
     const showFavorite = visibility.favorites;
-    const hasSideActions = true;
+    const hasSideActions = showFavorite;
     const descriptionHint = t("Combat.OpenDescriptionHint");
     const activityName = activityId
       ? adapter
@@ -167,7 +167,7 @@ export function createCombatItemCardRenderer({
     );
 
     return `
-        <div class="ws-combat-item-card ${unavailableLabel ? "ws-unavailable-card" : ""} ${
+        <div class="ws-combat-item-card ${isSpell ? "ws-spell-card" : ""} ${unavailableLabel ? "ws-unavailable-card" : ""} ${
           showsDetails ? "ws-detailed-card" : ""
         } ${hasSideActions ? "ws-has-side-actions" : ""}"
           data-description-item-id="${escapeHTML(item.id)}"
@@ -242,7 +242,7 @@ export function createCombatItemCardRenderer({
                       }
                       ${
                         visibility.itemDetails && concentration
-                          ? `<b title="${t("Combat.Concentration")}">${t("Combat.ConcentrationShort")}</b>`
+                          ? `<span class="ws-concentration-icon" title="${t("Combat.Concentration")}" aria-label="${t("Combat.Concentration")}"><i class="fa-solid fa-brain" aria-hidden="true"></i></span>`
                           : ""
                       }
                       ${
@@ -257,19 +257,22 @@ export function createCombatItemCardRenderer({
               ${!inFavorites && unavailableLabel ? `<small class="ws-item-unavailable"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>${unavailableLabel}</small>` : ""}
             </span>
 
-            <i class="fa-solid ${passive ? "fa-book-open" : offersActivities ? "fa-chevron-down" : "fa-dice-d20"}"></i>
+            ${offersActivities ? '<i class="ws-item-usage-icon fa-solid fa-chevron-down" aria-hidden="true"></i>' : ""}
           </button>
+
+          <button type="button" class="ws-item-open ws-button" data-action="openitem" data-item-id="${escapeHTML(item.id)}" title="${escapeHTML(descriptionHint)}" aria-label="${t("Combat.OpenItem")}"><i class="fa-solid fa-book-open" aria-hidden="true"></i></button>
+
+          ${canPrepare ? `<button type="button" aria-pressed="${Boolean(preparation.prepared)}" class="ws-item-prepare ws-button ${preparation.prepared ? "ws-active" : ""}" data-action="togglespellprepared" data-item-id="${escapeHTML(item.id)}" title="${t(preparation.prepared ? "Combat.UnprepareSpell" : "Combat.PrepareSpell")}" aria-label="${t(preparation.prepared ? "Combat.UnprepareSpell" : "Combat.PrepareSpell")}" ${actor.isOwner ? "" : "disabled"}><i class="fa-${preparation.prepared ? "solid" : "regular"} fa-bookmark"></i></button>` : ""}
 
           ${
             hasSideActions
               ? `<div class="ws-item-side-actions">
-            <button type="button" class="ws-item-open ws-button" data-action="openitem" data-item-id="${escapeHTML(item.id)}" title="${escapeHTML(descriptionHint)}" aria-label="${t("Combat.OpenItem")}"><i class="fa-solid fa-book-open" aria-hidden="true"></i></button>
             ${
               showFavorite
                 ? `<button type="button" class="ws-item-favorite ws-button ${favorite ? "ws-active" : ""}" data-action="${favorite || inFavorites ? "removefavorite" : "togglefavorite"}" data-item-id="${escapeHTML(item.id)}" ${activityId ? `data-activity-id="${escapeHTML(activityId)}"` : ""} title="${t(favorite || inFavorites ? "Quick.RemoveFavorite" : "Quick.AddFavorite")}" aria-label="${t(favorite || inFavorites ? "Quick.RemoveFavorite" : "Quick.AddFavorite")}" ${actor.isOwner === false ? "disabled" : ""}><i class="fa-${favorite ? "solid" : "regular"} fa-star"></i></button>`
                 : ""
             }
-            ${canPrepare ? `<button type="button" class="ws-item-prepare ws-button ${preparation.prepared ? "ws-active" : ""}" data-action="togglespellprepared" data-item-id="${escapeHTML(item.id)}" title="${t(preparation.prepared ? "Combat.UnprepareSpell" : "Combat.PrepareSpell")}" aria-label="${t(preparation.prepared ? "Combat.UnprepareSpell" : "Combat.PrepareSpell")}" ${actor.isOwner ? "" : "disabled"}><i class="fa-${preparation.prepared ? "solid" : "regular"} fa-bookmark"></i></button>` : ""}
+
           </div>`
               : ""
           }

@@ -4,12 +4,84 @@ import { hudFixture, waitFor } from "./helpers/hud.mjs";
 import { installDom, restoreGlobalsAfterEach } from "./helpers/foundry.mjs";
 import { bindHudDiceTray } from "../scripts/hud/window/window-session.js";
 import {
+  bindDiceTray,
   diceTrayFormula,
   playDiceTraySound
 } from "../scripts/hud/dice-tray.js";
 import { rollDiceTray } from "../scripts/dnd5e/dice-tray.js";
 
 restoreGlobalsAfterEach();
+
+test("GM tray defaults to hidden self rolls and forwards every selected visibility mode", async () => {
+  installDom();
+  const modes = [];
+  globalThis.game = { user: { isGM: true }, settings: { get: () => "public" } };
+  globalThis.CONFIG = {
+    ChatMessage: { documentClass: { getSpeaker: () => ({}) } }
+  };
+  globalThis.foundry = {
+    dice: {
+      Roll: class {
+        total = 3;
+        dice = [];
+        async evaluate() {}
+        async toMessage(_data, options) {
+          modes.push(options.messageMode);
+        }
+      }
+    }
+  };
+  const root = document.createElement("div");
+  root.innerHTML = '<button data-dice-tray="toggle">Dice</button>';
+  document.body.append(root);
+  root.getBoundingClientRect = () => ({
+    left: 0,
+    top: 0,
+    right: 650,
+    bottom: 500,
+    width: 650,
+    height: 500
+  });
+  const anchor = root.querySelector("button");
+  anchor.getBoundingClientRect = () => ({
+    left: 550,
+    top: 460,
+    right: 580,
+    bottom: 490
+  });
+  const dispose = bindDiceTray({
+    app: { element: root },
+    actor: null,
+    t: key => key,
+    isActive: () => true
+  });
+  const dispatch = (node, type = "click", values = {}) => {
+    const event = new document.defaultView.Event(type, {
+      bubbles: true,
+      cancelable: true
+    });
+    Object.assign(event, values);
+    node.dispatchEvent(event);
+  };
+  dispatch(anchor);
+  const tray = root.querySelector(".ws-dice-tray");
+  assert.equal(tray.querySelector("select").value, "self");
+  for (const mode of ["self", "public", "gm", "blind"]) {
+    const select = tray.querySelector("select");
+    for (const option of select.querySelectorAll("option")) {
+      option.removeAttribute("selected");
+      if (option.value === mode) option.setAttribute("selected", "");
+    }
+    dispatch(select, "change");
+    dispatch(tray.querySelector('[data-die="6"]'), "click", { shiftKey: true });
+    await waitFor(
+      () => modes.length > ["self", "public", "gm", "blind"].indexOf(mode)
+    );
+  }
+  assert.deepEqual(modes, ["self", "public", "gm", "blind"]);
+  dispose();
+  assert.equal(root.querySelector(".ws-dice-tray"), null);
+});
 
 test("tray gestures, formula, clear and native chat respect visibility; close and session replacement release the popover", async () => {
   const f = await hudFixture({ values: { playerFooter: true } });
@@ -36,7 +108,7 @@ test("tray gestures, formula, clear and native chat respect visibility; close an
   f.actor.getRollData = () => ({ bonus: 3 });
   const get = game.settings.get;
   game.settings.get = (module, key) =>
-    module === "core" ? "private" : get(module, key);
+    module === "core" ? "gm" : get(module, key);
   await f.api.open(f.actor);
   const app = __adventurerHud.app;
   app.element.getBoundingClientRect = () => ({
@@ -82,7 +154,7 @@ test("tray gestures, formula, clear and native chat respect visibility; close an
   );
   assert.deepEqual(
     calls.find(call => call[0] === "chat"),
-    ["chat", { speaker: { actor: f.actor.id } }, { messageMode: "private" }]
+    ["chat", { speaker: { actor: f.actor.id } }, { messageMode: "gm" }]
   );
   await waitFor(() => die.querySelector("small").textContent === "0");
   assert.equal(input.value, "-2");

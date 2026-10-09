@@ -15,6 +15,10 @@ const ACTOR_ACTIONS = new Set([
   "togglehudedit",
   "hudblockmove",
   "hudblockhide",
+  "hudblockreset",
+  "hudlayoutundo",
+  "hudlayoutreset",
+  "hudcolumnadd",
   "toggleitemhidden",
   "moveitemup",
   "moveitemdown",
@@ -38,6 +42,7 @@ const ACTOR_ACTIONS = new Set([
   "gmsheet",
   "actorcenter",
   "actorping",
+  "actorinventory",
   "gmremove"
 ]);
 
@@ -49,7 +54,8 @@ export function createHudActions(options) {
     gmCombatantId,
     t,
     companionActions = {},
-    validateActorAction = null
+    validateActorAction = null,
+    isSessionCurrent = () => true
   } = options;
   const actions = {
     ...createGmActions(options),
@@ -69,6 +75,10 @@ export function createHudActions(options) {
         input: args[0]?.type === "keydown" ? "keyboard" : "pointer"
       });
       try {
+        if (!isSessionCurrent()) {
+          trace.finish("stale", "session-replaced");
+          return;
+        }
         if (
           validateActorAction &&
           (ACTOR_ACTIONS.has(name) || name === "endturn")

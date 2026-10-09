@@ -1,3 +1,4 @@
+import { rememberRecentAction } from "../scripts/hud/recent-actions.js";
 import { readFile } from "node:fs/promises";
 import { hudFixture } from "../tests/helpers/hud.mjs";
 import { itemCollection } from "../tests/helpers/rendering.mjs";
@@ -20,7 +21,7 @@ import {
 
 export async function layoutFixture(
   language = "ru",
-  { documentation = false } = {}
+  { documentation = false, editing = false } = {}
 ) {
   const manifest = JSON.parse(
     await readFile(new URL("../module.json", import.meta.url), "utf8")
@@ -179,6 +180,8 @@ export async function layoutFixture(
     system: { levels: 12 }
   });
   actor.items = itemCollection(items);
+  for (const item of items.slice(0, 3))
+    rememberRecentAction(actor, { action: "useitem", itemId: item.id });
   actor.system.favorites = items.slice(0, 6).map((item, index) => ({
     id: ".Item." + item.id,
     type: "item",
@@ -247,6 +250,8 @@ export async function layoutFixture(
       players: [],
       token: {
         id: "t" + index,
+        isOwner: true,
+        hidden: index === 0,
         uuid: "Scene.scene.Token.t" + index,
         parent: canvas.scene,
         texture: { src: portrait },
@@ -289,6 +294,7 @@ export async function layoutFixture(
         : {})
     };
     const state = createHudState({
+      hudEditing: editing,
       companionsExpanded: scenario.startsWith("player-companions"),
       currentView:
         companion ||
@@ -321,8 +327,16 @@ export async function layoutFixture(
           id: "player",
           name: player.name,
           actor: player,
-          token: { ...entries[0].token, actor: player }
+          tokenId: "player-token",
+          token: {
+            ...entries[0].token,
+            id: "player-token",
+            uuid: "Scene.scene.Token.player-token",
+            actor: player
+          }
         };
+        canvas.scene.tokens.set(entry.token.id, entry.token);
+        combat.combatants.set(entry.id, entry);
         combat.turns = [...entries, entry];
       }
       const empty = {

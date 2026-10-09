@@ -7,12 +7,24 @@ import { hudFixture, waitFor } from "./helpers/hud.mjs";
 import { createHudActions } from "../scripts/hud/actions.js";
 
 test("native initiative reset works before and after start and rejects players", async () => {
+  installSettings({ isGM: true });
+  foundry.utils = { escapeHTML: value => String(value) };
+  foundry.applications.api.DialogV2 = class {
+    static async confirm() {
+      return true;
+    }
+  };
   let resets = 0;
   let isGM = true;
-  const combat = { started: false, resetAll: async () => resets++ };
+  const combat = {
+    started: false,
+    turns: [{ id: "one", initiative: 5 }],
+    resetAll: async () => resets++
+  };
   const actions = createHudActions({
     gmController: { isGM: () => isGM, getCombat: () => combat },
-    performSceneAction: callback => callback()
+    performSceneAction: callback => callback(),
+    t: key => key
   });
   await actions.gmresetinitiative();
   assert.equal(resets, 1);
@@ -67,6 +79,12 @@ test("GM end turn advances the native encounter when displayed NPC differs from 
     gmController: {
       isGM: () => true,
       getCombat: () => combat,
+      endTurn: async (id, execute, options) => {
+        assert.equal(id, "displayed-npc");
+        assert.equal(options, undefined);
+        await execute();
+        return null;
+      },
       sync: () =>
         assert.fail("actor action guard must not block encounter commands")
     },
@@ -307,10 +325,13 @@ test("removal deletes only defeated GM NPC tokens, never zero-HP living NPCs or 
     ["dead"]
   );
   await removeDeadCreatures(combat, ["dead", "live", "pet"]);
-  assert.deepEqual(calls, [["Token", ["dead"]]]);
+  assert.deepEqual(calls, [
+    ["Token", ["dead"]],
+    ["Combatant", ["dead"]]
+  ]);
   game.user.isGM = false;
   await removeDeadCreatures(combat, ["dead"]);
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, 2);
 });
 
 test("removal protects offline owners even when Combatant.players omits them", async () => {
@@ -374,7 +395,17 @@ test("removal rechecks ownership before deleting each queued token", async () =>
       }
     }
   });
-  const combat = { turns: [creature("first"), creature("second")] };
+  const turns = [creature("first"), creature("second")];
+  for (const entry of turns) {
+    entry.tokenId = entry.token.id;
+  }
+  const combat = {
+    turns,
+    combatants: itemCollection(turns),
+    deleteEmbeddedDocuments: async (_type, ids) => {
+      for (const id of ids) combat.combatants.delete(id);
+    }
+  };
   await removeDeadCreatures(combat, ["first", "second"]);
   assert.deepEqual(removed, ["first"]);
 });
@@ -616,7 +647,13 @@ test("Remove defeated confirms, uses the scene queue, and preserves combatants w
     token,
     players: []
   };
-  const combat = { turns: [combatant], combatants: itemCollection([]) };
+  const combat = {
+    turns: [combatant],
+    combatants: itemCollection([combatant]),
+    deleteEmbeddedDocuments: async (_type, ids) => {
+      for (const id of ids) combat.combatants.delete(id);
+    }
+  };
   foundry.utils = { escapeHTML: text => text };
   foundry.applications.api.DialogV2 = {
     confirm: async () => {
@@ -648,6 +685,8 @@ test("explicit turn arrows select the native current NPC even when following is 
   const calls = [];
   const combat = {
     started: true,
+    round: 2,
+    turn: 0,
     previousTurn: async () => calls.push("previous"),
     nextTurn: async () => calls.push("next")
   };

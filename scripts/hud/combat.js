@@ -1,9 +1,13 @@
 import { createCombatStatusRenderer } from "./combat-statuses.js";
+import { diceTrayButton } from "./components.js";
 import { renderHealthBar } from "./health-bar.js";
 import { renderDeathSaveControl } from "./death-save-control.js";
 import {
   defeated,
   hasPlayerOwner,
+  renderGmHiddenButton,
+  renderGmDefeatedButton,
+  renderGmRevealButton,
   renderGmEndCombatButton
 } from "./gm/gm-combat.js";
 import { getSetting, SETTINGS } from "../settings-access.js";
@@ -122,6 +126,7 @@ export function createCombatRenderer(context) {
       }
       const legendaryActions = adapter.npcResource(actor, "legact");
       const movement = adapter.npcMovement(actor);
+      const search = globalSearchPanel?.() ?? "";
       const resistanceUsage = legendaryResistance
         ? adapter.legendaryResistanceUsage?.(actor)
         : null;
@@ -131,9 +136,11 @@ export function createCombatRenderer(context) {
         ${gmHeader()}
         <div class="ws-gm-body">
           <section class="ws-gm-info">
-            <div class="ws-gm-identity"><img class="ws-gm-selected-portrait" src="${escapeHTML(gmCombatant?.token?.texture?.src || actor.img || "icons/svg/mystery-man.svg")}" alt="${escapeHTML(actor.name)}"><strong>${escapeHTML(actor.name)}</strong><div class="ws-gm-identity-actions"><button type="button" class="ws-button" data-action="gmrollinitiative" data-scope="selected" data-reroll="true" title="${t("GM.RerollSelectedInitiative")}" aria-label="${t("GM.RerollSelectedInitiative")}"><i class="fa-solid fa-rotate" aria-hidden="true"></i></button><button type="button" class="ws-button" data-action="gmresetcombatantinitiative" data-reset-initiative-id="${escapeHTML(gmCombatant?.id)}" title="${t("GM.ResetInitiative")}" aria-label="${t("GM.ResetInitiative")}" ${gmCombatant?.initiative != null ? "" : "disabled"}><i class="fa-solid fa-eraser" aria-hidden="true"></i></button>${defeated(gmCombatant) ? `<button type="button" class="ws-button ws-gm-remove-selected" data-action="gmremove" title="${t("GM.RemoveCreature")}" aria-label="${t("GM.RemoveCreature")}" ${actor.type === "character" || hasPlayerOwner(gmCombatant) ? "disabled" : ""}><i class="fa-solid fa-skull" aria-hidden="true"></i></button>` : ""}<button type="button" class="ws-button" data-action="gmsheet" title="${t("Actor.OpenSheet")}">${t("GM.Sheet")} ↗</button></div></div>
-            <div class="ws-combat-stats">${healthPanel(hp)}<div class="ws-combat-stat"><span>${t("Combat.AC")}</span><strong>${ac}</strong></div>${combatInitiative()}${movement.secondary ? `<button type="button" class="ws-combat-stat ws-gm-speed" data-action="gmspeeds" aria-expanded="${Boolean(hudState.gmSpeedsExpanded)}"><span>${t("Combat.Speed")} ▾</span><strong>${escapeHTML(movement.primary)}</strong></button>` : `<div class="ws-combat-stat"><span>${t("Combat.Speed")}</span><strong>${escapeHTML(movement.primary)}</strong></div>`}</div>
-            ${movement.secondary ? `<div class="ws-gm-secondary-speed" ${hudState.gmSpeedsExpanded ? "" : "hidden"}>${escapeHTML(movement.secondary)}</div>` : ""}
+            <div class="ws-gm-identity"><button type="button" class="ws-button ws-gm-selected-image" data-action="gmimage" data-combatant-id="${escapeHTML(gmCombatant?.id)}" title="${t("GM.OpenImage")}" aria-label="${t("GM.OpenImage")}"><img class="ws-gm-selected-portrait" src="${escapeHTML(gmCombatant?.token?.texture?.src || actor.img || "icons/svg/mystery-man.svg")}" alt=""></button><button type="button" class="ws-button ws-gm-name" data-action="gmsheet" title="${t("Actor.OpenSheet")}"><strong>${escapeHTML(actor.name)}</strong></button>${search ? `<details class="ws-gm-search" ${hudState.searchQuery ? "open" : ""}><summary title="${t("Quick.Search")}" aria-label="${t("Quick.Search")}"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></summary>${search}</details>` : ""}</div>
+            <div class="ws-gm-identity-actions" role="group" aria-label="${t("GM.CreatureControls")}"><button type="button" class="ws-button" data-action="gmping" title="${t("GM.Ping")}" aria-label="${t("GM.Ping")}"><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i><span>${t("GM.Ping")}</span></button><button type="button" class="ws-button" data-action="gmcenter" title="${t("GM.ToToken")}" aria-label="${t("GM.ToToken")}"><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i><span>${t("GM.ToToken")}</span></button>${renderGmHiddenButton(gmCombatant, t, escapeHTML)}${renderGmDefeatedButton(gmCombatant, t, escapeHTML)}${defeated(gmCombatant) && actor.type === "npc" && !hasPlayerOwner(gmCombatant) ? `<button type="button" class="ws-button ws-gm-remove-selected" data-action="gmremove" title="${t("GM.RemoveCreature")}" aria-label="${t("GM.RemoveCreature")}"><i class="fa-solid fa-trash-can" aria-hidden="true"></i><span>${t("GM.RemoveCreature")}</span></button>` : ""}</div>
+            ${healthPanel(hp)}<div class="ws-combat-stats"><div class="ws-combat-stat"><span>${t("Combat.AC")}</span><strong>${ac}</strong></div>${combatInitiative()}${movement.secondary ? `<button type="button" class="ws-combat-stat ws-gm-speed" data-action="gmspeeds" aria-expanded="${Boolean(hudState.gmSpeedsExpanded)}"><span>${t("Combat.Speed")} ▾</span><strong>${escapeHTML(movement.primary)}</strong></button>` : `<div class="ws-combat-stat"><span>${t("Combat.Speed")}</span><strong>${escapeHTML(movement.primary)}</strong></div>`}
+            ${movement.secondary ? `<div class="ws-gm-secondary-speed" ${hudState.gmSpeedsExpanded ? "" : "hidden"}>${escapeHTML(movement.secondary)}</div>` : ""}</div>
+            ${combatStatuses()}
             ${gmSaves?.() ?? ""}
             <div class="ws-gm-resources">${[
               [legendaryResistance, "GM.LegendaryResistances", "resistance"],
@@ -154,15 +161,14 @@ export function createCombatRenderer(context) {
               .join(
                 ""
               )}${visibility.filterActions !== false && legendaryActions && hudState.gmLegendaryExpanded ? `<div class="ws-gm-legendary-list">${gmSpecialActions?.("legendary") ?? ""}</div>` : ""}</div>
-            ${traits.length ? `<div class="ws-gm-traits">${traits.map(trait => `<div><b>${t(trait.title)}</b><span>${escapeHTML(trait.text)}${trait.bypasses ? ` (${t("GM.BypassedBy")}: ${escapeHTML(trait.bypasses)})` : ""}</span></div>`).join("")}</div>` : ""}
-            ${combatStatuses()}
+            ${traits.length ? `<section class="ws-gm-traits"><details class="ws-gm-defenses"><summary>${t("GM.Defenses")}</summary>${traits.map(trait => `<div><b>${t(trait.title)}</b><span>${escapeHTML(trait.text)}${trait.bypasses ? ` (${t("GM.BypassedBy")}: ${escapeHTML(trait.bypasses)})` : ""}</span></div>`).join("")}</details></section>` : ""}
             ${visibility.filterActions !== false && !legendaryActions ? (gmSpecialActions?.("legendary") ?? "") : ""}
             ${visibility.filterActions !== false ? (gmSpecialActions?.("lair") ?? "") : ""}
           </section>
-          <section class="ws-gm-action-column">${globalSearchPanel?.() ?? ""}${combatActions()}</section>
+          <section class="ws-gm-action-column">${combatActions()}</section>
         </div>
         </div>
-        <div class="ws-gm-tools">${gmTurnControls?.() ?? ""}<button type="button" class="ws-end-turn ws-button" data-action="endturn" ${getCombatState().combat?.started && getCombatState().combat?.combatant ? "" : "disabled"}><i class="fa-solid fa-forward-step" aria-hidden="true"></i>${t("Combat.EndTurn")}</button><div class="ws-gm-more"><button type="button" class="ws-gm-more-toggle" data-action="togglegmtools" aria-expanded="false" aria-controls="ws-gm-more-actions" id="ws-gm-more-toggle" title="${t("GM.MoreActions")}" aria-label="${t("GM.MoreActions")}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button><div class="ws-gm-more-actions" id="ws-gm-more-actions"><button type="button" class="ws-button" data-action="gmcenter"><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i>${t("GM.ToToken")}</button><button type="button" class="ws-button" data-action="gmping"><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i>${t("GM.Ping")}</button>${gmInitiativeButtons?.() ?? ""}${gmRemovalButton?.() ?? ""}${renderGmEndCombatButton(getCombatState().combat, t)}</div></div></div>
+        <div class="ws-gm-tools">${diceTrayButton(t)}${gmTurnControls?.() ?? ""}<button type="button" class="ws-end-turn ws-button" data-action="endturn" ${getCombatState().combat?.started && getCombatState().combat?.combatant ? "" : "disabled"}><i class="fa-solid fa-forward-step" aria-hidden="true"></i>${t("Combat.EndTurn")}</button><div class="ws-gm-more"><button type="button" class="ws-gm-more-toggle" data-action="togglegmtools" aria-expanded="false" aria-controls="ws-gm-more-actions" id="ws-gm-more-toggle" title="${t("GM.MoreActions")}" aria-label="${t("GM.MoreActions")}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button><div class="ws-gm-more-actions" id="ws-gm-more-actions">${renderGmRevealButton(getCombatState().combat, t)}${gmInitiativeButtons?.() ?? ""}${gmRemovalButton?.() ?? ""}${renderGmEndCombatButton(getCombatState().combat, t)}</div></div></div>
       </div>`;
     }
 
@@ -171,10 +177,11 @@ export function createCombatRenderer(context) {
           id="ws-combat"
           class="ws-view ws-combat-view ws-player-layout" data-divider-label="${t("Labels.ResizeColumns")}"
         >
+          ${modeNavigation("combat")}
           <section class="ws-player-info">
+          ${globalSearchPanel?.() ?? ""}
           ${actorHeader(`${inspirationControl()}${combatInitiative()}${isTurn ? `<button type="button" class="ws-header-control ws-header-end-turn ws-button ws-active" data-action="endturn" title="${t("Combat.YourTurn")} · ${t("Combat.EndTurn")}" aria-label="${t("Combat.EndTurn")}" ${canEndTurn ? "" : "disabled"}><i class="fa-solid fa-forward-step" aria-hidden="true"></i><span>${t("Combat.EndTurn")}</span></button>` : ""}`)}
 
-          ${modeNavigation("combat")}
           ${companionNavigation?.() ?? ""}
 
           ${healthPanel(hp)}
@@ -189,7 +196,6 @@ export function createCombatRenderer(context) {
           </section>
 
           <section class="ws-player-actions">
-          ${globalSearchPanel?.() ?? ""}
           ${combatActions()}
 
           </section>

@@ -15,7 +15,7 @@ import {
   openGmSettings
 } from "../scripts/settings.js";
 import { hudFixture, waitFor } from "./helpers/hud.mjs";
-import { itemCollection } from "./helpers/rendering.mjs";
+import { fragment, itemCollection } from "./helpers/rendering.mjs";
 import {
   installSettings,
   restoreGlobalsAfterEach
@@ -39,6 +39,8 @@ test("active initiative roster includes players in native turn order and marks t
     name: "Another monster",
     actor: { type: "npc" }
   };
+  for (const entry of [npc, pc, other])
+    entry.token = { id: entry.id, actor: entry.actor };
   const combat = { started: true, turns: [other, pc, npc], combatant: pc };
   const html = renderGmCombatHeader({
     controller: {
@@ -62,11 +64,12 @@ test("active initiative roster includes players in native turn order and marks t
   );
   assert.match(html, /ws-gm-player-creature/);
   assert.match(html, /ws-gm-player-marker/);
-  assert.match(html, /<div data-combatant-id="pc"[^>]*ws-active/);
-  assert.doesNotMatch(
-    html,
-    /<div data-combatant-id="pc"[^>]*data-action="gmselect"/
+  const player = fragment(html).querySelector(
+    '.ws-gm-creature[data-combatant-id="pc"]'
   );
+  assert.equal(player.tagName, "DIV");
+  assert.ok(player.classList.contains("ws-active"));
+  assert.equal(player.getAttribute("data-action"), null);
 });
 
 test("GM window title includes scene, round and selected creature", () => {
@@ -176,13 +179,13 @@ test("GM roster uses token actors, scene identity, ownership and native initiati
   assert.deepEqual(gmRoster(f.combat, { isGM: false, sceneId: "scene" }), []);
 });
 
-test("GM follow keeps player turns and manual choice; deleting selection finds another NPC", async () => {
+test("GM follow selects native player turns and preserves manual inspection", async () => {
   const f = combatFixture();
   assert.equal(f.controller.sync({ selectedToken: f.second.token }), f.second);
   f.combat.combatant = f.first;
   assert.equal(f.controller.sync({ follow: true }), f.first);
   f.combat.combatant = f.player;
-  assert.equal(f.controller.sync({ follow: true }), f.first);
+  assert.equal(f.controller.sync({ follow: true }), f.player);
   await f.controller.select("second");
   assert.equal(f.values[SETTINGS.gmFollowTurn], false);
   f.combat.combatant = f.last;
@@ -197,39 +200,74 @@ test("GM follow keeps player turns and manual choice; deleting selection finds a
   assert.equal(f.controller.chooseCombat("battle"), false);
 });
 
-test("GM End Turn advances once, suppresses follow races, and auto-selects without skipping player turns", async () => {
+test("opening without a prior selection uses the native player turn, including a defeated player", () => {
+  const f = combatFixture();
+  f.combat.combatant = f.player;
+  f.controller.memory.combatantId = null;
+  assert.equal(f.controller.sync(), f.player);
+  f.controller.memory.combatantId = null;
+  f.player.defeated = true;
+  assert.equal(f.controller.sync(), f.player);
+});
+
+test("End Turn follows the native participant for every selection preference and advances once", async () => {
+  for (const follow of [false, true])
+    for (const autoAdvance of [false, true]) {
+      const f = combatFixture();
+      f.values[SETTINGS.gmFollowTurn] = follow;
+      f.values[SETTINGS.gmAutoAdvance] = autoAdvance;
+      f.controller.sync();
+      let advances = 0;
+      const next = await f.controller.endTurn("first", async () => {
+        advances++;
+        f.combat.combatant = f.player;
+        f.combat.turn++;
+        assert.equal(f.controller.sync({ follow: true }), f.first);
+      });
+      assert.equal(next, f.player);
+      assert.equal(f.combat.combatant, f.player);
+      assert.equal(advances, 1);
+      assert.equal(f.controller.sync({ follow: true }), f.player);
+      assert.equal(f.values[SETTINGS.gmFollowTurn], follow);
+      await f.controller.endTurn("first", () => advances++);
+      assert.equal(advances, 1, "stale selection must not advance");
+      f.second.defeated = true;
+      assert.equal(
+        await f.controller.endTurn("player", async () => {
+          f.combat.combatant = f.second;
+          f.combat.turn++;
+        }),
+        f.second,
+        "native defeated turns are not skipped"
+      );
+      assert.equal(
+        await f.controller.endTurn("second", async () => {
+          f.combat.combatant = f.first;
+          f.combat.round++;
+          f.combat.turn = 0;
+        }),
+        f.first
+      );
+      assert.equal(f.memory.endingTurn, false);
+    }
+});
+
+test("End Turn keeps the selection on cancellation or failure and rejects a replaced encounter", async () => {
   const f = combatFixture();
   f.controller.sync();
-  let advances = 0;
-  const advance = async () => {
-    advances++;
-    f.combat.combatant = f.player;
-    f.combat.turn++;
-    assert.equal(f.controller.sync({ follow: true }), f.first);
-  };
-  assert.equal(await f.controller.endTurn("first", advance), f.first);
-  assert.equal(f.controller.sync({ follow: true }), f.first);
-  assert.equal(f.combat.combatant, f.player);
-  assert.equal(advances, 1);
-  await f.controller.endTurn("first", advance);
-  assert.equal(advances, 1);
-  f.combat.combatant = f.first;
-  f.values[SETTINGS.gmAutoAdvance] = true;
-  f.second.defeated = true;
-  assert.equal(await f.controller.endTurn("first", advance), f.last);
-  assert.equal(f.combat.combatant, f.player);
-  f.combat.combatant = f.last;
-  const wrap = await f.controller.endTurn("last", async () => {
-    f.combat.combatant = f.first;
-  });
-  assert.equal(wrap, f.first);
-  f.memory.combatantId = "first";
   await assert.rejects(
     f.controller.endTurn("first", async () => {
       throw new Error("native failed");
     }),
     /native failed/
   );
+  assert.equal(f.memory.combatantId, "first");
+  assert.equal(f.memory.endingTurn, false);
+  const next = await f.controller.endTurn("first", async () => {
+    f.state.combats = itemCollection([]);
+    f.state.combat = null;
+  });
+  assert.equal(next, null);
   assert.equal(f.memory.combatantId, "first");
   assert.equal(f.memory.endingTurn, false);
 });
@@ -370,7 +408,8 @@ test("real GM HUD switches between synthetic NPCs and releases old subscriptions
   await app.options.actions.gmselect(null, { dataset: { combatantId: "one" } });
   await __adventurerHud.app.options.actions.endturn();
   assert.equal(advances, 1);
-  assert.equal(__adventurerHud.actor, first.actor);
+  assert.equal(__adventurerHud.actor, second.actor);
+  assert.equal(__adventurerHud.app, originalApp);
   f.current.set("gmFollowTurn", true);
   combat.turn = 2;
   f.hooks.callAll("updateCombat", combat);

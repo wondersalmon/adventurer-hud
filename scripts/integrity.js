@@ -3,6 +3,10 @@ import { getSettingDefinitions, SETTINGS } from "./settings-schema.js";
 import { panelStateForActor } from "./hud/panel-state.js";
 import { createTaskQueue } from "./task-queue.js";
 import { dnd5eAdapter } from "./dnd5e/index.js";
+import { saveChangedSettings } from "./settings-access.js";
+import { flushWindowGeometry } from "./window-geometry.js";
+import { replacePanelPreferences } from "./hud/panel-preferences.js";
+import { HUD_LAYOUT_BLOCKS } from "./hud/window/hud-layout-model.js";
 
 const queue = createTaskQueue();
 const isRecord = value =>
@@ -17,6 +21,94 @@ const obsoletePanelKeys = new Set([
   "forcedMode"
 ]);
 
+export const canRepairIssue = issue =>
+  Boolean(
+    issue.repairable &&
+    (game.user?.isGM ||
+      (!getSettingDefinitions()[issue.key]?.gmOnly &&
+        issue.key !== SETTINGS.gmWindowGeometry))
+  );
+
+function changedFields(before, after, path = "", result = []) {
+  if (same(before, after)) return result;
+  if (isRecord(before) && isRecord(after)) {
+    for (const key of new Set([
+      ...Object.keys(before),
+      ...Object.keys(after)
+    ])) {
+      if (result.length >= 100) break;
+      changedFields(
+        before[key],
+        after[key],
+        path ? `${path}.${key}` : key,
+        result
+      );
+    }
+  } else
+    result.push({
+      path: path || "value",
+      before: before ?? null,
+      after: after ?? null,
+      legacy: obsoletePanelKeys.has(path.split(".").at(-1))
+    });
+  return result;
+}
+
+function inspectHudLayoutMeaning(layouts, uuid, issues) {
+  const blocks = new Set(HUD_LAYOUT_BLOCKS.map(([key]) => key));
+  for (const [scope, preference] of Object.entries(layouts ?? {})) {
+    // The former dock lane is now the footer; preserve its supported choices.
+    if (/^(regular|combat):dock$/.test(scope)) {
+      const footer = scope.replace(/:dock$/, ":footer");
+      const current = layouts[footer] ?? { order: [], hidden: [] };
+      layouts[footer] = {
+        order: [...new Set([...current.order, ...preference.order])],
+        hidden: [...new Set([...current.hidden, ...preference.hidden])]
+      };
+      delete layouts[scope];
+    }
+  }
+  for (const [scope, preference] of Object.entries(layouts ?? {})) {
+    if (
+      !/^(regular|combat|preparation):(info|actions|extra|footer|tabs|expanded)$/.test(
+        scope
+      )
+    ) {
+      issues.push({
+        code: "Layout",
+        detail: `${uuid}.hudLayouts.${scope}`,
+        repairable: false
+      });
+      continue;
+    }
+    // Expansion stores category IDs, including system-defined activation types.
+    if (scope === "combat:expanded") continue;
+    if (
+      preference.order
+        .concat(preference.hidden)
+        .some(key => !blocks.has(key) && !key.startsWith("tab:"))
+    )
+      issues.push({
+        code: "Layout",
+        detail: `${uuid}.hudLayouts.${scope}`,
+        repairable: false
+      });
+  }
+  for (const mode of ["regular", "combat", "preparation"]) {
+    const seen = new Set();
+    for (const lane of ["info", "actions", "extra", "footer"]) {
+      const preference = layouts?.[`${mode}:${lane}`];
+      if (!preference) continue;
+      preference.order = preference.order.filter(key => {
+        if (seen.has(key) && (blocks.has(key) || key.startsWith("tab:")))
+          return false;
+        seen.add(key);
+        return true;
+      });
+    }
+  }
+}
+
 export function inspectSavedData(values) {
   const issues = [];
   const suggest = (key, next) => {
@@ -26,7 +118,8 @@ export function inspectSavedData(values) {
         detail: key,
         repairable: true,
         key,
-        next
+        next,
+        changes: changedFields(values[key], next)
       });
   };
   for (const [key, definition] of Object.entries(getSettingDefinitions())) {
@@ -52,6 +145,7 @@ export function inspectSavedData(values) {
     for (const [uuid, saved] of Object.entries(panels)) {
       if (!isRecord(saved)) continue;
       const valid = panelStateForActor(panels, uuid);
+      inspectHudLayoutMeaning(valid.hudLayouts, uuid, issues);
       const next = Object.fromEntries(
         Object.entries(saved).filter(([key]) => !obsoletePanelKeys.has(key))
       );
@@ -62,7 +156,10 @@ export function inspectSavedData(values) {
         "combatCategory",
         "inventoryCategory",
         "currentView",
-        "companionsExpanded"
+        "companionsExpanded",
+        "showPassiveFeatures",
+        "itemLayouts",
+        "hudLayouts"
       ];
       for (const key of known)
         if (Object.hasOwn(saved, key) && !Object.hasOwn(valid, key))
@@ -235,22 +332,35 @@ export async function checkIntegrity() {
   };
 }
 
-export function repairSavedData() {
+export function repairSavedData(expectedRepairs) {
   return queue(async () => {
-    // Re-read before writing: do not apply suggestions from an outdated report.
-    const { values, issues } = readSavedData();
-    const repairs = issues.filter(issue => issue.repairable);
-    if (!repairs.length) return 0;
-    await game.settings.set(MODULE_ID, SETTINGS.repairBackup, {
-      createdAt: new Date().toISOString(),
-      values
+    await flushWindowGeometry();
+    return replacePanelPreferences(async () => {
+      // Re-read before writing: do not apply suggestions from an outdated report.
+      const { values, issues } = readSavedData();
+      const repairs = issues.filter(canRepairIssue);
+      if (
+        expectedRepairs &&
+        !same(
+          expectedRepairs.map(({ key, next, changes }) => ({
+            key,
+            next,
+            changes
+          })),
+          repairs.map(({ key, next, changes }) => ({ key, next, changes }))
+        )
+      )
+        throw new Error("repair-plan-changed");
+      if (!repairs.length) return 0;
+      await game.settings.set(MODULE_ID, SETTINGS.repairBackup, {
+        createdAt: new Date().toISOString(),
+        values: structuredClone(values)
+      });
+      await saveChangedSettings(
+        repairs.map(({ key, next }) => [key, next]),
+        { rollbackOnError: true }
+      );
+      return repairs.length;
     });
-    for (const { key, next } of repairs)
-      await game.settings.set(MODULE_ID, key, next);
-    Hooks.callAll(
-      "adventurerHudSettingsChanged",
-      new Map(repairs.map(issue => [issue.key, issue.next]))
-    );
-    return repairs.length;
   });
 }

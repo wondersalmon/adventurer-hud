@@ -1,3 +1,4 @@
+import { performRecentRoll } from "../recent-actions.js";
 import { usableActivities } from "./quick-access.js";
 
 /** @param {import('../../../types/hud.js').HudActionsOptions} options */
@@ -42,7 +43,12 @@ export function createItemActions({
         return;
       }
 
-      return performRoll(() => adapter.useItem(item, { event }));
+      return performRecentRoll(
+        actor,
+        performRoll,
+        { action: "useitem", itemId: item.id },
+        () => adapter.useItem(item, { event })
+      );
     },
     useactivity: async function (event, target) {
       if (!canAct()) {
@@ -52,8 +58,15 @@ export function createItemActions({
       if (!item) return ui.notifications.warn(t("Combat.ItemMissing"));
       const useState = adapter.itemUseState?.(item, target.dataset.activityId);
       if (useState?.blocked) return ui.notifications.warn(t(useState.reason));
-      return performRoll(() =>
-        adapter.useActivity(item, target.dataset.activityId, { event })
+      return performRecentRoll(
+        actor,
+        performRoll,
+        {
+          action: "useactivity",
+          itemId: item.id,
+          activityId: target.dataset.activityId
+        },
+        () => adapter.useActivity(item, target.dataset.activityId, { event })
       );
     },
     togglefavorite: function (_event, target) {

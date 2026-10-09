@@ -126,7 +126,8 @@
   padding: 12px;
 }
 
-.ws-troubleshooting p {
+.ws-troubleshooting p,
+.ws-troubleshooting li {
   margin: 0;
   overflow-wrap: anywhere;
 }

@@ -24,7 +24,11 @@ import { actorActionCooldown } from "./action-cooldown.js";
 import { reportFailure } from "../diagnostics.js";
 import { createCompanionPanel } from "./companions/companion-panel.js";
 import { focusHudToken } from "./token-focus.js";
-import { createActorSessionGuard } from "./session-guard.js";
+import {
+  createActorSessionGuard,
+  resolveSessionActor
+} from "./session-guard.js";
+import { captureHudDomState, restoreHudDomState } from "./window/dom-state.js";
 
 /**
  * @param {import('../../types/hud.js').ActorOpenContext} context
@@ -41,6 +45,7 @@ export async function openActorHud(
     tf,
     adapter,
     actorContext,
+    recoveryState,
     session,
     gmController,
     gmCombatant,
@@ -54,6 +59,7 @@ export async function openActorHud(
   /** @type {any} Foundry ApplicationV2 instance. */
   let app = null;
   let disposed = false;
+  let recoveringActor = false;
   const isSessionCurrent = () => !disposed && state.session === session;
   const isActorCurrent = createActorSessionGuard({
     actorContext,
@@ -91,6 +97,7 @@ export async function openActorHud(
   });
   const hudState = createHudState({
     ...panelPreferences.initialState,
+    ...recoveryState,
     favoriteEntries: favoriteEntries(actor)
   });
   if (companionOwner && !companion) hudState.companionsExpanded = true;
@@ -117,7 +124,7 @@ export async function openActorHud(
           t,
           tf,
           escapeHTML: value => foundry.utils.escapeHTML(String(value ?? "")),
-          isCurrent: isSessionCurrent,
+          isCurrent: () => isSessionCurrent() && !recoveringActor,
           refreshHud: () => refreshHud(),
           navigate: navigation => openHud(null, navigation),
           ownerTokenUuid:
@@ -216,21 +223,15 @@ export async function openActorHud(
   /** @param {import('../../types/hud.js').RefreshRegion | null} region */
   const refreshHud = (region = null) => {
     if (!isSessionCurrent()) return;
-    app?.closeDiceTray?.();
-    if (
-      region !== "search" &&
-      (hudState.hudEditing ||
-        Object.values(hudState.hudLayouts).some(
-          preference =>
-            preference.order.includes("search") ||
-            preference.order.includes("hints")
-        ))
-    )
-      region = null;
+    if (recoverActor()) return;
+    if (region !== "search" && hudState.hudEditing) region = null;
     cleanItemLayouts();
     hudState.favoriteEntries = favoriteEntries(actor);
     app?.updateHudEditControl?.();
-    if (!visibility.modeNavigation || !combatModeAvailable()) {
+    if (
+      (!visibility.modeNavigation && !hudState.hudEditing) ||
+      !combatModeAvailable()
+    ) {
       hudState.forcedMode = null;
     }
     syncHealthAppearance();
@@ -248,12 +249,32 @@ export async function openActorHud(
         search: globalSearchPanel
       },
       setView,
-      title: dialogTitle()
+      title: dialogTitle(),
+      syncLayout: () => app?.syncHudLayout?.(),
+      beforeReplace: () => app?.closeDiceTray?.()
     });
-    if (region !== "search") app?.syncHudLayout?.();
   };
 
   const refreshScheduler = createRefreshScheduler(refreshHud);
+  const recoverActor = () => {
+    if (isActorCurrent()) return false;
+    const resolved = resolveSessionActor(actorContext);
+    if (!resolved || resolved.actor === actor) return false;
+    if (!recoveringActor && resolved && isSessionCurrent()) {
+      recoveringActor = true;
+      const domState = captureHudDomState(app.element);
+      // Reuse the sole opening queue and preserve exact token selection.
+      void openHud(resolved.actor, state.companionNavigation ?? null, {
+        token: resolved.token,
+        hudState,
+        isCurrent: isSessionCurrent
+      }).then(() => {
+        if (state.actor === resolved.actor && state.app?.rendered)
+          restoreHudDomState(state.app.element, domState);
+      });
+    }
+    return true;
+  };
   const gmSelection = createGmSelection({
     controller: gmController,
     combatant: gmCombatant,
@@ -282,12 +303,23 @@ export async function openActorHud(
     refreshHud,
     refreshScheduler
   });
-  const { performAndRefresh: performSceneAction } = createHudRollRunner({
-    disabledActions: ["gmremove", "gmremovedead", "gmping"],
+  const sceneRunner = createHudRollRunner({
+    disabledActions: [
+      "gmremove",
+      "gmremovedead",
+      "gmping",
+      "gmcenter",
+      "gmhidden",
+      "gmdefeated"
+    ],
     getApp: () => (isSessionCurrent() ? app : null),
     refreshHud,
     refreshScheduler
   });
+  const performSceneAction = callback =>
+    sceneRunner.performAndRefresh(() =>
+      gmSelection.duringSceneAction(callback)
+    );
 
   const updateSearch = query => {
     hudState.searchQuery = query;
@@ -320,6 +352,7 @@ export async function openActorHud(
     currentMode
   });
   const actions = createHudActions({
+    isSessionCurrent,
     actor,
     adapter,
     canStartMutation,
@@ -400,6 +433,11 @@ export async function openActorHud(
     },
     actor,
     isActorCurrent,
+    onActorReplacement: recoverActor,
+    gmController,
+    performSceneAction,
+    getCombat: () =>
+      gmController ? gmController.getCombat() : getCombatState().combat,
     isCurrentCombatant: actorContext.isCurrentCombatant,
     isPlayersTurn: () => getCombatState().isTurn,
     readVisibility,

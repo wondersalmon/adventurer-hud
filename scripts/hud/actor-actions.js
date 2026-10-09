@@ -1,3 +1,7 @@
+import { isStatusRemovalEvent } from "./status-interactions.js";
+import { createGmActionScope } from "./gm/gm-action-scope.js";
+import { performRecentRoll } from "./recent-actions.js";
+
 /** @param {import('../../types/hud.js').HudActionsOptions} options */
 export function createActorActions({
   actor,
@@ -15,22 +19,21 @@ export function createActorActions({
   openHpDialog,
   performAndRefresh,
   performSceneAction = performAndRefresh,
+  isSessionCurrent = () => true,
   performRoll,
   t
 }) {
   const canAct = () => Boolean(actor?.isOwner ?? canRollActor);
   let changingStatus = false;
   return {
+    actorinventory: () => {
+      if (!canAct()) return ui.notifications.warn(t("Warnings.NoPermission"));
+      return adapter.openInventorySheet(actor);
+    },
     actorcenter: () => focusActorToken?.(),
     actorping: () => pingActorToken?.(),
     removestatus: function (event, target) {
-      if (
-        event?.type !== "click" ||
-        !event.ctrlKey ||
-        event.button > 0 ||
-        changingStatus
-      )
-        return;
+      if (!isStatusRemovalEvent(event) || changingStatus) return;
       if (!canAct()) return ui.notifications.warn(t("Warnings.NoPermission"));
       return performAndRefresh(async () => {
         changingStatus = true;
@@ -70,16 +73,19 @@ export function createActorActions({
     endturn: async function () {
       if (gmController) {
         const combat = gmController.getCombat();
+        const canExecute = createGmActionScope(gmController, isSessionCurrent);
         if (!combat?.started || !combat.combatant) return;
         return performSceneAction(async () => {
-          if (combat.combatant.id === gmCombatantId) {
+          if (!canExecute()) return;
+          if (gmCombatantId) {
             const next = await gmController.endTurn(gmCombatantId, () =>
               combat.nextTurn()
             );
-            if (next && next.id !== gmCombatantId) await openGmSelection();
+            if (canExecute() && next && next.id !== gmCombatantId)
+              await openGmSelection();
           } else {
             await combat.nextTurn();
-            onGmCombatChange?.();
+            if (canExecute()) onGmCombatChange?.();
           }
         });
       }
@@ -109,8 +115,11 @@ export function createActorActions({
 
       const { type, key } = target.dataset;
 
-      return performRoll(() =>
-        adapter.rollAbility(actor, { type, key, event })
+      return performRecentRoll(
+        actor,
+        performRoll,
+        { action: "ability", type, key },
+        () => adapter.rollAbility(actor, { type, key, event })
       );
     },
     skill: async function (event, target) {
@@ -118,8 +127,11 @@ export function createActorActions({
         return ui.notifications.warn(t("Warnings.NoPermission"));
       }
 
-      return performRoll(() =>
-        adapter.rollSkill(actor, { key: target.dataset.key, event })
+      return performRecentRoll(
+        actor,
+        performRoll,
+        { action: "skill", key: target.dataset.key },
+        () => adapter.rollSkill(actor, { key: target.dataset.key, event })
       );
     },
     tool: async function (event, target) {
@@ -127,8 +139,11 @@ export function createActorActions({
         return ui.notifications.warn(t("Warnings.NoPermission"));
       }
 
-      return performRoll(() =>
-        adapter.rollTool(actor, { key: target.dataset.key, event })
+      return performRecentRoll(
+        actor,
+        performRoll,
+        { action: "tool", key: target.dataset.key },
+        () => adapter.rollTool(actor, { key: target.dataset.key, event })
       );
     },
     death: async function (event) {

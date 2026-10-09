@@ -31,7 +31,7 @@ test("GM combined controls preserve saved preferences and search is a positive i
   );
   assert.equal(
     fields.find(field => field.key === "gmSelectionMode").value,
-    "next"
+    "turn"
   );
   assert.equal(fields.find(field => field.key === "gmHideSearch").value, true);
   await f.menus
@@ -233,10 +233,7 @@ test("GM opens exact player combatant in the same panel and never removes its de
     /Player action/
   );
   assert.ok(app.element.querySelector('[data-action="searchitems"]'));
-  assert.equal(
-    app.element.querySelector('[data-action="gmremove"]').disabled,
-    true
-  );
+  assert.equal(app.element.querySelector('[data-action="gmremove"]'), null);
   await app.hudActions.gmremove();
   assert.equal(deletions, 0);
   f.current.set("gmAutoAdvance", true);

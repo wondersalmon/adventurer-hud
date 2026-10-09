@@ -1,4 +1,4 @@
-import { hudElementHidden } from "./window/hud-layout.js";
+import { hudElementHidden } from "./window/hud-layout-model.js";
 export function createActorHeader(context) {
   const {
     actor,
@@ -7,6 +7,7 @@ export function createActorHeader(context) {
     combatModeAvailable,
     escapeHTML,
     formatMod = String,
+    hudState,
     t,
     tf,
     visibility
@@ -76,18 +77,24 @@ export function createActorHeader(context) {
       </div>
     `;
   };
-  const modeButton = (action, icon, label, active = false) => `
+  const modeButton = (
+    action,
+    icon,
+    label,
+    active = false,
+    disabled = false
+  ) => `
       <button
         type="button"
         class="ws-mode-link ws-button ${active ? "ws-active" : ""}"
         data-action="${action}"
-        ${active ? 'aria-current="page" disabled' : ""}
+        ${active ? 'aria-current="page"' : ""} ${active || disabled ? "disabled" : ""}
       >
         <span><i class="fa-solid ${icon}"></i>${label}</span>
       </button>
     `;
   const modeNavigation = mode => {
-    if (!visibility.modeNavigation) {
+    if (!visibility.modeNavigation && !hudState?.hudEditing) {
       return "";
     }
 
@@ -99,13 +106,15 @@ export function createActorHeader(context) {
         mode === "regular"
       )
     ];
-    if (combatModeAvailable())
+    const combatAvailable = combatModeAvailable();
+    if (combatAvailable || hudState?.hudEditing)
       buttons.push(
         modeButton(
           "combatmode",
           "fa-shield-halved",
           t("Mode.Combat"),
-          mode === "combat"
+          mode === "combat",
+          !combatAvailable
         )
       );
     return buttons.length > 1

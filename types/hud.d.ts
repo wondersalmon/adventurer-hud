@@ -72,8 +72,14 @@ export interface CompanionPanelOptions {
 }
 export type OpenHud = (
   actor?: ActorContext["actor"] | null,
-  navigation?: CompanionNavigation | null
+  navigation?: CompanionNavigation | null,
+  recovery?: HudActorRecovery
 ) => Promise<void>;
+export interface HudActorRecovery {
+  token: ActorContext["token"];
+  hudState: HudState;
+  isCurrent(): boolean;
+}
 export type RefreshRegion = "full" | "actions" | "search";
 export interface RefreshScheduler {
   schedule(region?: RefreshRegion): void;
@@ -95,6 +101,7 @@ export interface HudOpenContext {
   tf: Format;
   adapter: HudAdapter;
   actorContext: ActorContext | null;
+  recoveryState?: HudState;
   session: object;
   gmController: GmController | null;
   gmCombatant: any;
@@ -124,6 +131,20 @@ export interface SessionCallbacks {
   openHud: OpenHud;
 }
 export type ItemLayouts = Record<string, { order: string[]; hidden: string[] }>;
+export interface HudLayoutUndo {
+  mode: string;
+  hudLayouts: ItemLayouts;
+  itemLayouts: ItemLayouts;
+  viewState: Partial<
+    Pick<
+      HudState,
+      | "currentView"
+      | "combatCategory"
+      | "explorationSkillsCollapsed"
+      | "searchQuery"
+    >
+  >;
+}
 export interface ItemLayoutEntry {
   key: string;
   name: string;
@@ -138,6 +159,7 @@ export interface HudState {
   itemLayouts: ItemLayouts;
   hudLayouts: ItemLayouts;
   hudEditing: boolean;
+  hudLayoutUndo: HudLayoutUndo | null;
   itemHiddenExpanded: string | null;
   companionsExpanded: boolean;
   companionFilter: "scene" | "all" | "familiars";
@@ -194,6 +216,7 @@ export interface HudActionsOptions {
   togglePin: () => Promise<unknown>;
   companionActions?: CompanionActions;
   validateActorAction?: () => boolean | Promise<boolean>;
+  isSessionCurrent?: () => boolean;
 }
 
 export interface CompanionChoice {

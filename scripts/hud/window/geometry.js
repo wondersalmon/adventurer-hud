@@ -6,7 +6,7 @@ export const PLAYER_WINDOW_DEFAULTS = Object.freeze({
 });
 
 export function defaultGmWindowGeometry(viewport) {
-  const width = Math.min(1120, Math.max(270, viewport.width));
+  const width = Math.min(1000, Math.max(270, viewport.width));
   const height = Math.min(450, Math.max(180, viewport.height));
   return {
     width,

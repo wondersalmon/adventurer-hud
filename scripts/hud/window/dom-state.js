@@ -7,11 +7,14 @@ export function captureHudDomState(root) {
     activeElement && root.contains(activeElement) ? activeElement : null;
   const attributes = [
     "data-action",
+    "data-recent-action",
     "data-status-id",
     "data-combatant-id",
     "data-item-id",
     "data-activity-id",
     "data-key",
+    "data-hud-key",
+    "data-hud-direction",
     "data-companion-uuid",
     "data-companion-direction",
     "data-companion-filter",
@@ -26,12 +29,12 @@ export function captureHudDomState(root) {
     "data-reroll",
     "data-reset-initiative-id",
     "data-gm-combat-select",
-    "data-gm-initiative-options",
     "data-open-actor-sheet",
     "name",
     "id"
   ];
   return {
+    gmSearchExpanded: Boolean(root?.querySelector(".ws-gm-search")?.open),
     spellLevels: Array.from(
       root?.querySelectorAll("details[data-spell-level]") ?? [],
       node => [node.dataset.spellLevel, node.open]
@@ -64,6 +67,7 @@ export function captureHudDomState(root) {
       ".ws-gm-body",
       ".ws-gm-info",
       ".ws-gm-action-column",
+      ".ws-hud-extra-lane",
       ".ws-gm-more-actions"
     ].map(selector => {
       const node = root?.querySelector(selector);
@@ -73,8 +77,7 @@ export function captureHudDomState(root) {
     playersCollapsed:
       root?.querySelector(".ws-gm-player-roster")?.open === false,
     setupExpanded: root?.querySelector(".ws-gm-encounter-tools")?.open === true,
-    initiativeOptionsExpanded:
-      root?.querySelector(".ws-gm-initiative-options")?.open === true,
+    traitsExpanded: root?.querySelector(".ws-gm-defenses")?.open === true,
     moreExpanded:
       root?.querySelector(".ws-gm-more")?.open === true ||
       root?.querySelector(".ws-gm-more")?.classList.contains("ws-expanded") ===
@@ -82,15 +85,23 @@ export function captureHudDomState(root) {
   };
 }
 
-export function restoreHudDomState(root, state) {
+export function restoreHudDomState(
+  root,
+  state,
+  { layoutApplied = false } = {}
+) {
   if (!root || !state) return;
-  applyPlayerLayout(
-    root.querySelector(".ws-player-layout"),
-    Boolean(state.playerColumns)
-  );
-  const defaultBody = root.querySelector("[data-exploration-default-body]");
-  if (defaultBody) defaultBody.hidden = !state.playerColumns;
+  if (!layoutApplied) {
+    applyPlayerLayout(
+      root.querySelector(".ws-player-layout"),
+      Boolean(state.playerColumns)
+    );
+    const defaultBody = root.querySelector("[data-exploration-default-body]");
+    if (defaultBody) defaultBody.hidden = !state.playerColumns;
+  }
   synchronizeStatusLayout(root);
+  const traits = root.querySelector(".ws-gm-defenses");
+  if (traits) traits.open = Boolean(state.traitsExpanded);
   for (const [level, open] of state.spellLevels ?? []) {
     const group = Array.from(
       root.querySelectorAll("details[data-spell-level]")
@@ -108,11 +119,13 @@ export function restoreHudDomState(root, state) {
   if (list?.tagName === "DETAILS") list.open = !state.collapsed;
   const players = root.querySelector(".ws-gm-player-roster");
   if (players) players.open = !state.playersCollapsed;
+  const search = root.querySelector(".ws-gm-search");
+  if (search)
+    search.open = Boolean(
+      state.gmSearchExpanded || search.querySelector("input")?.value
+    );
   const setup = root.querySelector(".ws-gm-encounter-tools");
   if (setup) setup.open = state.setupExpanded;
-  const initiativeOptions = root.querySelector(".ws-gm-initiative-options");
-  if (initiativeOptions)
-    initiativeOptions.open = Boolean(state.initiativeOptionsExpanded);
   const more = root.querySelector(".ws-gm-more");
   if (more) {
     if (more.tagName === "DETAILS") more.open = Boolean(state.moreExpanded);

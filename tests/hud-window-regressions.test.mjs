@@ -127,7 +127,7 @@ test("column threshold changes reflow the open HUD immediately and remain applie
   );
   assert.equal(
     app.element
-      .querySelector('.ws-exploration-nav [data-view="skills"]')
+      .querySelector('.ws-exploration-section > [data-view="skills"]')
       .getAttribute("aria-current"),
     "page"
   );
@@ -395,7 +395,7 @@ test("GM defaults follow the screenshot proportions and sit above the bottom edg
     await f.api.open();
     const app = __adventurerHud.app;
     const { width, height, left, top } = app.position;
-    assert.equal(width, Math.min(1120, viewport.width));
+    assert.equal(width, Math.min(1000, viewport.width));
     assert.equal(height, Math.min(450, viewport.height));
     assert.equal(left, 0);
     assert.equal(top + height, viewport.height);
@@ -797,6 +797,9 @@ test("stale GM selection blocks actor commands while window commands remain avai
 
 test("empty GM refresh preserves visible preparation, collapsed roster and focus", async () => {
   const f = await hudFixture({ isGM: true });
+  const combat = { id: "battle", combatants: itemCollection(), round: 1 };
+  game.combat = combat;
+  game.combats = itemCollection([combat]);
   await f.api.open();
   const app = __adventurerHud.app;
   const setup = app.element.querySelector(".ws-gm-encounter-tools");
@@ -813,7 +816,7 @@ test("empty GM refresh preserves visible preparation, collapsed roster and focus
     focused.push(this);
   };
   try {
-    f.hooks.callAll("updateCombat", { id: "battle" }, { round: 1 });
+    f.hooks.callAll("updateCombat", combat, { round: 1 });
     f.flushFrames();
     assert.equal(
       app.element.querySelector(".ws-gm-encounter-tools").tagName,

@@ -20,11 +20,9 @@ export function prepareSettingsGroups({ groups, readValue, t }) {
             ? "types"
             : "items"
         : key === "gmSelectionMode"
-          ? readValue(SETTINGS.gmAutoAdvance)
-            ? "next"
-            : readValue(SETTINGS.gmFollowTurn)
-              ? "turn"
-              : "manual"
+          ? readValue(SETTINGS.gmFollowTurn)
+            ? "turn"
+            : "manual"
           : key === SETTINGS.gmHideSearch
             ? !readValue(key)
             : readValue(key);
@@ -104,11 +102,11 @@ export function booleanSettingsEntries(groups, submitted) {
         ];
       }
       if (key === "gmSelectionMode") {
-        if (!["manual", "turn", "next"].includes(value))
+        if (!["manual", "turn"].includes(value))
           throw new Error("Invalid GM selection mode");
         return [
           [SETTINGS.gmFollowTurn, value === "turn"],
-          [SETTINGS.gmAutoAdvance, value === "next"]
+          [SETTINGS.gmAutoAdvance, false]
         ];
       }
       return [

@@ -39,24 +39,33 @@ export function createPanelPreferences({
   readSetting = getSetting,
   writeSetting = setSetting
 }) {
-  const key = gmActive ? `gm:${tokenUuid}` : actorUuid;
-  return {
+  const key = gmActive ? `gm:${tokenUuid ?? "preparation"}` : actorUuid;
+  const readState = () => {
+    const stored = readSetting(SETTINGS.panelStates);
+    const initial = panelStateForActor(stored, key);
+    return gmActive && stored?.["gm:layout"]
+      ? {
+          ...initial,
+          hudLayouts: panelStateForActor(stored, "gm:layout").hudLayouts ?? {}
+        }
+      : initial;
+  };
+  const preferences = {
     subscribe(hudState, refresh) {
       const reload = () => {
-        const initial = createHudState(
-          panelStateForActor(readSetting(SETTINGS.panelStates), key)
-        );
+        const initial = createHudState(readState());
         for (const field of Object.keys(panelStateSnapshot(initial)))
           hudState[field] = initial[field];
         hudState.itemLayouts = initial.itemLayouts;
         hudState.hudLayouts = initial.hudLayouts;
+        hudState.hudLayoutUndo = null;
         refresh();
       };
       readers.add(reload);
       return () => readers.delete(reload);
     },
     initialState: {
-      ...panelStateForActor(readSetting(SETTINGS.panelStates), key),
+      ...readState(),
       proficientSkillsOnly: readSetting(SETTINGS.proficientSkillsOnly)
     },
     save(hudState) {
@@ -73,10 +82,23 @@ export function createPanelPreferences({
         .then(() =>
           revision !== generation
             ? undefined
-            : writeSetting(SETTINGS.panelStates, {
-                ...(readSetting(SETTINGS.panelStates) ?? {}),
-                [key]: snapshot
-              })
+            : (() => {
+                const latest = readSetting(SETTINGS.panelStates) ?? {};
+                return writeSetting(SETTINGS.panelStates, {
+                  ...latest,
+                  [key]: gmActive
+                    ? { ...snapshot, hudLayouts: latest[key]?.hudLayouts ?? {} }
+                    : snapshot,
+                  ...(gmActive
+                    ? {
+                        "gm:layout": {
+                          ...latest["gm:layout"],
+                          hudLayouts: snapshot.hudLayouts ?? {}
+                        }
+                      }
+                    : {})
+                });
+              })()
         );
       writeQueue = pending.then(
         () => trace.finish("completed", "saved"),
@@ -88,4 +110,9 @@ export function createPanelPreferences({
       return pending;
     }
   };
+  if (gmActive && !readSetting(SETTINGS.panelStates)?.["gm:layout"])
+    void preferences
+      .save(createHudState(preferences.initialState))
+      .catch(() => {});
+  return preferences;
 }

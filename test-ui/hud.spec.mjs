@@ -328,8 +328,14 @@ test("GM toolbar fits a narrow HUD with wrapping portraits and HP above each tok
     initiative: 15,
     hidden: index === 0,
     defeated: index === 1,
-    token: { actor: { img: "icons/svg/mystery-man.svg" } }
+    token: { id: String(index), actor: { img: "icons/svg/mystery-man.svg" } }
   }));
+  globalThis.canvas = {
+    scene: {
+      id: "scene",
+      tokens: new Map(list.map(entry => [entry.token.id, entry.token]))
+    }
+  };
   const combat = {
     id: "battle",
     name: "An encounter with a long name",
@@ -370,10 +376,14 @@ test("GM toolbar fits a narrow HUD with wrapping portraits and HP above each tok
   await expect(page.locator('[data-action="gmselect"]')).toHaveCount(8);
   await expect(page.locator(".ws-selected")).toHaveCount(1);
   await expect(roster.locator("img")).toHaveCount(8);
-  const cards = await roster.locator(".ws-gm-creature").evaluateAll(nodes =>
+  const cards = await roster.locator(".ws-gm-roster-entry").evaluateAll(nodes =>
     nodes.map(node => ({
       box: node.getBoundingClientRect().toJSON(),
-      image: node.querySelector("img").getBoundingClientRect().toJSON(),
+      image: node
+        .closest(".ws-gm-roster-entry")
+        .querySelector("img")
+        .getBoundingClientRect()
+        .toJSON(),
       name: node.querySelector("strong").getBoundingClientRect().toJSON()
     }))
   );
@@ -740,7 +750,7 @@ test("favorite cards reclaim both side columns and removal controls fit in editi
       .first()
       .boundingBox();
     await expect(page.locator(".ws-item-open")).toHaveCount(2);
-    expect(card.width - compact.width).toBeCloseTo(36, 0);
+    expect(card.width - compact.width).toBeCloseTo(27, 0);
     await page.locator(".ws-rolls-dialog").evaluate((node, html) => {
       node.innerHTML = html;
     }, renderer.favoriteSection());

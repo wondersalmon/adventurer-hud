@@ -3,6 +3,11 @@ import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { listFiles } from "./files.mjs";
+import { verifyReleaseDocumentation } from "./release-documentation.mjs";
+import {
+  collectReleaseFiles,
+  readReleaseDocuments
+} from "./release-package.mjs";
 import {
   readLocalizationCatalogs,
   localeForLanguage
@@ -114,5 +119,9 @@ for (const key of referencedKeys) {
   assert.ok(russian[key], `Missing Russian localization key: ${key}`);
   assert.ok(english[key], `Missing English localization key: ${key}`);
 }
+
+const packaged = await collectReleaseFiles(root);
+const documents = await readReleaseDocuments(root, packaged);
+verifyReleaseDocumentation(new Set(packaged), documents);
 
 console.log("Validation passed.");

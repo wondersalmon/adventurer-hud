@@ -21,6 +21,7 @@ export function createHudState(initial = {}) {
     itemLayouts: {},
     hudLayouts: {},
     hudEditing: false,
+    hudLayoutUndo: null,
     itemHiddenExpanded: null,
     companionsExpanded: false,
     companionFilter: "scene",
@@ -51,7 +52,7 @@ export function syncHudPreferences(
   { modeNavigation, proficientSkillsOnly }
 ) {
   state.proficientSkillsOnly = proficientSkillsOnly;
-  if (!modeNavigation) state.forcedMode = null;
+  if (!modeNavigation && !state.hudEditing) state.forcedMode = null;
 }
 
 export function setRegularView(state, view) {

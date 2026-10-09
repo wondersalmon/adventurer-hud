@@ -52,15 +52,16 @@ export function createRegularRenderer(context) {
       const expanded = hudState.currentView === view;
       return `<section class="ws-exploration-section ${expanded ? "ws-expanded" : ""}"><button type="button" class="ws-nav ws-section-toggle ws-button ${expanded ? "ws-active" : ""}" data-action="view" data-view="${view}" ${expanded ? 'aria-current="page"' : ""} data-exploration-section="true" ${fallback ? 'data-exploration-default="true"' : ""} aria-expanded="${expanded}" aria-controls="ws-exploration-content-${view}" title="${t(label)}"><span class="ws-nav-main"><i class="fa-solid ${icon}" aria-hidden="true"></i>${t(label)}</span><i class="fa-solid fa-chevron-${expanded ? "up" : "down"} ws-arrow" aria-hidden="true"></i></button><div id="ws-exploration-content-${view}" class="ws-exploration-section-body" ${fallback ? 'data-exploration-default-body="true"' : ""} ${expanded ? "" : "hidden"}>${expanded || fallback ? body : ""}</div></section>`;
     };
-    const navigation = `<div class="ws-nav-grid ws-exploration-nav ${detail ? "ws-exploration-detail-nav" : ""}">
+    const navigation = `
       ${nav("skills", "fa-list-check", "Labels.Skills")}
       ${hasSpells ? nav("spells", "fa-wand-magic-sparkles", "Combat.Spells") : ""}
       ${nav("inventory", "fa-box-open", "Inventory.Title")}
-    </div>`;
+    `;
     return `<div id="${detail ? "ws-exploration" : "ws-main"}" data-divider-label="${t("Labels.ResizeColumns")}" class="ws-view ws-player-layout ${detail ? "ws-player-detail" : hudState.explorationSkillsCollapsed ? "ws-exploration-collapsed" : "ws-exploration-default"}">
-      <section class="ws-player-basics ws-player-info">
-      ${actorHeader(inspirationControl(), rests ? `<div class="ws-exploration-rests" data-hud-block="rests" data-hud-home="info">${rests}</div>` : "")}
       ${modeNavigation("regular")}
+      <section class="ws-player-basics ws-player-info">
+      ${globalSearchPanel?.() ?? ""}
+      ${actorHeader(inspirationControl(), rests ? `<div class="ws-exploration-rests" data-hud-block="rests" data-hud-home="info">${rests}</div>` : "")}
       ${companionNavigation?.() ?? ""}
           <div class="ws-regular-health">${healthPanel()}</div>
           ${combatStatuses?.() ?? ""}
@@ -71,7 +72,6 @@ export function createRegularRenderer(context) {
           ${shortcutHint()}
       </section>
       <section class="ws-player-actions">
-      ${globalSearchPanel?.() ?? ""}
       ${navigation}
       </section>
     </div>`;

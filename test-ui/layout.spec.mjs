@@ -17,6 +17,126 @@ import {
 
 const fixtures = {};
 
+test("recent actions fit the footer without displaying money outside inventory", async ({
+  page
+}) => {
+  for (const width of [270, 450, 900]) {
+    await showPanel(page, "player-combat-footer", {
+      width,
+      height: 380,
+      font: "extralarge"
+    });
+    await expect(page.locator(".ws-inventory-summary")).toHaveCount(0);
+    await expect(page.locator(".ws-footer-recent button:visible")).toHaveCount(
+      width < 450 ? 2 : 3
+    );
+    const result = await page.locator(".ws-player-footer").evaluate(footer => {
+      const bounds = footer.getBoundingClientRect();
+      const children = [...footer.children].map(node =>
+        node.getBoundingClientRect()
+      );
+      return {
+        overflow: footer.scrollWidth > footer.clientWidth + 1,
+        height: bounds.height,
+        clippedValues: [
+          ...footer.querySelectorAll(".ws-recent-action img")
+        ].some(node => {
+          if (!node.getClientRects().length) return false;
+          const rect = node.getBoundingClientRect(),
+            button = node.closest("button").getBoundingClientRect();
+          return rect.top < button.top - 1 || rect.bottom > button.bottom + 1;
+        }),
+        overlap: children.some((a, i) =>
+          children.some(
+            (b, j) =>
+              i < j &&
+              a.left < b.right - 1 &&
+              a.right > b.left + 1 &&
+              a.top < b.bottom - 1 &&
+              a.bottom > b.top + 1
+          )
+        )
+      };
+    });
+    expect(result.overflow).toBe(false);
+    expect(result.overlap).toBe(false);
+    expect(result.clippedValues).toBe(false);
+    expect(result.height).toBeLessThanOrEqual(48);
+  }
+});
+
+test("favorites use two compact columns earlier and retain readable names and side controls", async ({
+  page
+}) => {
+  for (const language of ["en", "ru"]) {
+    for (const width of [320, 800]) {
+      await showPanel(page, "player-combat", {
+        width,
+        height: 640,
+        language,
+        font: "large"
+      });
+      const grid = page.locator(".ws-favorites .ws-combat-item-grid");
+      await expect(grid).toBeVisible();
+      const columns = await grid.evaluate(
+        node => getComputedStyle(node).gridTemplateColumns.split(" ").length
+      );
+      expect(columns).toBe(width === 320 ? 1 : 2);
+      const clipped = await grid
+        .locator(".ws-combat-item-card")
+        .evaluateAll(cards =>
+          cards.some(
+            card =>
+              card.scrollWidth > card.clientWidth + 2 ||
+              [...card.querySelectorAll("strong, .ws-item-side-actions")].some(
+                node => node.scrollWidth > node.clientWidth + 2
+              )
+          )
+        );
+      expect(clipped).toBe(false);
+      await expect(
+        grid.locator('[data-action="togglespellprepared"]')
+      ).toHaveCount(0);
+      expect(
+        await grid.locator('[data-action="openitem"]').count()
+      ).toBeGreaterThan(0);
+    }
+  }
+});
+
+test("mode navigation stays above both player lanes and search defaults above identity", async ({
+  page
+}) => {
+  for (const scenario of [
+    "player-main",
+    "player-skills",
+    "player-spells",
+    "player-inventory",
+    "player-combat"
+  ]) {
+    for (const width of [320, 800]) {
+      await showPanel(page, scenario, { width, height: 640, font: "medium" });
+      const navigation = page.locator(".ws-mode-navigation");
+      await expect(navigation).toBeVisible();
+      await expect(page.locator(".ws-global-search")).toBeVisible();
+      const nav = await navigation.boundingBox();
+      const actions = await page.locator(".ws-player-actions").boundingBox();
+      expect(nav.y + nav.height).toBeLessThanOrEqual(actions.y);
+      if (await page.locator(".ws-actor-header").isVisible()) {
+        const info = await page.locator(".ws-player-info").boundingBox();
+        expect(nav.y + nav.height).toBeLessThanOrEqual(info.y);
+        expect(
+          await page
+            .locator(".ws-player-info")
+            .evaluate(node =>
+              node.firstElementChild.classList.contains("ws-global-search")
+            )
+        ).toBe(true);
+      }
+    }
+  }
+});
+
 test("spell level headings toggle independently and retain state after refresh", async ({
   page
 }) => {
@@ -969,7 +1089,10 @@ test("exploration uses the same responsive columns even without favorites", asyn
       }, width);
       const info = await page.locator(".ws-player-info").boundingBox();
       const actions = await page.locator(".ws-player-actions").boundingBox();
-      const nav = await page.locator(".ws-nav-grid").boundingBox();
+      const nav = await page
+        .locator(".ws-exploration-section")
+        .first()
+        .boundingBox();
       if (width < 600) {
         expect(info.y + info.height).toBeLessThanOrEqual(actions.y);
         await expect(page.locator(".ws-player-layout")).toHaveCSS(
@@ -1002,7 +1125,7 @@ test("exploration details open beside character information on wide panels and f
     await showPanel(page, scenario, { width: 450, height: 380 });
     const info = page.locator(".ws-player-info");
     const section = page.locator(".ws-player-subview");
-    await expect(info).not.toBeVisible();
+    await expect(info.locator(".ws-actor-header")).not.toBeVisible();
     await expect(section).toBeVisible();
     for (const width of [615, 800, 1100]) {
       await page.locator(".ws-rolls-dialog").evaluate((node, width) => {
@@ -1024,7 +1147,7 @@ test("exploration details open beside character information on wide panels and f
     await page.locator(".ws-rolls-dialog").evaluate(node => {
       node.style.width = "450px";
     });
-    await expect(info).not.toBeVisible();
+    await expect(info.locator(".ws-actor-header")).not.toBeVisible();
     await expect(section).toBeVisible();
   }
 });
@@ -1139,8 +1262,15 @@ for (const scenario of [
           );
           if (scenario.startsWith("gm-") && scenario !== "gm-empty") {
             const content = await page
-              .locator(width < 755 ? ".ws-gm-content" : ".ws-gm-body")
-              .boundingBox();
+              .locator(".ws-gm-content")
+              .evaluate(node =>
+                (getComputedStyle(node).display === "contents"
+                  ? node.querySelector(".ws-gm-body")
+                  : node
+                )
+                  .getBoundingClientRect()
+                  .toJSON()
+              );
             expect(
               content.height,
               `${scenario} ${width} × ${height}, ${font}: usable content height`
@@ -1223,7 +1353,7 @@ test("secondary GM commands stay available by keyboard without consuming the sho
     node.classList.add("ws-expanded");
     node.querySelector("button").setAttribute("aria-expanded", "true");
   });
-  const command = page.locator('[data-action="gmcenter"]');
+  const command = more.locator('[data-action="gmrevealhidden"]');
   await expect(command).toBeVisible();
   expect(
     await command.evaluate(node => {
@@ -1231,7 +1361,7 @@ test("secondary GM commands stay available by keyboard without consuming the sho
       return (
         document
           .elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
-          ?.closest('[data-action="gmcenter"]') === node
+          ?.closest('[data-action="gmrevealhidden"]') === node
       );
     })
   ).toBe(true);
@@ -1243,7 +1373,9 @@ test("secondary GM commands stay available by keyboard without consuming the sho
   await more.evaluate(node => node.classList.remove("ws-expanded"));
   await expect(page.locator('[data-action="togglegmtools"]')).not.toBeVisible();
   await expect(command).toBeVisible();
-  await expect(page.locator('[data-action="gmping"]')).toBeVisible();
+  await expect(
+    page.locator('.ws-gm-identity-actions [data-action="gmping"]')
+  ).toBeVisible();
   await expect(page.locator('[data-action="gmremovedead"]')).toBeVisible();
 });
 
@@ -1255,7 +1387,10 @@ test("player health precedes abilities and navigation and wide panels share the 
     height: 640,
     font: "medium"
   });
-  const nav = await page.locator(".ws-nav-grid").boundingBox();
+  const nav = await page
+    .locator(".ws-exploration-section")
+    .first()
+    .boundingBox();
   const abilities = await page.locator(".ws-ability-table").boundingBox();
   const favorites = await page.locator(".ws-player-favorites").boundingBox();
   const mode = await page.locator(".ws-mode-navigation").boundingBox();
@@ -1280,7 +1415,7 @@ test("player health precedes abilities and navigation and wide panels share the 
       inspiration.y + inspiration.height / 2,
       0
     );
-    expect(control.y + control.height).toBeLessThan(mode.y);
+    expect(mode.y + mode.height).toBeLessThan(control.y);
   }
   expect(rest.y + rest.height).toBeLessThan(favorites.y);
   expect(health.y + health.height).toBeLessThan(favorites.y);
@@ -1326,7 +1461,7 @@ test("narrow GM actions use one scroller and the selected creature is visible be
   page
 }) => {
   await showPanel(page, "gm-actions", { width: 450, height: 640 });
-  await expect(page.locator('[data-dice-tray="toggle"]')).toHaveCount(0);
+  await expect(page.locator('[data-dice-tray="toggle"]')).toHaveCount(1);
   await expect(
     page.locator(
       '[data-action="gmrollinitiative"][data-scope="all"][data-reroll="false"]'
@@ -1341,17 +1476,17 @@ test("narrow GM actions use one scroller and the selected creature is visible be
   await expect(
     page.locator('.ws-gm-tools [data-action="gmresetinitiative"]')
   ).toHaveCount(0);
-  await expect(page.locator(".ws-gm-identity > strong")).not.toHaveText("");
+  await expect(page.locator(".ws-gm-name strong")).not.toHaveText("");
   await expect(
     page.locator(
       '.ws-gm-identity-actions [data-action="gmrollinitiative"][data-reroll="true"]'
     )
-  ).toHaveCount(1);
+  ).toHaveCount(0);
   await expect(
     page.locator(
       '.ws-gm-identity-actions [data-action="gmresetcombatantinitiative"]'
     )
-  ).toHaveCount(1);
+  ).toHaveCount(0);
   await showPanel(page, "gm-features", { width: 450, height: 380 });
   const summary = await page.locator(".ws-gm-selection-summary").boundingBox();
   const roster = await page.locator(".ws-gm-roster").boundingBox();
@@ -1371,16 +1506,40 @@ test("narrow GM actions use one scroller and the selected creature is visible be
   await expect(page.locator(".ws-gm-selection-summary")).not.toBeVisible();
 });
 
-test("selected defeated creature has its own skull removal button beside the sheet", async ({
+test("defeated creature stays usable with red removal beneath its name and no footer duplicate", async ({
   page
 }) => {
   await showPanel(page, "gm-defeated", { width: 763, height: 540 });
   await expect(
-    page.locator('.ws-gm-identity-actions [data-action="gmremove"] .fa-skull')
+    page.locator(
+      '.ws-gm-identity-actions [data-action="gmremove"] .fa-trash-can'
+    )
   ).toHaveCount(1);
   await expect(
     page.locator('.ws-gm-identity-actions [data-action="gmremove"]')
   ).toBeEnabled();
+  await expect(
+    page.locator('.ws-gm-info [data-action="gmdefeated"]')
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.locator('.ws-gm-saves [data-action="ability"]').first()
+  ).toBeEnabled();
+  await expect(
+    page.locator('.ws-gm-action-column [data-action="openitem"]').first()
+  ).toBeEnabled();
+  const removal = await page
+    .locator('.ws-gm-identity-actions [data-action="gmremove"]')
+    .evaluate(node => {
+      const style = getComputedStyle(node);
+      return {
+        shadow: style.boxShadow,
+        color: style.color,
+        danger: getComputedStyle(node.closest(".ws-rolls-dialog"))
+          .getPropertyValue("--danger")
+          .trim()
+      };
+    });
+  expect(removal.shadow).not.toBe("none");
   await expect(
     page.locator('.ws-gm-tools [data-action="gmremove"]')
   ).toHaveCount(0);
@@ -1388,6 +1547,58 @@ test("selected defeated creature has its own skull removal button beside the she
   await expect(
     page.locator('.ws-gm-identity-actions [data-action="gmremove"]')
   ).toHaveCount(0);
+});
+
+test("GM creature control rows fit both languages and themes without overlapping roster content", async ({
+  page
+}) => {
+  for (const language of ["en", "ru"])
+    for (const theme of ["light", "dark"])
+      for (const width of [270, 900, 1000, 1400]) {
+        await showPanel(page, "gm-defeated", {
+          width,
+          height: 540,
+          language,
+          theme
+        });
+        const row = page.locator(".ws-gm-identity-actions");
+        for (const action of [
+          "gmping",
+          "gmcenter",
+          "gmhidden",
+          "gmdefeated",
+          "gmremove"
+        ]) {
+          const button = row.locator(`[data-action="${action}"]`);
+          await expect(button).toHaveCount(1);
+          await expect(button).toHaveAttribute("aria-label", /.+/);
+          await expect(
+            page.locator(`.ws-gm-tools [data-action="${action}"]`)
+          ).toHaveCount(0);
+        }
+        const controls = await page
+          .locator(".ws-gm-roster-entry")
+          .first()
+          .evaluate(node => {
+            const flags = node.querySelector(".ws-gm-roster-flags"),
+              card = node.querySelector(".ws-gm-creature");
+            const box = card.getBoundingClientRect(),
+              buttons = [...flags.children].map(button =>
+                button.getBoundingClientRect()
+              );
+            return buttons.every(
+              (b, index) =>
+                b.left >= box.left &&
+                b.right <= box.right &&
+                b.bottom <= box.bottom &&
+                (!index || b.left >= buttons[index - 1].right)
+            );
+          });
+        expect(controls, `${width} ${language} ${theme}`).toBe(true);
+        expect(
+          await row.evaluate(node => node.scrollWidth <= node.clientWidth + 1)
+        ).toBe(true);
+      }
 });
 
 test("empty GM panel offers preparation without unavailable battle commands", async ({
@@ -1414,16 +1625,16 @@ test("GM preparation shows setup directly and puts start after initiative", asyn
     );
     await expect(page.locator('[data-action="gmaddcreatures"]')).toHaveCount(2);
     await expect(page.locator('[data-action="gmrollinitiative"]')).toHaveCount(
-      5
+      2
     );
     await expect(
       page.locator(
-        '.ws-gm-encounter-tools > .ws-gm-initiative-controls [data-scope="all"]'
+        '.ws-gm-encounter-tools > .ws-gm-initiative-controls [data-action="gmrollinitiative"][data-scope="all"]'
       )
     ).toBeVisible();
     await expect(
       page.locator(
-        '.ws-gm-encounter-tools > .ws-gm-initiative-controls [data-scope="npc"]'
+        '.ws-gm-encounter-tools > .ws-gm-initiative-controls [data-action="gmrollinitiative"][data-scope="npc"]'
       )
     ).toBeVisible();
     await expect(page.locator('[data-action="gmstartcombat"]')).toBeEnabled();
@@ -1445,50 +1656,28 @@ test("GM preparation shows setup directly and puts start after initiative", asyn
       page.locator('.ws-gm-player-roster [data-action="gmselect"]')
     ).toHaveCount(0);
     await expect(
-      page.locator('[data-action="gmresetinitiative"]')
+      page.locator('[data-action="gmresetinitiative"]').first()
     ).toBeEnabled();
     const monsters = await page
       .locator(
-        ".ws-gm-preparation-rosters > .ws-gm-list:not(.ws-gm-player-roster)"
+        ".ws-gm-preparation-rosters .ws-gm-list:not(.ws-gm-player-roster)"
       )
       .boundingBox();
     const players = await page.locator(".ws-gm-player-roster").boundingBox();
-    if (width >= 763)
-      expect(players.x).toBeGreaterThanOrEqual(monsters.x + monsters.width);
-    else expect(players.y).toBeGreaterThanOrEqual(monsters.y + monsters.height);
+    expect(players.y).toBeGreaterThanOrEqual(monsters.y + monsters.height);
     const initiative = await page
       .locator(".ws-gm-encounter-tools > .ws-gm-initiative-controls")
+      .first()
       .boundingBox();
     const start = await page
       .locator('[data-action="gmstartcombat"]')
       .boundingBox();
     expect(initiative.y + initiative.height).toBeLessThan(start.y);
-    const options = page.locator(".ws-gm-initiative-options");
-    await expect(
-      options.locator('[data-action="gmrollinitiative"]').first()
-    ).not.toBeVisible();
-    await options.locator("summary").focus();
-    await page.keyboard.press("Enter");
-    await expect(
-      options.locator('[data-action="gmrollinitiative"]')
-    ).toHaveCount(3);
-    for (const button of await options.locator("button").all())
-      await expect(button).toBeVisible();
-    await page.addScriptTag({
-      content: `${captureHudDomState.toString()}\n${restoreHudDomState.toString()}`
-    });
-    await page.evaluate(() => {
-      const root = document.querySelector(".ws-shell");
-      const state = captureHudDomState(root);
-      root.innerHTML = root.innerHTML;
-      restoreHudDomState(root, state);
-    });
-    await expect(options.locator("summary")).toBeFocused();
-    await expect(options).toHaveAttribute("open", "");
-    await page.keyboard.press("Enter");
-    await expect(
-      options.locator('[data-action="gmresetinitiative"]')
-    ).not.toBeVisible();
+    await expect(page.locator(".ws-gm-initiative-options")).toHaveCount(0);
+    await page
+      .locator(".ws-gm-preparation")
+      .evaluate(node => (node.scrollTop = node.scrollHeight));
+    await expect(page.locator('[data-action="gmstartcombat"]')).toBeVisible();
   }
 });
 
@@ -1643,7 +1832,7 @@ test("companion cards leave room for names with two columns of actions", async (
   }
 });
 
-test("exploration section icons remain visible and headers wrap into columns above expanded content", async ({
+test("exploration sections keep their icons and content together at every wide size", async ({
   page
 }) => {
   for (const width of [600, 800, 1100, 1737]) {
@@ -1660,7 +1849,9 @@ test("exploration section icons remain visible and headers wrap into columns abo
       await expect(header).toBeVisible();
       await expect(header.locator(".ws-nav-main i")).toBeVisible();
       const box = await header.boundingBox();
-      expect(box.width).toBeLessThan(330);
+      expect(box.width).toBeLessThanOrEqual(
+        (await page.locator(".ws-player-actions").boundingBox()).width
+      );
       expect(
         await header.evaluate(node => node.scrollWidth <= node.clientWidth + 1)
       ).toBe(true);
@@ -1677,7 +1868,8 @@ test("exploration section icons remain visible and headers wrap into columns abo
     expect(panel.y).toBeGreaterThanOrEqual(
       Math.max(...boxes.map(b => b.bottom))
     );
-    if (width >= 1100) expect(boxes[1].x).toBeGreaterThan(boxes[0].x);
+    expect(boxes[1].x).toBeCloseTo(boxes[0].x, 0);
+    expect(boxes[1].y).toBeGreaterThan(boxes[0].y);
     await expect(page.locator(".ws-column-divider")).toBeVisible();
     await expect(page.locator(".ws-column-divider")).toHaveCSS("width", "8px");
     await expect(

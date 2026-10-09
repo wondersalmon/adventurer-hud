@@ -8,7 +8,11 @@ import test from "node:test";
 import { createHudActions } from "../scripts/hud/actions.js";
 import { combatTurnState } from "../scripts/hud/actor-context.js";
 import { getCurrentCombat } from "../scripts/runtime-helpers.js";
-import { applyHudSettingChanges } from "../scripts/hud/settings-refresh.js";
+import {
+  applyHudSettingChange,
+  applyHudSettingChanges
+} from "../scripts/hud/settings-refresh.js";
+import { settingRefreshStrategy } from "../scripts/settings-access.js";
 import { activateHudWindow } from "../scripts/hud/window/window-session.js";
 import { fragment } from "./helpers/rendering.mjs";
 
@@ -262,16 +266,30 @@ test("batched settings apply runtime values and refresh content once", () => {
 
 test("skill filter saves the user's choice and refreshes the HUD", async () => {
   const previousGame = globalThis.game;
-  const writes = [];
   let refreshed = 0;
-  globalThis.game = {
-    settings: {
-      set: async (_module, key, value) => writes.push([key, value])
+  const hudState = { proficientSkillsOnly: true };
+  const { writes } = installSettings({
+    onEvent: (name, key, value) => {
+      if (name !== "adventurerHudSettingChanged") return;
+      applyHudSettingChange({
+        app: {
+          rendered: true,
+          refreshFromSettings: () => {
+            hudState.proficientSkillsOnly = game.settings.get(
+              "adventurer-hud",
+              "proficientSkillsOnly"
+            );
+            refreshed++;
+          }
+        },
+        key,
+        value,
+        strategy: settingRefreshStrategy(key)
+      });
     }
-  };
+  });
 
   try {
-    const hudState = { proficientSkillsOnly: true };
     const actions = createHudActions({
       hudState,
       refreshHud: () => refreshed++
@@ -338,6 +356,7 @@ test("window session updates live settings and releases document hooks", async (
         append() {},
         removeAttribute() {},
         querySelector: () => null,
+        querySelectorAll: () => [],
         style: { setProperty() {} },
         classList: {
           add: name => elementClasses.add(name),

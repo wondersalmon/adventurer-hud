@@ -16,39 +16,75 @@ export function deadCreatures(combat) {
 // Only tokens of this encounter are removed. Actor directory documents are never deleted.
 let removalQueue = Promise.resolve();
 
-export function removeDeadCreatures(combat, ids) {
-  const task = removalQueue.then(() => deleteDeadTokens(combat, ids));
+export function removeDeadCreatures(
+  combat,
+  ids,
+  canExecute = () => true,
+  targets = null
+) {
+  const captured =
+    targets ??
+    deadCreatures(combat)
+      .filter(entry => ids.includes(entry.id))
+      .map(entry => ({ entry, token: entry.token }));
+  const task = removalQueue.then(() =>
+    deleteDeadTokens(combat, captured, canExecute)
+  );
   removalQueue = task.catch(() => {});
   return task;
 }
 
-async function deleteDeadTokens(combat, ids) {
-  if (!game.user?.isGM || !combat) return 0;
-  const candidates = deadCreatures(combat).filter(entry =>
-    ids.includes(entry.id)
-  );
+async function deleteDeadTokens(combat, targets, canExecute) {
+  if (!canExecute() || !game.user?.isGM || !combat) return 0;
+  const scene = canvas.scene;
   const tokens = [
-    ...new Map(candidates.map(entry => [entry.token.id, entry.token])).values()
+    ...new Map(targets.map(({ token }) => [token.id, token])).values()
   ];
   if (!tokens.length) return 0;
   let deletedCount = 0;
   for (const token of tokens) {
+    if (!canExecute() || !game.user?.isGM) break;
     // Use the actual token document and its parent, including unlinked/global encounters.
-    if (token.parent?.id !== canvas.scene?.id) continue;
+    if (canvas.scene !== scene || token.parent !== scene) continue;
+    if (scene.tokens?.get && scene.tokens.get(token.id) !== token) continue;
+    const addressed = targets.filter(target => target.token === token);
     if (
-      candidates.some(
-        entry =>
-          entry.token.id === token.id &&
-          (hasPlayerOwner(entry) || !defeated(entry))
+      token.isOwner === false ||
+      !token.actor?.isOwner ||
+      addressed.some(
+        ({ entry }) =>
+          combat.combatants?.get?.(entry.id) !== entry ||
+          entry.token !== token ||
+          hasPlayerOwner(entry) ||
+          !defeated(entry)
       )
     )
       continue;
     const deleted = await token.delete();
     if (deleted) {
       deletedCount++;
+      // Some integrations leave the encounter entry after deleting its token.
+      // Native cascades may already have removed it, so delete only survivors.
+      const survivors = addressed
+        .map(({ entry }) => entry)
+        .filter(
+          entry =>
+            entry.tokenId === token.id &&
+            entry.sceneId === scene.id &&
+            combat.combatants?.get(entry.id) === entry
+        );
+      if (
+        survivors.length &&
+        canExecute() &&
+        canvas.scene === scene &&
+        game.user?.isGM
+      )
+        await combat.deleteEmbeddedDocuments(
+          "Combatant",
+          survivors.map(entry => entry.id)
+        );
     }
   }
-  // TokenDocument deletion already removes associated Combatants in Foundry.
   return deletedCount;
 }
 

@@ -178,7 +178,7 @@
   letter-spacing: 0.08em;
 }
 
-.ws-rolls-dialog .ws-exploration-nav .ws-nav-main {
+.ws-rolls-dialog .ws-exploration-section > .ws-nav .ws-nav-main {
   font-weight: 400;
 }
 
@@ -413,7 +413,7 @@
 
 .ws-rolls-dialog.ws-hud-editing [data-hud-block] {
   position: relative;
-  padding-top: 32px !important;
+  padding-top: 58px !important;
   outline: 1px dashed var(--accent);
   outline-offset: -1px;
   min-width: 0;
@@ -423,6 +423,7 @@
   position: absolute;
   inset: 2px 2px auto;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 2px;
   min-width: 0;
@@ -431,7 +432,8 @@
 }
 
 .ws-rolls-dialog .ws-hud-block-tools > span {
-  flex: 1;
+  order: -1;
+  flex: 1 0 calc(100% - 30px);
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -439,14 +441,22 @@
 }
 
 .ws-rolls-dialog .ws-hud-block-tools button {
-  flex: 0 0 22px;
-  width: 22px;
+  flex: 0 0 24px;
+  width: 24px;
   height: 24px;
   min-height: 0;
   padding: 2px;
+  font-size: 11px;
+}
+
+.ws-rolls-dialog.ws-hud-editing
+  .ws-combat-actions
+  > .ws-combat-filters:has(> .ws-hud-tab[data-hud-block]) {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 140px), 1fr));
 }
 
 .ws-rolls-dialog .ws-hud-block-grip {
+  order: -2;
   cursor: grab;
 }
 
@@ -457,6 +467,19 @@
   border-radius: 6px;
   font-size: 12px;
   overflow-wrap: anywhere;
+}
+
+.ws-rolls-dialog .ws-hud-layout-controls {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.ws-rolls-dialog .ws-hud-layout-undo {
+  min-height: 28px;
+  padding: 4px 6px;
+  font-size: 11px;
+  white-space: normal;
 }
 
 .ws-rolls-dialog .ws-hud-layout-menu summary {
@@ -679,6 +702,64 @@
 .ws-rolls-dialog .ws-dice-formula {
   display: grid;
   gap: 6px;
+}
+
+.ws-rolls-dialog .ws-dice-visibility {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ws-rolls-dialog .ws-dice-visibility select {
+  color-scheme: light;
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+.ws-rolls-dialog .ws-dice-visibility option {
+  color: #242326;
+  background: #faf7f0;
+}
+
+.ws-rolls-dialog:is(.ws-theme-dark, [data-ws-auto-theme="dark"])
+  .ws-dice-visibility
+  select {
+  color-scheme: dark;
+}
+
+.ws-rolls-dialog:is(.ws-theme-dark, [data-ws-auto-theme="dark"])
+  .ws-dice-visibility
+  option {
+  color: #f1ece2;
+  background: #28272c;
+}
+
+#tooltip.ws-gm-effects-tooltip .ws-gm-hover-effects {
+  display: grid;
+  gap: 4px;
+  margin-top: 5px;
+}
+
+#tooltip.ws-gm-effects-tooltip .ws-gm-hover-effects > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+#tooltip.ws-gm-effects-tooltip .ws-gm-hover-effects img {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  object-fit: contain;
+}
+
+#tooltip.ws-gm-effects-tooltip img[src*="icons/svg/"] {
+  filter: brightness(0) invert(0.9);
 }
 
 .ws-rolls-dialog .ws-dice-formula-row [data-dice-tray="clear"] {

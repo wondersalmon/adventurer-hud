@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.1.0
+
+- Shared GM layout editing, movable action categories and defenses, one extra column, reset/undo and responsive roster/action grids. New GM windows start at 1000 × 450, bottom-left.
+- Compact combat preparation with initiative resets and participant removal. Unrolled initiative rolls immediately; fully rolled groups confirm rerolls.
+- Drag NPC actors, nested actor folders or Encounter actors from Actors/compendiums into the creature list during preparation or combat. Encounter quantities are preserved; an immediate Drop here hint guides placement. Enabled by default, configurable in GM settings.
+- Follow and End turn use native turn order, including players. Current-turn and inspected-card highlights are distinct; defeated creatures remain usable.
+- Per-creature Ping, To token, visibility and defeat controls; confirmed hidden-NPC reveal and defeated removal. Deleted tokens leave the panel and removed NPCs leave initiative.
+- Search beside the GM name, clearer HP/effects, embedded item-sheet buttons, movable pinned descriptions and repeatable recent actions. GM dice tray supports native visibility modes.
+- Troubleshooting previews repairs, preserves valid settings, backs up originals and repairs supported legacy layouts. Improved resize, expansion, refresh and stale-session handling.
+
+See [2.1 notes](docs/release-2.0.md#21-update) ([Русский](docs/release-2.0.ru.md#изменения-21)) and the [layout editor](docs/layout-guide.md). Saved preferences take priority over new defaults.
+
+**Development plans.** After 2.1, near-term updates will focus on bug fixes only. No major changes to module behavior or HUD layouts are planned.
+
 ## 2.0.0
 
 ### HUD editor
@@ -40,7 +54,7 @@ See [2.0 details and upgrade notes](docs/release-2.0.md) ([Русский](docs/
 - **Companions on the map:** place an absent creature from its prototype token when permitted, or ping an existing token. Optional camera and token-vision follow preserves the exact character token when returning, including outside the companion's vision.
 - **Familiar senses:** a green eye button adds the familiar's configured sight while your character stays selected and keeps their actions. Camera movement for shared senses can be disabled independently of token selection. Sharing follows the Find Familiar (2024) duration: until your next turn, or six seconds of game time outside combat.
 
-![Companions panel](media/summons-panel.png)
+![Companions panel](media/summons-panel.webp)
 
 - **Creature actions:** Epic Actions, Villain Actions and other activity activation types appear in their GM action groups. The player menu combines nonstandard types, including minutes and hours, under Special. Features shows activated abilities by default, with a saved switch between active and passive traits; hover or keyboard focus previews descriptions, with pinning for longer reading.
 - **Diagnostics:** record a problem for up to ten minutes, mark the failure and preview or download a bounded report with anonymous context, HUD dimensions, action outcomes and reasons for unavailable controls. No automatic uploads; error text is opt-in.

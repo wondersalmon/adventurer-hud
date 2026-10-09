@@ -419,7 +419,7 @@ test("item details put attack and damage before range and show spell save DC", (
   }
 });
 
-test("spell cards show activation and preparation beneath the favorite", () => {
+test("spell preparation is a separate pressed-state control beside the name", () => {
   const item = {
     id: "spell",
     name: "Shield",
@@ -447,8 +447,12 @@ test("spell cards show activation and preparation beneath the favorite", () => {
   assert.match(html, /ws-activation-badge[^>]*>R<\/b>/);
   assert.match(
     html,
-    /data-action="togglefavorite"[\s\S]*data-action="togglespellprepared"/
+    /data-action="togglespellprepared"[\s\S]*data-action="togglefavorite"/
   );
+  const favorite = renderer.combatItemButton(item, { inFavorites: true });
+  assert.doesNotMatch(favorite, /togglespellprepared/);
+  assert.match(favorite, /data-action="removefavorite"/);
+  assert.match(favorite, /data-action="openitem"/);
   item.system.prepared = 2;
   assert.doesNotMatch(renderer.combatItemButton(item), /togglespellprepared/);
 });

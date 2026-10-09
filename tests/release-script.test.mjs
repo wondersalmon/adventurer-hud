@@ -27,7 +27,9 @@ const runRelease = (
     testOnly = false,
     benchmarkOnly = false,
     confirmation = "yes",
-    previousRelease = false
+    previousRelease = false,
+    dependabot = false,
+    pullRequestCount = 1
   } = {}
 ) => {
   const fixture = mkdtempSync(join(tmpdir(), "hud-release-"));
@@ -54,15 +56,18 @@ const runRelease = (
         "-Command",
         `
     $global:Calls = [System.Collections.Generic.List[object]]::new()
+    $global:DependencyCheckReads = 0
     function global:git {
       $global:Calls.Add(@("git") + @($args))
       $global:LASTEXITCODE = 0
       if ($args[0] -eq "symbolic-ref") {
         if ($env:RELEASE_TEST_FAILURE -eq "detached") { $global:LASTEXITCODE = 1 }
-        else { Write-Output "release-branch" }
+        else { Write-Output $(if ($env:RELEASE_TEST_DEPENDABOT -eq "true") { "main" } else { "release-branch" }) }
       }
       if ($args[0] -eq "rev-parse" -and $args -contains "--verify") { $global:LASTEXITCODE = 1 }
       if ($args[0] -eq "diff") { $global:LASTEXITCODE = 1 }
+      if ($args[0] -eq "status" -and $env:RELEASE_TEST_FAILURE -eq "dirty") { Write-Output " M package.json" }
+      if ($args[0] -eq "rev-list") { Write-Output $(if ($env:RELEASE_TEST_FAILURE -eq "ahead") { "1" } else { "0" }) }
       if ($args[0] -eq $env:RELEASE_TEST_FAILURE) { $global:LASTEXITCODE = 1 }
     }
     function global:npm.cmd {
@@ -83,6 +88,36 @@ const runRelease = (
       $global:Calls.Add(@("confirmation"))
       return $env:RELEASE_TEST_CONFIRMATION
     }
+    function global:gh {
+      $global:Calls.Add(@("gh") + @($args))
+      $global:LASTEXITCODE = 0
+      if ($args[0] -eq "auth") { return }
+      if ($args[1] -eq "list") {
+        if ($env:RELEASE_TEST_DEPENDABOT -eq "true") {
+          $List = @(1..[int]$env:RELEASE_TEST_PR_COUNT | ForEach-Object { @{ number = 41 + $_; title = "Update dependencies" } })
+          ConvertTo-Json -InputObject $List -Compress
+        }
+        else { Write-Output '[]' }
+        return
+      }
+      if ($args[1] -eq "merge") {
+        if ($env:RELEASE_TEST_FAILURE -eq "head-race") { $global:LASTEXITCODE = 1 }
+        return
+      }
+      if ($args[-1] -eq "state") {
+        if ($env:RELEASE_TEST_FAILURE -eq "merge-queue") { Write-Output '{"state":"OPEN"}' }
+        else { Write-Output '{"state":"MERGED"}' }
+        return
+      }
+      $global:DependencyCheckReads++
+      $Conclusion = if ($env:RELEASE_TEST_FAILURE -eq "dependency-ci") { "FAILURE" } else { "SUCCESS" }
+      $Author = if ($env:RELEASE_TEST_FAILURE -eq "not-bot") { "someone-else" } else { "dependabot[bot]" }
+      $MergeState = if ($env:RELEASE_TEST_FAILURE -eq "blocked") { "BLOCKED" } else { "CLEAN" }
+      $Status = if ($env:RELEASE_TEST_FAILURE -eq "pending" -and $global:DependencyCheckReads -eq 1) { "IN_PROGRESS" } else { "COMPLETED" }
+      $Checks = if ($env:RELEASE_TEST_FAILURE -eq "missing-ci") { @() } else { @(@{ __typename = "CheckRun"; name = "validate"; status = $Status; conclusion = $Conclusion }) }
+      @{ number = 42; author = @{ login = $Author }; baseRefName = "main"; isCrossRepository = $false; isDraft = $false; state = "OPEN"; headRefOid = "dependency-sha"; statusCheckRollup = $Checks; mergeStateStatus = $MergeState } | ConvertTo-Json -Depth 5 -Compress
+    }
+    function global:Start-Sleep { $global:Calls.Add(@("wait")) }
     try { ${benchmarkOnly ? "& ./dev/release.ps1 -BenchmarkOnly" : testOnly ? "& ./dev/release.ps1 -Test" : "& ./dev/release.ps1 1.2.3"} }
     catch { Write-Output ("ERROR:" + $_.Exception.Message) }
     Write-Output ("CALLS:" + (ConvertTo-Json -InputObject @($global:Calls.ToArray()) -Depth 5 -Compress))
@@ -93,6 +128,8 @@ const runRelease = (
         cwd: fixture,
         env: {
           ...process.env,
+          RELEASE_TEST_DEPENDABOT: String(dependabot),
+          RELEASE_TEST_PR_COUNT: String(pullRequestCount),
           RELEASE_TEST_FAILURE: failure ?? "",
           RELEASE_TEST_CONFIRMATION: confirmation
         }
@@ -119,6 +156,117 @@ const runRelease = (
     usedPrevious: benchmark?.includes(previous) ?? false
   };
 };
+
+test(
+  "release includes checked Dependabot updates before setting its version",
+  { skip: skipReleaseTests },
+  () => {
+    const { calls, output } = runRelease(undefined, { dependabot: true });
+    assert.doesNotMatch(output, /ERROR:/);
+    const mergeIndex = calls.findIndex(
+      call => call[0] === "gh" && call[2] === "merge"
+    );
+    assert.deepEqual(calls[mergeIndex], [
+      "gh",
+      "pr",
+      "merge",
+      "42",
+      "--repo",
+      "wondersalmon/adventurer-hud",
+      "--squash",
+      "--match-head-commit",
+      "dependency-sha"
+    ]);
+    assert.deepEqual(calls[mergeIndex + 2], [
+      "git",
+      "pull",
+      "--ff-only",
+      "origin",
+      "main"
+    ]);
+    assert.deepEqual(calls[mergeIndex + 3], ["npm.cmd", "ci"]);
+    assert.ok(mergeIndex < calls.findIndex(call => call[1] === "version"));
+    assert.ok(
+      calls.some(
+        call => call[1] === "push" && call.includes("HEAD:refs/heads/main")
+      )
+    );
+  }
+);
+
+test(
+  "release checks multiple Dependabot PRs sequentially and installs their combined lockfile",
+  { skip: skipReleaseTests },
+  () => {
+    const { calls, output } = runRelease(undefined, {
+      dependabot: true,
+      pullRequestCount: 2
+    });
+    assert.doesNotMatch(output, /ERROR:/);
+    const merges = calls.filter(
+      call => call[0] === "gh" && call[2] === "merge"
+    );
+    assert.deepEqual(
+      merges.map(call => call[3]),
+      ["42", "43"]
+    );
+    assert.equal(calls.filter(call => call[1] === "pull").length, 3);
+    assert.equal(
+      calls.filter(call => call[0] === "npm.cmd" && call[1] === "ci").length,
+      1
+    );
+  }
+);
+
+test(
+  "release waits for pending Dependabot checks before merging",
+  { skip: skipReleaseTests },
+  () => {
+    const { calls, output } = runRelease("pending", { dependabot: true });
+    assert.doesNotMatch(output, /ERROR:/);
+    assert.ok(
+      calls.findIndex(call => call[0] === "wait") <
+        calls.findIndex(call => call[0] === "gh" && call[2] === "merge")
+    );
+  }
+);
+
+test(
+  "release stops when a Dependabot merge is still queued",
+  { skip: skipReleaseTests },
+  () => {
+    const { calls, output } = runRelease("merge-queue", { dependabot: true });
+    assert.match(output, /ERROR:.*not merged yet/);
+    assert.ok(!calls.some(call => call[0] === "npm.cmd"));
+  }
+);
+
+for (const failure of [
+  "dirty",
+  "ahead",
+  "dependency-ci",
+  "missing-ci",
+  "not-bot",
+  "blocked",
+  "head-race"
+]) {
+  test(
+    `Dependabot ${failure} stops the release without version changes`,
+    { skip: skipReleaseTests },
+    () => {
+      const { calls, output } = runRelease(failure, { dependabot: true });
+      assert.match(output, /ERROR:/);
+      assert.ok(
+        !calls.some(
+          call =>
+            call[0] === "npm.cmd" || call[1] === "tag" || call[1] === "push"
+        )
+      );
+      if (failure !== "head-race")
+        assert.ok(!calls.some(call => call[0] === "gh" && call[2] === "merge"));
+    }
+  );
+}
 
 test(
   "release script pushes the current branch and exact tag atomically",
