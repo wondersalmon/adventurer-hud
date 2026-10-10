@@ -15,7 +15,9 @@ import {
 
 const backupKeys = () => [
   ...Object.keys(getSettingDefinitions()).filter(
-    key => key !== SETTINGS.hudClosed
+    key =>
+      key !== SETTINGS.hudClosed &&
+      getSettingDefinitions()[key].scope !== "world"
   ),
   SETTINGS.proficientSkillsOnly,
   SETTINGS.windowGeometry,

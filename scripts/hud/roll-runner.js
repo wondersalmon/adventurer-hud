@@ -4,6 +4,7 @@ import { createActionCooldown } from "./action-cooldown.js";
 const ROLL_ACTIONS = [
   "initiative",
   "endturn",
+  "scdone",
   "gmprevious",
   "gmnext",
   "gmremove",

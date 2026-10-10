@@ -1,6 +1,12 @@
 import { activeEffectSummaries } from "../effect-summaries.js";
 import { getCurrentCombat } from "../../runtime-helpers.js";
 import { getSetting, setSetting, SETTINGS } from "../../settings-access.js";
+import {
+  readScInitiative,
+  scTurnLabel,
+  canScGoBack
+} from "../../compatibility/sc-venaerys-initiative.js";
+import { renderScPhaseStatus } from "../combat-initiative.js";
 
 const entries = collection => [...(collection?.values?.() ?? collection ?? [])];
 
@@ -223,6 +229,7 @@ export function renderGmCombatHeader({
   const combat = controller.getCombat();
   const list = controller.roster();
   const preparing = !combat?.started;
+  const sc = readScInitiative(combat);
   const initiativeOrder = (combat?.turns ?? entries(combat?.combatants)).filter(
     entry =>
       entry.token &&
@@ -243,6 +250,7 @@ export function renderGmCombatHeader({
     : initiativeOrder;
   const statusDefinitions = adapter.statusDefinitions?.() ?? [];
   const renderCard = (combatant, selectable = true) => {
+    const scState = sc ? readScInitiative(combat, combatant) : null;
     const actor = combatant.token?.actor ?? combatant.actor;
     const name =
       actor?.type === "character"
@@ -259,16 +267,20 @@ export function renderGmCombatHeader({
       game.i18n.localize(status.name ?? status.label ?? status.id)
     );
     const tooltip = `<strong>${escapeHTML(name)}</strong><div>${t("Combat.HP")} ${escapeHTML(hp.value)}/${escapeHTML(hp.max)}${hp.temp ? ` +${escapeHTML(hp.temp)}` : ""}</div>${statuses.length ? `<div class="ws-gm-hover-effects">${statuses.map((status, index) => `<span><img src="${escapeHTML(status.img ?? status.icon ?? "icons/svg/aura.svg")}" alt=""><span>${escapeHTML(effectLabels[index])}</span></span>`).join("")}</div>` : `<div>${t("GM.NoEffects")}</div>`}`;
-    return `<div class="ws-gm-roster-entry"><${tag} data-combatant-id="${escapeHTML(combatant.id)}" ${preparing ? `data-reset-initiative-id="${escapeHTML(combatant.id)}"` : ""} ${selectable ? `type="button" data-action="gmselect" aria-pressed="${combatant.id === selectedId}"` : 'tabindex="0"'} ${tooltip ? `data-tooltip="${escapeHTML(tooltip)}" data-tooltip-class="ws-gm-effects-tooltip"` : ""} class="ws-button ws-gm-creature ${isPlayer(combatant) ? "ws-gm-player-creature" : ""} ${defeated(combatant) ? "ws-gm-defeated" : ""} ${selectable && combatant.id === selectedId ? "ws-selected" : ""} ${combatant.id === combat?.combatant?.id ? "ws-active" : ""}" title="${escapeHTML(name)}">
+    const initiativeButton = scState
+      ? `<button type="button" class="ws-button ws-gm-roster-initiative" data-action="sctracker" title="${t("SC.OpenTracker")}" aria-label="${escapeHTML(t("SC.OpenTracker") + ": " + name)}">${escapeHTML(scState.usesInitiative ? (combatant.initiative ?? "—") : "—")}</button>`
+      : `<button type="button" class="ws-button ws-gm-roster-initiative" ${combatant.initiative != null ? 'aria-haspopup="dialog"' : ""} data-action="gmeditinitiative" data-combatant-id="${escapeHTML(combatant.id)}" title="${t(combatant.initiative == null ? "GM.RollSelectedInitiative" : "GM.EditInitiative")}" aria-label="${escapeHTML(t("GM.EditInitiative") + ": " + name + " · " + (combatant.initiative ?? "—"))}">${escapeHTML(combatant.initiative ?? "—")}<i class="fa-solid fa-pen" aria-hidden="true"></i></button>`;
+    return `<div class="ws-gm-roster-entry"><${tag} data-combatant-id="${escapeHTML(combatant.id)}" ${preparing ? `data-reset-initiative-id="${escapeHTML(combatant.id)}"` : ""} ${selectable ? `type="button" data-action="gmselect" aria-pressed="${combatant.id === selectedId}"` : 'tabindex="0"'} ${tooltip ? `data-tooltip="${escapeHTML(tooltip)}" data-tooltip-class="ws-gm-effects-tooltip"` : ""} class="ws-button ws-gm-creature ${isPlayer(combatant) ? "ws-gm-player-creature" : ""} ${defeated(combatant) ? "ws-gm-defeated" : ""} ${selectable && combatant.id === selectedId ? "ws-selected" : ""} ${(scState ? scState.isActing : combatant.id === combat?.combatant?.id) ? "ws-active" : ""}" title="${escapeHTML(name)}">
       <span class="ws-gm-token-hp ${hpRatio <= 0 ? "ws-hp-empty" : hpRatio <= 0.5 ? "ws-hp-low" : "ws-hp-healthy"}" title="${hp.value}/${hp.max}${hp.temp ? ` +${hp.temp}` : ""}"><span style="width:${hp.max > 0 ? Math.min(100, Math.max(0, (hp.value / hp.max) * 100)) : 0}%"></span><b>${hp.value}/${hp.max}${hp.temp ? `<span class="ws-gm-temp-hp"> +${hp.temp}</span>` : ""}</b></span>
       <span class="ws-gm-portrait-slot" aria-hidden="true"></span>
       <strong>${isPlayer(combatant) ? `<i class="fa-solid fa-user ws-gm-player-marker" title="${t("GM.Players")}" aria-label="${t("GM.Players")}"></i> ` : ""}${escapeHTML(name)}</strong>
       ${statuses.length ? `<span class="ws-gm-roster-effect-marker" role="img" aria-label="${escapeHTML(t("HudLayout.Effects") + ": " + statuses.length)}"></span>` : ""}
 
       ${defeated(combatant) ? `<i class="fa-solid fa-skull" title="${t("GM.Defeated")}"></i>` : ""}
-    </${tag}><button type="button" class="ws-button ws-gm-roster-image" data-action="gmimage" data-combatant-id="${escapeHTML(combatant.id)}" title="${t("GM.OpenImage")}" aria-label="${escapeHTML(t("GM.OpenImage") + ": " + name)}"><img src="${escapeHTML(combatant.token?.texture?.src || actor?.img || "icons/svg/mystery-man.svg")}" alt="" loading="lazy"></button><button type="button" class="ws-button ws-gm-roster-initiative" ${combatant.initiative != null ? 'aria-haspopup="dialog"' : ""} data-action="gmeditinitiative" data-combatant-id="${escapeHTML(combatant.id)}" title="${t(combatant.initiative == null ? "GM.RollSelectedInitiative" : "GM.EditInitiative")}" aria-label="${escapeHTML(t("GM.EditInitiative") + ": " + name + " · " + (combatant.initiative ?? "—"))}">${escapeHTML(combatant.initiative ?? "—")}<i class="fa-solid fa-pen" aria-hidden="true"></i></button><div class="ws-gm-roster-flags">${renderGmHiddenButton(combatant, t, escapeHTML)}${renderGmDefeatedButton(combatant, t, escapeHTML)}<button type="button" class="ws-button" data-action="gmping" data-combatant-id="${escapeHTML(combatant.id)}" title="${t("GM.Ping")}" aria-label="${escapeHTML(t("GM.Ping") + ": " + name)}"><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i></button><button type="button" class="ws-button" data-action="gmcenter" data-combatant-id="${escapeHTML(combatant.id)}" title="${t("GM.ToToken")}" aria-label="${escapeHTML(t("GM.ToToken") + ": " + name)}"><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i></button>${preparing ? `<button type="button" class="ws-button ws-gm-roster-remove" data-action="gmremovecombatants" data-combatant-id="${escapeHTML(combatant.id)}" title="${t("GM.RemoveCombatants")}" aria-label="${escapeHTML(t("GM.RemoveCombatants") + ": " + name)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>` : ""}</div></div>`;
+    </${tag}><button type="button" class="ws-button ws-gm-roster-image" data-action="gmimage" data-combatant-id="${escapeHTML(combatant.id)}" title="${t("GM.OpenImage")}" aria-label="${escapeHTML(t("GM.OpenImage") + ": " + name)}"><img src="${escapeHTML(combatant.token?.texture?.src || actor?.img || "icons/svg/mystery-man.svg")}" alt="" loading="lazy"></button>${initiativeButton}<div class="ws-gm-roster-flags">${scState?.isTurn ? `<button type="button" class="ws-button" data-action="scdone" data-combatant-id="${escapeHTML(combatant.id)}" title="${escapeHTML(scTurnLabel(scState, t) + ": " + name)}" aria-label="${escapeHTML(scTurnLabel(scState, t) + ": " + name)}" ${scState.isActing ? "" : "disabled"}><i class="fa-solid fa-check" aria-hidden="true"></i>${scTurnLabel(scState, t)}</button>` : ""}${renderGmHiddenButton(combatant, t, escapeHTML)}${renderGmDefeatedButton(combatant, t, escapeHTML)}<button type="button" class="ws-button" data-action="gmping" data-combatant-id="${escapeHTML(combatant.id)}" title="${t("GM.Ping")}" aria-label="${escapeHTML(t("GM.Ping") + ": " + name)}"><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i></button><button type="button" class="ws-button" data-action="gmcenter" data-combatant-id="${escapeHTML(combatant.id)}" title="${t("GM.ToToken")}" aria-label="${escapeHTML(t("GM.ToToken") + ": " + name)}"><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i></button>${preparing ? `<button type="button" class="ws-button ws-gm-roster-remove" data-action="gmremovecombatants" data-combatant-id="${escapeHTML(combatant.id)}" title="${t("GM.RemoveCombatants")}" aria-label="${escapeHTML(t("GM.RemoveCombatants") + ": " + name)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>` : ""}</div></div>`;
   };
   return `${preparing ? '<div class="ws-gm-preparation-frame">' : ""}<section class="ws-gm-combat ${preparing ? "ws-gm-preparation" : ""}">
+    ${renderScPhaseStatus(sc, t, escapeHTML)}
     <div class="ws-gm-toolbar">
       ${
         controller.combats().length > 1
@@ -366,6 +378,10 @@ export function renderGmInitiativeButtons(
   { resets = false } = {}
 ) {
   if (!combat) return "";
+  const sc = readScInitiative(combat);
+  if (sc) {
+    return `<button type="button" class="ws-button" data-action="gmrollinitiative" data-scope="players" data-reroll="false" title="${t("SC.RollInTracker")}" disabled><i class="fa-solid fa-dice-d20" aria-hidden="true"></i>${t("SC.RollPlayers")}</button>`;
+  }
   return (
     [
       ["all", "GM.RollAllInitiative", "fa-dice-d20"],
@@ -397,12 +413,14 @@ export function renderGmEndCombatButton(combat, t) {
 }
 
 export function renderGmTurnControls(combat, t) {
+  const sc = readScInitiative(combat);
   const control = (action, icon, label, disabled = false) =>
     `<button type="button" class="ws-button" data-action="${action}" title="${t(label)}" aria-label="${t(label)}" ${disabled ? "disabled" : ""}><i class="fa-solid ${icon}"></i></button>`;
-  return `<div class="ws-gm-navigation">${control("gmprevious", "fa-backward-step", "GM.PreviousTurn", !canGoToPreviousTurn(combat))}<button type="button" class="ws-button ${getSetting(SETTINGS.gmFollowTurn) ? "ws-active" : ""}" data-action="gmfollow" title="${t("GM.Follow")}" aria-label="${t("GM.Follow")}" aria-pressed="${Boolean(getSetting(SETTINGS.gmFollowTurn))}"><i class="fa-solid fa-crosshairs" aria-hidden="true"></i><span>${t("GM.Follow")}</span></button>${control("gmnext", "fa-forward-step", "GM.NextTurn", !combat?.started)}</div>`;
+  return `<div class="ws-gm-navigation">${control("gmprevious", "fa-backward-step", sc ? "SC.PreviousPhase" : "GM.PreviousTurn", !canGoToPreviousTurn(combat))}<button type="button" class="ws-button ${getSetting(SETTINGS.gmFollowTurn) ? "ws-active" : ""}" data-action="gmfollow" title="${t("GM.Follow")}" aria-label="${t("GM.Follow")}" aria-pressed="${Boolean(getSetting(SETTINGS.gmFollowTurn))}"><i class="fa-solid fa-crosshairs" aria-hidden="true"></i><span>${t("GM.Follow")}</span></button>${control("gmnext", "fa-forward-step", sc ? "SC.NextPhase" : "GM.NextTurn", !combat?.started || Boolean(sc && !sc.valid))}</div>`;
 }
 
 export const canGoToPreviousTurn = combat =>
+  canScGoBack(combat) ??
   Boolean(
     combat?.started && (Number(combat.round) > 1 || Number(combat.turn) > 0)
   );

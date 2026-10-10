@@ -132,6 +132,7 @@ export function createHudWindow({
     create(actions) {
       if (!app) {
         const Hud = createHudApplicationClass({
+          ApplicationV2: foundry.applications.api.ApplicationV2,
           DialogV2,
           document,
           getPinLabel: value => t(value ? "Window.Unpin" : "Window.Pin"),

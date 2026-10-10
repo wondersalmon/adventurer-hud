@@ -2,6 +2,7 @@
 /** Saved layout model; no DOM, native documents or storage writes. */
 /** @type {[string, string, string][]} */
 export const HUD_LAYOUT_BLOCKS = [
+  ["sc-phase", ".ws-sc-phase", "SC.Tracker"],
   ["shared-senses", ".ws-familiar-vision", "Companions.VisionAction"],
   ["identity", ".ws-actor-header, .ws-gm-identity", "HudLayout.Identity"],
   ["token-controls", ".ws-gm-identity-actions", "GM.CreatureControls"],

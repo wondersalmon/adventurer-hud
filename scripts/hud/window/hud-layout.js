@@ -187,10 +187,10 @@ export function synchronizeHudLayout(root, state, t) {
         root.querySelector(selector)
     );
     if (!node) continue;
-    if (
-      (key === "search" || key === "hints" || key === "rests") &&
-      !lanes.includes(node.parentElement)
-    ) {
+    const detachedBlock = ["search", "hints", "rests", "sc-phase"].includes(
+      key
+    );
+    if (detachedBlock && !lanes.includes(node.parentElement)) {
       const customized = laneNames.some(lane =>
         state.hudLayouts[`${mode}:${lane}`]?.order.includes(key)
       );
@@ -206,11 +206,12 @@ export function synchronizeHudLayout(root, state, t) {
           const health = nodes.get("hp");
           if (health) health.after(node);
           else lanes[0]?.append(node);
-        } else lanes[1]?.prepend(node);
+        } else if (key === "sc-phase") lanes[0]?.prepend(node);
+        else lanes[1]?.prepend(node);
       }
     }
     if (
-      (key === "search" || key === "hints" || key === "rests") &&
+      detachedBlock &&
       !state.hudEditing &&
       !laneNames.some(lane =>
         state.hudLayouts[`${mode}:${lane}`]?.order.includes(key)
@@ -220,19 +221,18 @@ export function synchronizeHudLayout(root, state, t) {
     // Only whole blocks are movable; nested native controls keep their structure.
     const lane = lanes.indexOf(node.parentElement);
     const footer = node.parentElement?.classList.contains("ws-footer-effects");
-    if (
-      lane < 0 &&
-      !footer &&
-      !node.dataset.hudBlock &&
-      key !== "search" &&
-      key !== "hints" &&
-      key !== "rests"
-    )
+    if (lane < 0 && !footer && !node.dataset.hudBlock && !detachedBlock)
       continue;
     node.dataset.hudBlock = key;
     node.dataset.hudLabel = t(label);
     if (!node.dataset.hudHome)
-      node.dataset.hudHome = footer ? "footer" : lane ? "actions" : "info";
+      node.dataset.hudHome = footer
+        ? "footer"
+        : key === "sc-phase" && lane < 0
+          ? "info"
+          : lane
+            ? "actions"
+            : "info";
     nodes.set(key, node);
     rememberBlockHome(root, node, key);
   }

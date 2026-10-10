@@ -1,6 +1,11 @@
 import { isStatusRemovalEvent } from "./status-interactions.js";
 import { createGmActionScope } from "./gm/gm-action-scope.js";
 import { performRecentRoll } from "./recent-actions.js";
+import {
+  completeScTurn,
+  openScTracker,
+  readScInitiative
+} from "../compatibility/sc-venaerys-initiative.js";
 
 /** @param {import('../../types/hud.js').HudActionsOptions} options */
 export function createActorActions({
@@ -26,6 +31,10 @@ export function createActorActions({
   const canAct = () => Boolean(actor?.isOwner ?? canRollActor);
   let changingStatus = false;
   return {
+    sctracker: () => {
+      const combat = gmController?.getCombat() ?? getCombatState?.().combat;
+      return openScTracker(combat, t);
+    },
     actorinventory: () => {
       if (!canAct()) return ui.notifications.warn(t("Warnings.NoPermission"));
       return adapter.openInventorySheet(actor);
@@ -66,6 +75,8 @@ export function createActorActions({
         return ui.notifications.warn(t("Initiative.NotCombatant"));
       }
 
+      if (readScInitiative(combat, combatant)) return;
+
       return performRoll(() =>
         adapter.rollInitiative(actor, { combatant, event })
       );
@@ -75,6 +86,7 @@ export function createActorActions({
         const combat = gmController.getCombat();
         const canExecute = createGmActionScope(gmController, isSessionCurrent);
         if (!combat?.started || !combat.combatant) return;
+        if (readScInitiative(combat)?.valid === false) return;
         return performSceneAction(async () => {
           if (!canExecute()) return;
           if (gmCombatantId) {
@@ -90,9 +102,35 @@ export function createActorActions({
         });
       }
       if (!getCombatState().canEndTurn) return;
+      const requested = getCombatState();
+      const requestedRound = requested.combat?.round;
       return performAndRefresh(async () => {
-        const { combat, canEndTurn } = getCombatState();
+        const { combat, combatant, canEndTurn } = getCombatState();
         if (!canEndTurn) return;
+        const currentSc = readScInitiative(combat, combatant);
+        if (Boolean(currentSc) !== Boolean(requested.sc)) return;
+        if (requested.sc) {
+          if (
+            combat !== requested.combat ||
+            combatant !== requested.combatant ||
+            combat.round !== requestedRound ||
+            currentSc?.currentPhaseId !== requested.sc.currentPhaseId ||
+            currentSc?.half !== requested.sc.half
+          )
+            return;
+          const result = await completeScTurn(
+            combat,
+            combatant,
+            () =>
+              isSessionCurrent() &&
+              getCombatState().combat === combat &&
+              getCombatState().combatant === combatant,
+            actor
+          );
+          if (result === "done" && isSessionCurrent())
+            await onPlayerTurnEnded?.();
+          return result;
+        }
         const before = {
           id: combat.combatant?.id,
           round: combat.round,

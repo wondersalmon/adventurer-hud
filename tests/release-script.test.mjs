@@ -29,7 +29,11 @@ const runRelease = (
     confirmation = "yes",
     previousRelease = false,
     dependabot = false,
-    pullRequestCount = 1
+    pullRequestCount = 1,
+    beta,
+    prepare = false,
+    branch = dependabot ? "main" : "release-branch",
+    version = beta ? "2.3.0-beta.1" : "1.2.3"
   } = {}
 ) => {
   const fixture = mkdtempSync(join(tmpdir(), "hud-release-"));
@@ -62,7 +66,7 @@ const runRelease = (
       $global:LASTEXITCODE = 0
       if ($args[0] -eq "symbolic-ref") {
         if ($env:RELEASE_TEST_FAILURE -eq "detached") { $global:LASTEXITCODE = 1 }
-        else { Write-Output $(if ($env:RELEASE_TEST_DEPENDABOT -eq "true") { "main" } else { "release-branch" }) }
+        else { Write-Output $env:RELEASE_TEST_BRANCH }
       }
       if ($args[0] -eq "rev-parse" -and $args -contains "--verify") { $global:LASTEXITCODE = 1 }
       if ($args[0] -eq "diff") { $global:LASTEXITCODE = 1 }
@@ -118,7 +122,7 @@ const runRelease = (
       @{ number = 42; author = @{ login = $Author }; baseRefName = "main"; isCrossRepository = $false; isDraft = $false; state = "OPEN"; headRefOid = "dependency-sha"; statusCheckRollup = $Checks; mergeStateStatus = $MergeState } | ConvertTo-Json -Depth 5 -Compress
     }
     function global:Start-Sleep { $global:Calls.Add(@("wait")) }
-    try { ${benchmarkOnly ? "& ./dev/release.ps1 -BenchmarkOnly" : testOnly ? "& ./dev/release.ps1 -Test" : "& ./dev/release.ps1 1.2.3"} }
+    try { ${benchmarkOnly ? "& ./dev/release.ps1 -BenchmarkOnly" : testOnly ? "& ./dev/release.ps1 -Test" : `& ./dev/release.ps1 $env:RELEASE_TEST_VERSION ${beta == null ? "" : "-Beta:($env:RELEASE_TEST_BETA -eq 'true')"} -Prepare:($env:RELEASE_TEST_PREPARE -eq 'true')`} }
     catch { Write-Output ("ERROR:" + $_.Exception.Message) }
     Write-Output ("CALLS:" + (ConvertTo-Json -InputObject @($global:Calls.ToArray()) -Depth 5 -Compress))
   `
@@ -131,7 +135,11 @@ const runRelease = (
           RELEASE_TEST_DEPENDABOT: String(dependabot),
           RELEASE_TEST_PR_COUNT: String(pullRequestCount),
           RELEASE_TEST_FAILURE: failure ?? "",
-          RELEASE_TEST_CONFIRMATION: confirmation
+          RELEASE_TEST_CONFIRMATION: confirmation,
+          RELEASE_TEST_BRANCH: branch,
+          RELEASE_TEST_VERSION: version,
+          RELEASE_TEST_BETA: String(beta),
+          RELEASE_TEST_PREPARE: String(prepare)
         }
       }
     );
@@ -156,6 +164,99 @@ const runRelease = (
     usedPrevious: benchmark?.includes(previous) ?? false
   };
 };
+
+for (const beta of [undefined, true, false])
+  test(
+    `beta version determines the release channel with Beta=${beta ?? "omitted"}`,
+    { skip: skipReleaseTests },
+    () => {
+      const result = runRelease(undefined, {
+        beta,
+        version: "2.3.0-beta.1",
+        branch: "feature/sc-venaerys-initiative",
+        dependabot: true,
+        previousRelease: true
+      });
+      assert.doesNotMatch(result.output, /ERROR:/);
+      assert.equal(result.promoted, false);
+      assert.equal(result.usedPrevious, true);
+      assert.ok(
+        !result.calls.some(call => call[0] === "gh" && call[1] === "pr")
+      );
+      assert.ok(!result.calls.some(call => call[1] === "pull"));
+      assert.deepEqual(result.calls.at(-1), [
+        "git",
+        "push",
+        "--atomic",
+        "origin",
+        "HEAD:refs/heads/feature/sc-venaerys-initiative",
+        "refs/tags/v2.3.0-beta.1"
+      ]);
+    }
+  );
+
+test(
+  "beta preparation builds and validates without authentication, dependency merges, commits, tags or pushes",
+  { skip: skipReleaseTests },
+  () => {
+    const result = runRelease(undefined, {
+      version: "2.3.0-beta.1",
+      prepare: true,
+      branch: "feature/sc-venaerys-initiative",
+      dependabot: true,
+      previousRelease: true
+    });
+    assert.doesNotMatch(result.output, /ERROR:/);
+    assert.match(result.output, /Preparation passed/);
+    assert.equal(result.promoted, false);
+    assert.ok(
+      !result.calls.some(
+        call =>
+          call[0] === "gh" ||
+          call[0] === "confirmation" ||
+          ["add", "commit", "tag", "push", "pull"].includes(call[1])
+      )
+    );
+    for (const command of [
+      "version:sync",
+      "check",
+      "test:ui",
+      "build",
+      "release:notes"
+    ])
+      assert.ok(
+        result.calls.some(
+          call => call[0] === "npm.cmd" && call.includes(command)
+        )
+      );
+  }
+);
+
+for (const options of [
+  { beta: true, branch: "main" },
+  { beta: true, branch: "master" },
+  { beta: true, version: "2.2.0" },
+  { version: "2.3.0-beta.1", branch: "main" },
+  { version: "2.3.0-beta.1", branch: "master" },
+  { version: "2.2.0-rc.1" },
+  { version: "2.3.0-beta.0" }
+])
+  test(
+    `invalid beta mode is rejected before version changes: ${JSON.stringify(options)}`,
+    { skip: skipReleaseTests },
+    () => {
+      const result = runRelease(undefined, options);
+      assert.match(result.output, /ERROR:/);
+      assert.ok(
+        !result.calls.some(
+          call =>
+            call[0] === "npm.cmd" ||
+            call[0] === "gh" ||
+            ["add", "commit", "tag", "push"].includes(call[1])
+        )
+      );
+    }
+  );
 
 test(
   "release includes checked Dependabot updates before setting its version",

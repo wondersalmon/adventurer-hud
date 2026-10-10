@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import { format, resolveConfig } from "prettier";
+import { releaseAssetUrls } from "./release-channel.mjs";
 
 const packageJson = JSON.parse(await fs.readFile("package.json", "utf8"));
 const manifest = JSON.parse(await fs.readFile("module.json", "utf8"));
@@ -8,8 +9,7 @@ const repository = packageJson.repository.url
   .replace(/^git\+/, "");
 
 manifest.version = packageJson.version;
-manifest.manifest = `${repository}/releases/latest/download/module.json`;
-manifest.download = `${repository}/releases/download/v${packageJson.version}/adventurer-hud.zip`;
+Object.assign(manifest, releaseAssetUrls(repository, packageJson.version));
 
 const formatting = await resolveConfig("module.json");
 await fs.writeFile(

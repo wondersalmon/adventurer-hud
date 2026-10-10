@@ -27,3 +27,5 @@ The ordinary mode supports owned companions and does not verify Find Familiar pr
 ## Optional Find Familiar (2024) mode
 
 **Companions settings → Familiar vision (2024)** is off by default. Enable it voluntarily for native Find Familiar summons. This mode verifies summon provenance and an eligible caster, rejects incapacitation, and uses a native Bonus Action activity on the summoning item without another spell slot. Native cancellation does not start sharing. The activity is created once and remains on the item; it can be inspected in the sheet. The **Familiars** filter appears for linked native familiars, including absent ones in the full roster.
+
+With **SC phased initiative** enabled in HUD, the caster may share senses while still acting in their current phase even when another participant has the tracker pointer. In the 2024 mode, use the actions half. Moving to the actions half or marking another participant done does not end sharing; the next caster turn does.

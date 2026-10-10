@@ -12,6 +12,47 @@ import { diagnosticReport } from "../scripts/diagnostics.js";
 
 restoreGlobalsAfterEach();
 
+test("persistent player and GM HUDs do not block SC's dialog busy check", async () => {
+  for (const isGM of [false, true]) {
+    const f = await hudFixture({ isGM });
+    await f.api.open(f.actor);
+    const app = __adventurerHud.app;
+    assert.ok(app instanceof foundry.applications.api.ApplicationV2);
+    assert.equal(app instanceof foundry.applications.api.DialogV2, false);
+    assert.notEqual(app.options.tag, "dialog");
+    const choice = new foundry.applications.api.DialogV2({
+      classes: [],
+      content: document.createElement("div"),
+      position: {}
+    });
+    assert.equal(choice.options.tag, "dialog");
+    assert.ok(choice instanceof foundry.applications.api.DialogV2);
+    await app.close();
+  }
+});
+
+test("ApplicationV2 HUD rendering preserves content, footer action and escaped labels", async () => {
+  const f = await hudFixture();
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  const source = app.options.content;
+  app.options.buttons[0].label = "Close <HUD>";
+  const rendered = await app._renderHTML();
+  assert.ok(rendered.querySelector(".dialog-content .ws-shell"));
+  assert.ok(source.querySelector(".ws-shell"));
+  assert.equal(rendered.querySelector(".form-footer button").type, "button");
+  assert.equal(
+    rendered.querySelector(".form-footer button").dataset.action,
+    "close"
+  );
+  assert.equal(
+    rendered.querySelector(".form-footer button").textContent,
+    "Close <HUD>"
+  );
+  assert.equal(rendered.querySelector(".form-footer button HUD"), null);
+  await app.close();
+});
+
 test("turn button and panel highlight follow the displayed character's turn and visual-effect preference", async () => {
   const f = await hudFixture({ combat: true, values: { playerFooter: false } });
   await f.api.open(f.actor);

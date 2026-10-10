@@ -440,6 +440,7 @@ export async function openActorHud(
       gmController ? gmController.getCombat() : getCombatState().combat,
     isCurrentCombatant: actorContext.isCurrentCombatant,
     isPlayersTurn: () => getCombatState().isTurn,
+    getTurnKey: () => getCombatState().sc?.turnKey ?? null,
     readVisibility,
     syncPreferences: () => {
       syncHudPreferences(hudState, {

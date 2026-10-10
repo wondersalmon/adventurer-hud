@@ -39,6 +39,7 @@ export async function activateHudWindow({
   setCloseOnEscape,
   isCurrentCombatant,
   isPlayersTurn,
+  getTurnKey,
   onSearchInput,
   onToolsChange,
   onStatusChange,
@@ -413,6 +414,7 @@ export async function activateHudWindow({
     readHp,
     isCurrentCombatant,
     isPlayersTurn,
+    getTurnKey,
     onTurnStart: showTurnGlow,
     onInitiativeRequest: () => flash("ws-initiative-flash"),
     onInitiativeRolled: () => {

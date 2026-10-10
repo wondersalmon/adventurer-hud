@@ -24,6 +24,8 @@ Drag an NPC actor from Actors or a compendium onto the creature list during prep
 
 **End turn** advances the encounter exactly once and opens the new current participant, including a player character. Previous/next controls use native turn order. Previous turn is disabled at the first participant of round one. GM settings offer manual selection or following turns.
 
+Enable **SC phased initiative** in **GM settings → World and compatibility**. This world setting is off by default, visible only to GMs and applies automatically to every player, independently of whether the GM HUD is enabled. Enable encounter phases separately in SC — Venaerys's Initiative. **Next phase** and **Previous phase** follow SC halves/phases; Next may leave unfinished participants behind. Participant **Done** and **Finish movement** mark only that participant. HUD initiative rolls are disabled; use SC's popup or **SC tracker** for rolls, initiative editing/reset, phases and event markers. Phase navigation works without a selected creature.
+
 ## Manage a creature
 
 Click its name for the sheet or portrait for an image with Foundry's sharing controls. Search is beside the name; the clear button is inside its field. The row underneath offers **Ping**, **To token**, **Hidden/Visible**, **Defeated** and, for an eligible defeated NPC, red **Remove**. Compact icons also appear on roster cards. Hidden controls apply to GM NPC tokens, excluding player-owned companions. Rapid state toggles pause while updates finish.

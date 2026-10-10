@@ -7,6 +7,7 @@ export const SETTINGS = Object.freeze({
   closeOnEscape: "closeOnEscape",
   slidePanel: "slidePanel",
   openPlayerOnCombat: "openPlayerOnCombat",
+  scInitiative: "scInitiative",
   separateModeSizes: "separateModeSizes",
   windowModeSizes: "windowModeSizes",
   debugWindowSize: "debugWindowSize",
@@ -79,6 +80,7 @@ const defineSetting = (
     refresh = "content",
     type = Boolean,
     gmOnly = false,
+    scope = "user",
     range
   } = {}
 ) =>
@@ -89,6 +91,7 @@ const defineSetting = (
     type,
     default: defaultValue,
     gmOnly,
+    scope,
     ...(range ? { range } : {}),
     ...(choices ? { choices } : {})
   });
@@ -150,6 +153,12 @@ export const SETTING_DEFINITIONS = Object.freeze({
     defaultValue: false,
     placement: "basic",
     refresh: "none"
+  }),
+  [SETTINGS.scInitiative]: defineSetting("behavior", {
+    defaultValue: false,
+    placement: "gm",
+    gmOnly: true,
+    scope: "world"
   }),
   [SETTINGS.separateModeSizes]: defineSetting("interface", {
     defaultValue: false,
@@ -325,6 +334,7 @@ export const SETTING_DEFINITIONS = Object.freeze({
 
 export const getSettingDefinitions = () => SETTING_DEFINITIONS;
 export const getGmSettingGroups = () => ({
+  gmCompatibility: [SETTINGS.scInitiative],
   gmWindow: [
     SETTINGS.gmEnabled,
     SETTINGS.gmActorDrop,

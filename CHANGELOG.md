@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.3.0-beta.1
+
+- Optional SC — Venaerys's Initiative compatibility, disabled by default in GM world compatibility settings and applied to all players. HUD shows phases and Movement/Actions, marks only the displayed hero or companion as finished, and supports GM phase navigation.
+- Companion navigation and shared senses follow phased turns. HUD initiative rolls are disabled in phased encounters; use SC for rolls and initiative editing/reset. Ordinary encounters retain native initiative behavior.
+- Persistent HUD windows use ApplicationV2 so SC can advance completed phases while the GM HUD is open; actual native dialogs still hold automatic advancement until closed.
+- The SC tracker summary supports HUD layout editing, and the ApplicationV2 content fills the window so the player toolbar stays at the bottom.
+- Core integration was checked with separate GM/player clients on Foundry 14.369, D&D 5e 6.0.6 and SC 1.0.3. SC's existing end-of-turn automation limitations remain; SC 1.0.3 may also need manual Next phase after closing a GM dialog.
+
 ## 2.1.0
 
 - Shared GM layout editing, movable action categories and defenses, one extra column, reset/undo and responsive roster/action grids. New GM windows start at 1000 × 450, bottom-left.

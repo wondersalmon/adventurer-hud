@@ -3,16 +3,21 @@ import {
   tokenForActor,
   ownerTokenForActor
 } from "../runtime-helpers.js";
+import { readScInitiative } from "../compatibility/sc-venaerys-initiative.js";
 
 export function combatTurnState(combat, combatant, canAct) {
+  const sc = readScInitiative(combat, combatant);
   const isActive = Boolean(combat?.started && combatant);
-  const isTurn = Boolean(isActive && combat.combatant?.id === combatant.id);
+  const isTurn = sc
+    ? sc.isActing
+    : Boolean(isActive && combat.combatant?.id === combatant.id);
   return {
     combat,
     combatant,
+    sc,
     isActive,
     isTurn,
-    canEndTurn: Boolean(canAct && isTurn)
+    canEndTurn: Boolean(canAct && isTurn && (!sc || combatant?.isOwner))
   };
 }
 

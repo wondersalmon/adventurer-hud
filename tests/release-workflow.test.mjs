@@ -1,9 +1,28 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
 import { publishFoundryRelease } from "../tools/publish-foundry.mjs";
 
-const manifest = JSON.parse(await readFile("module.json", "utf8"));
+// Stable publication must be tested even when this checkout prepares a beta.
+const manifest = {
+  ...JSON.parse(await readFile("module.json", "utf8")),
+  version: "2.3.4"
+};
+const publicationRoot = await mkdtemp(path.join(tmpdir(), "hud-publisher-"));
+await writeFile(
+  path.join(publicationRoot, "module.json"),
+  JSON.stringify(manifest)
+);
+await writeFile(
+  path.join(publicationRoot, "package.json"),
+  JSON.stringify({ version: manifest.version })
+);
+test.after(async () => {
+  assert.ok(publicationRoot.startsWith(path.resolve(tmpdir()) + path.sep));
+  await rm(publicationRoot, { recursive: true, force: true });
+});
 const token = "fvttp_test-token";
 const tag = "v" + manifest.version;
 const versioned = manifest.url + "/releases/download/" + tag;
@@ -33,6 +52,7 @@ const runPublication = async (post, { asset } = {}) => {
   let error;
   try {
     await publishFoundryRelease({
+      root: publicationRoot,
       tag,
       token,
       fetchImpl,
@@ -204,6 +224,7 @@ test("publisher rejects invalid tag/token before accessing the network", async (
   ]) {
     await assert.rejects(
       publishFoundryRelease({
+        root: publicationRoot,
         ...options,
         fetchImpl: () => {
           assert.fail("No network allowed");
@@ -212,4 +233,30 @@ test("publisher rejects invalid tag/token before accessing the network", async (
       /tag|TOKEN|versions differ/
     );
   }
+});
+
+test("prereleases cannot reach Foundry publication, including a manual invocation", async () => {
+  for (const tag of ["v2.2.0-beta.1", "v2.2.0-rc.1"]) {
+    await assert.rejects(
+      publishFoundryRelease({
+        tag,
+        token,
+        fetchImpl: () =>
+          assert.fail("Prereleases must never access the network")
+      }),
+      /Prereleases are GitHub-only/
+    );
+  }
+});
+
+test("release workflow keeps prereleases away from stable latest and Foundry, including dispatch", async () => {
+  const source = await readFile(".github/workflows/release.yml", "utf8");
+  assert.match(source, /CHANNEL_ARGS=\(--prerelease --latest=false\)/);
+  assert.match(source, /--verify-tag/);
+  const foundryJob = source.slice(source.indexOf("  publish-foundry:"));
+  assert.match(
+    foundryJob,
+    /!contains\(inputs\.tag \|\| github\.ref_name, '-'\)/
+  );
+  assert.match(foundryJob, /github\.event_name == 'workflow_dispatch'/);
 });

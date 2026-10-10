@@ -111,7 +111,9 @@ export async function resetSettings({ gmOnly = false } = {}) {
   if (gmOnly && !game.user?.isGM) return;
   await saveChangedSettings([
     ...Object.entries(getSettingDefaults()).filter(
-      ([key]) => Boolean(getSettingDefinitions()[key].gmOnly) === gmOnly
+      ([key]) =>
+        Boolean(getSettingDefinitions()[key].gmOnly) === gmOnly &&
+        getSettingDefinitions()[key].scope !== "world"
     ),
     ...(gmOnly
       ? []

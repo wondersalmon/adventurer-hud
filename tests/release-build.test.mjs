@@ -115,6 +115,10 @@ test("real ZIP includes future release guides, excludes development files and ke
       JSON.parse(await readFile(path.join(root, "dist/module.json"), "utf8"))
     );
     assert.equal(
+      JSON.parse(files.get("module.json")).manifest,
+      repository + "/releases/latest/download/module.json"
+    );
+    assert.equal(
       files.get("README.md"),
       await readFile(path.join(root, "README.md"), "utf8")
     );
@@ -123,6 +127,47 @@ test("real ZIP includes future release guides, excludes development files and ke
         ([file]) => file === "README.md"
       )[1],
       files.get("README.md")
+    );
+  });
+});
+
+test("beta ZIP and downloadable manifest pin the same beta release and never follow stable latest", async () => {
+  await fixture(async root => {
+    const packageJson = JSON.parse(
+      await readFile(path.join(root, "package.json"), "utf8")
+    );
+    packageJson.version = "2.2.0-beta.1";
+    await writeFile(
+      path.join(root, "package.json"),
+      JSON.stringify(packageJson)
+    );
+    await writeFile(
+      path.join(root, "module.json"),
+      JSON.stringify({
+        id: "adventurer-hud",
+        version: packageJson.version,
+        manifest: repository + "/releases/latest/download/module.json"
+      })
+    );
+    const result = spawnSync(process.execPath, [buildScript], {
+      cwd: root,
+      encoding: "utf8"
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const files = zipContents(
+      await readFile(path.join(root, "dist/adventurer-hud.zip"))
+    );
+    const expected = {
+      id: "adventurer-hud",
+      version: "2.2.0-beta.1",
+      manifest: repository + "/releases/download/v2.2.0-beta.1/module.json",
+      download:
+        repository + "/releases/download/v2.2.0-beta.1/adventurer-hud.zip"
+    };
+    assert.deepEqual(JSON.parse(files.get("module.json")), expected);
+    assert.deepEqual(
+      JSON.parse(await readFile(path.join(root, "dist/module.json"), "utf8")),
+      expected
     );
   });
 });

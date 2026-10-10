@@ -9,7 +9,7 @@
 
 The player panel now uses a [two-column layout](media/layout.webp) by default, adapting to one column in narrow windows.
 
-**Development plans.** After 2.1, near-term updates will focus on bug fixes only. No major changes to module behavior or HUD layouts are planned.
+This beta adds optional SC phased initiative compatibility. Stable installations retain the existing initiative behavior.
 
 - [Player guide](docs/player-guide.md) — character actions, spells, favorites, editor and dice.
 - [GM guide](docs/gm-guide.md) — encounter setup, creature actions and turn controls.

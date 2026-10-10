@@ -2,6 +2,11 @@ import { getSetting, setSetting, SETTINGS } from "../../settings-access.js";
 import { openGmSettings } from "../../settings-navigation.js";
 import { createGmActionScope } from "./gm-action-scope.js";
 import {
+  completeScTurn,
+  openScTracker,
+  readScInitiative
+} from "../../compatibility/sc-venaerys-initiative.js";
+import {
   canGoToPreviousTurn,
   hasPlayerOwner,
   defeated,
@@ -168,6 +173,7 @@ export function createGmActions({
       const combat = gmController?.getCombat();
       const combatant = combat?.combatants?.get(target?.dataset.combatantId);
       if (!gmController?.isGM() || !combatant) return;
+      if (readScInitiative(combat)) return openScTracker(combat, t);
       const canExecute = createGmActionScope(gmController, isSessionCurrent);
       if (combatant.initiative == null)
         return runScene(
@@ -277,6 +283,7 @@ export function createGmActions({
     gmresetinitiative: async function (_event, target) {
       const combat = gmController?.getCombat();
       if (!gmController?.isGM() || !combat) return;
+      if (readScInitiative(combat)) return openScTracker(combat, t);
       const npcOnly = target?.dataset.scope === "npc";
       const participants = [
         ...(combat.turns ?? combat.combatants?.values?.() ?? [])
@@ -313,6 +320,7 @@ export function createGmActions({
     gmresetcombatantinitiative: async function (_event, target) {
       const combat = gmController?.getCombat();
       if (!gmController?.isGM() || !combat) return;
+      if (readScInitiative(combat)) return openScTracker(combat, t);
       const combatant = combat.combatants?.get(
         target?.dataset.resetInitiativeId
       );
@@ -320,11 +328,13 @@ export function createGmActions({
       return runScene(() => combatant.update({ initiative: null }));
     },
     gmrollinitiative: async function (_event, target) {
-      if (!gmController?.isGM()) return;
+      if (!gmController?.isGM() || readScInitiative(gmController.getCombat()))
+        return;
       return runScene(async canExecute => {
         const combat = gmController.getCombat();
         if (!combat) return;
         if (!gmController.isGM()) return;
+        if (readScInitiative(combat)) return;
         if (target.dataset.reroll !== "true") {
           const scope = target.dataset.scope;
           if (scope === "all" || scope === "npc") {
@@ -384,6 +394,16 @@ export function createGmActions({
             { updateTurn: true }
           );
       });
+    },
+    scdone: async function (_event, target) {
+      const combat = gmController?.getCombat();
+      if (!gmController?.isGM() || !combat) return;
+      const combatant = combat.combatants?.get(target?.dataset.combatantId);
+      const canExecute = createGmActionScope(gmController, isSessionCurrent);
+      return runScene(
+        () => completeScTurn(combat, combatant, canExecute),
+        canExecute
+      );
     },
     gmspeeds() {
       hudState.gmSpeedsExpanded = !hudState.gmSpeedsExpanded;
@@ -530,6 +550,7 @@ export function createGmActions({
     },
     gmnext: async function () {
       if (!gmController?.isGM() || !gmController.getCombat()?.started) return;
+      if (readScInitiative(gmController.getCombat())?.valid === false) return;
       return runScene(async canExecute => {
         if (!gmController.isGM() || !gmController.getCombat()?.started) return;
         await gmController.getCombat().nextTurn();

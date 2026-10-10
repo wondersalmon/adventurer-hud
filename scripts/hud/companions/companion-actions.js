@@ -4,6 +4,7 @@ import { worldDocument, companionIsFamiliar } from "./companions.js";
 import { hudSceneTokens } from "../token-focus.js";
 import { getSetting, SETTINGS } from "../../settings-access.js";
 import { reportFailure } from "../../diagnostics.js";
+import { readScInitiative } from "../../compatibility/sc-venaerys-initiative.js";
 /** @param {import('../../../types/hud.js').CompanionPanelOptions} options @param {import('../../../types/hud.js').CompanionActionDependencies} dependencies */
 export function createCompanionActions(
   {
@@ -62,9 +63,19 @@ export function createCompanionActions(
       focus(`[data-companion-filter="${filter}"]`);
     },
     companioninitiative: async (event, target) => {
-      if (!isCurrent() || rolling) return;
+      if (
+        !isCurrent() ||
+        rolling ||
+        readScInitiative(companionInitiative({}).combat)
+      )
+        return;
       const entry = await resolved(target.dataset.companionUuid);
-      if (!isCurrent() || !entry?.actor) return;
+      if (
+        !isCurrent() ||
+        !entry?.actor ||
+        readScInitiative(companionInitiative({}).combat)
+      )
+        return;
       return picker.withToken(
         {
           ...entry,
@@ -177,8 +188,9 @@ export function createCompanionActions(
    */
   const rollEntries = async (choices, event) => {
     if (rolling || !isCurrent() || currentMode() !== "combat") return;
-    rolling = true;
     const combat = companionInitiative({}).combat;
+    if (readScInitiative(combat)) return;
+    rolling = true;
     const seen = new Set();
     refreshHud();
     try {
@@ -188,7 +200,8 @@ export function createCompanionActions(
         if (
           !isCurrent() ||
           currentMode() !== "combat" ||
-          companionInitiative({}).combat !== combat
+          companionInitiative({}).combat !== combat ||
+          readScInitiative(combat)
         )
           break;
         const state = companionInitiative(current ?? {});

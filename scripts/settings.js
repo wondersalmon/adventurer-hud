@@ -23,7 +23,7 @@ export function registerSettings() {
     game.settings.register(MODULE_ID, key, {
       name: `ADVENTURER_HUD.Settings.${key}.Name`,
       hint: `ADVENTURER_HUD.Settings.${key}.Hint`,
-      scope: "user",
+      scope: definition.scope,
       config: definition.placement === "basic",
       type: definition.type,
       ...(definition.choices ? { choices: definition.choices } : {}),

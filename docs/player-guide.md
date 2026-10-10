@@ -12,6 +12,8 @@ Initiative requires a combat participant. **End turn** is available on your turn
 
 Click **HP** for damage `-7`, healing `+5` or a new value `12`; temporary HP is separate. Shift-click restores HP to maximum. Death saves appear at 0 HP when needed. Inspiration is beside your name; in exploration, compact short/long rest buttons sit beside it with hover labels. Saves and checks stay open. Expand speed for other movement types.
 
+**SC phased initiative** is a GM world setting under **GM settings → World and compatibility**, disabled by default and applied to every player automatically. Enable SC — Venaerys's Initiative and encounter phases separately. Every unfinished participant in your phase can mark **Done**, or **Finish movement** during the movement half. Only the displayed hero or companion is marked. Companion Done returns to the hero; finishing movement keeps the companion open. HUD initiative buttons are disabled: roll through SC's popup or **SC tracker**. Encounters without phases retain ordinary initiative.
+
 ## Search, favorites and cards
 
 Character search covers all items, activities, skills, tools, saves and checks regardless of the visible tab. Names come from your sheet, not the HUD language. Results retain native controls and rolls. Inventory provides equipment/consumable/other filters, weight and nonzero coins in both modes.

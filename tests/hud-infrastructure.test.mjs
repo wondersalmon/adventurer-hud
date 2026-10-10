@@ -152,6 +152,7 @@ test("HUD ignores Escape by default and the preference is independent of pinning
   let pinned = true;
   let closeOnEscape = false;
   const HudApplication = createHudApplicationClass({
+    ApplicationV2: DialogV2,
     DialogV2,
     document: {},
     getPinLabel: value => (value ? "Unpin" : "Pin"),

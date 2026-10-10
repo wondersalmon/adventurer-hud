@@ -1,4 +1,22 @@
 /* Combat mode */
+.ws-rolls-dialog .ws-sc-phase {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: calc(12px * var(--ws-type-scale));
+}
+
+.ws-rolls-dialog .ws-sc-phase > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .ws-rolls-dialog .ws-combat-view {
   gap: 10px;
 }
@@ -1715,7 +1733,11 @@
 
 .ws-rolls-dialog
   .window-content
-  > form:has(.ws-gm-view, .ws-player-layout, .ws-gm-preparation-frame),
+  > :is(form, .dialog-form):has(
+    .ws-gm-view,
+    .ws-player-layout,
+    .ws-gm-preparation-frame
+  ),
 .ws-rolls-dialog
   .dialog-content:has(
     .ws-gm-view,

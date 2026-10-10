@@ -40,6 +40,7 @@ export function prepareSettingsGroups({ groups, readValue, t }) {
         ].includes(key)
           ? SETTINGS.showCompanions
           : key !== SETTINGS.gmEnabled &&
+              key !== SETTINGS.scInitiative &&
               (definitions[key]?.gmOnly ||
                 ["gmSelectionMode", "gmActionDisplay"].includes(key))
             ? SETTINGS.gmEnabled

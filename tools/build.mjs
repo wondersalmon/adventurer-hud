@@ -3,6 +3,7 @@ import { createWriteStream } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { verifyReleaseDocumentation } from "./release-documentation.mjs";
+import { releaseAssetUrls } from "./release-channel.mjs";
 import {
   collectReleaseFiles,
   readReleaseDocuments
@@ -24,8 +25,7 @@ if (manifest.version !== packageJson.version)
   throw new Error(
     "module.json and package.json versions differ; run version:sync first."
   );
-manifest.manifest = `${repository}/releases/latest/download/module.json`;
-manifest.download = `${repository}/releases/download/v${packageJson.version}/adventurer-hud.zip`;
+Object.assign(manifest, releaseAssetUrls(repository, packageJson.version));
 
 const files = await collectReleaseFiles(root);
 const documents = await readReleaseDocuments(root, files);
