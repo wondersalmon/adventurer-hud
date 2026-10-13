@@ -16,7 +16,11 @@ export function bindItemDescriptionInteractions({
     });
   };
   const onContextMenu = event => {
-    if (event.button === 2) route(event);
+    if (
+      event.button === 2 &&
+      !event.target?.closest?.(".ws-item-favorite, .ws-item-prepare")
+    )
+      route(event);
   };
   const onKeyDown = event => {
     if (event.key === "ContextMenu") route(event, { keyboard: true });

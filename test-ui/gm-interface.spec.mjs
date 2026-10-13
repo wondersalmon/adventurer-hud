@@ -14,7 +14,7 @@ test("GM defaults reserve narrow details and reflow action and roster cards", as
     "hud/window/gm-column-dividers.js": ["bindGmColumnDividers"]
   });
   await page.evaluate(() => {
-    window.dividers = bindGmColumnDividers(
+    window.dividers = window.bindGmColumnDividers(
       document.querySelector(".ws-rolls-dialog"),
       {
         readRatio: () => 0,
@@ -100,9 +100,16 @@ test("GM defaults reserve narrow details and reflow action and roster cards", as
 test("GM identity aligns portrait, name and search, with an internal clear control", async ({
   page
 }) => {
+  const fixture = await layoutFixture("en", {
+    editing: true,
+    searchQuery: "guard"
+  });
   await page.setContent(
     `<style>${fixture.baseline}\n${fixture.css}</style><section class="ws-rolls-dialog ws-theme-dark" style="width:1000px"><div class="window-content" style="height:420px"><div class="ws-shell">${fixture.bodies["gm-features"]}</div></div></section>`
   );
+  await page
+    .locator(".ws-gm-search")
+    .evaluate(node => node.removeAttribute("open"));
   const summary = page.locator(".ws-gm-search > summary");
   const name = await page.locator(".ws-gm-name").boundingBox();
   const portrait = await page.locator(".ws-gm-selected-image").boundingBox();
@@ -125,6 +132,7 @@ test("GM identity aligns portrait, name and search, with an internal clear contr
   await expect(
     page.locator('.ws-gm-search [data-action="searchitems"]')
   ).toBeVisible();
+  await expect(page.locator(".ws-gm-search input")).toHaveValue("guard");
   const input = await page.locator(".ws-gm-search input").boundingBox();
   const clear = await page
     .locator('.ws-gm-search [data-action="clearsearch"]')
@@ -150,12 +158,12 @@ test("GM dividers, independent categories and movement remain bounded during res
   });
   await page.evaluate(() => {
     const root = document.querySelector(".ws-rolls-dialog");
-    window.state = createHudState({
+    window.state = window.createHudState({
       hudEditing: true,
       hudLayouts: { "combat:extra": { order: [], hidden: [] } }
     });
     window.ratios = { roster: 0.2, info: 0.4 };
-    window.gmDividers = bindGmColumnDividers(root, {
+    window.gmDividers = window.bindGmColumnDividers(root, {
       readRatio: key => window.ratios[key],
       saveRatio: (key, value) => {
         window.ratios[key] = value;
@@ -163,21 +171,21 @@ test("GM dividers, independent categories and movement remain bounded during res
       isPinned: () => root.classList.contains("ws-pinned"),
       t: key => key
     });
-    window.extraDivider = bindExtraColumn(root, {
+    window.extraDivider = window.bindExtraColumn(root, {
       readRatio: () => 0.5,
       saveRatio: () => {},
       isPinned: () => false
     });
     window.sync = () => {
-      gmDividers.sync();
-      synchronizeHudLayout(root, window.state, key => key);
-      extraDivider.sync();
+      window.gmDividers.sync();
+      window.synchronizeHudLayout(root, window.state, key => key);
+      window.extraDivider.sync();
     };
     window.sync();
     root.addEventListener("click", event => {
       const target = event.target.closest('[data-action="hudblockmove"]');
       if (target) {
-        changeHudLayout(root, window.state, target);
+        window.changeHudLayout(root, window.state, target);
         window.sync();
       }
     });
@@ -201,7 +209,9 @@ test("GM dividers, independent categories and movement remain bounded during res
   await divider.focus();
   await page.keyboard.press("ArrowRight");
   expect(await page.evaluate(() => window.ratios.roster)).toBeGreaterThan(0.2);
-  for (const width of [1950, 1150, 900, 899, 850, 640, 320, 1150]) {
+  for (const width of [
+    1950, 1400, 1150, 1000, 900, 899, 850, 740, 640, 320, 1150
+  ]) {
     await page.locator(".ws-rolls-dialog").evaluate((node, width) => {
       node.style.width = width + "px";
       window.sync();
@@ -216,10 +226,40 @@ test("GM dividers, independent categories and movement remain bounded during res
         .locator(".ws-gm-body")
         .evaluate(node => node.scrollWidth <= node.clientWidth + 2)
     ).toBe(true);
-    if (width < 900)
+    const hasDetailsColumn = await page
+      .locator(".ws-gm-view")
+      .evaluate(node => node.classList.contains("ws-gm-three-columns"));
+    if (!hasDetailsColumn)
       await expect(page.locator('[data-gm-divider="info"]')).toBeHidden();
     else await expect(page.locator('[data-gm-divider="info"]')).toBeVisible();
   }
+  for (const roster of [0, 0.65])
+    for (const width of [740, 900, 1000, 1400, 1950]) {
+      const layout = await page.evaluate(
+        ({ roster, width }) => {
+          const root = document.querySelector(".ws-rolls-dialog");
+          root.style.width = width + "px";
+          window.ratios.roster = roster;
+          window.sync();
+          const body = root.querySelector(".ws-gm-body");
+          const extra = root.querySelector(".ws-hud-secondary-columns");
+          return {
+            bodyFits: body.scrollWidth <= body.clientWidth + 2,
+            extraFits: extra.scrollWidth <= extra.clientWidth + 2,
+            three: root
+              .querySelector(".ws-gm-view")
+              .classList.contains("ws-gm-three-columns"),
+            bodyWidth: body.clientWidth,
+            fourth: extra.classList.contains("ws-hud-secondary-wide")
+          };
+        },
+        { roster, width }
+      );
+      expect(layout.bodyFits, `${width}px roster ${roster}`).toBe(true);
+      expect(layout.extraFits, `${width}px roster ${roster}`).toBe(true);
+      expect(layout.three).toBe(layout.bodyWidth >= 568);
+      if (width === 1950 && roster === 0) expect(layout.fourth).toBe(true);
+    }
   await page.evaluate(() => {
     document.querySelector(".ws-rolls-dialog").classList.add("ws-pinned");
     window.sync();
@@ -251,8 +291,8 @@ test("GM dividers, independent categories and movement remain bounded during res
     )
   ).toBe(true);
   await page.evaluate(() => {
-    gmDividers.dispose();
-    extraDivider.dispose();
+    window.gmDividers.dispose();
+    window.extraDivider.dispose();
   });
   expect(errors).toEqual([]);
 });
@@ -269,13 +309,14 @@ test("preparation blocks move between columns and remain readable at wide and na
   });
   await page.evaluate(() => {
     const root = document.querySelector(".ws-rolls-dialog");
-    window.state = createHudState({ hudEditing: true });
-    window.sync = () => synchronizeHudLayout(root, window.state, key => key);
+    window.state = window.createHudState({ hudEditing: true });
+    window.sync = () =>
+      window.synchronizeHudLayout(root, window.state, key => key);
     window.sync();
     root.addEventListener("click", event => {
       const target = event.target.closest('[data-action="hudblockmove"]');
       if (target) {
-        changeHudLayout(root, window.state, target);
+        window.changeHudLayout(root, window.state, target);
         window.sync();
       }
     });

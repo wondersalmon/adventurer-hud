@@ -7,10 +7,62 @@ import {
   resolveCompanion,
   companionNavigationContext
 } from "../scripts/hud/companions/companions.js";
+import { createCombatStatusRenderer } from "../scripts/hud/combat-statuses.js";
+import { dnd5eAdapter } from "../scripts/dnd5e/index.js";
+import { renderCompanionList } from "../scripts/hud/companions/companion-list.js";
 import { companionEffects } from "../scripts/hud/companions/companion-details.js";
 import { fixture, target } from "./helpers/companions.mjs";
 
 restoreGlobalsAfterEach();
+
+test("companion hover lists all active native effects despite icon preferences and avoids ambiguous tokens", async () => {
+  const f = await fixture();
+  const actor = f.npc("hover");
+  actor.statuses = new Set(["poisoned"]);
+  CONFIG.statusEffects = [{ id: "poisoned", name: "Poisoned" }];
+  actor.effects = [
+    { id: "buff", name: '<Buff & "ward">' },
+    { id: "disabled", name: "Inactive", disabled: true },
+    { id: "suppressed", name: "Suppressed", isSuppressed: true }
+  ];
+  f.current.set("hiddenEffects", ["status:poisoned"]);
+  const entry = { uuid: actor.uuid, actor, tokenOptions: [], sceneTokens: [] };
+  const render = () => {
+    const root = document.createElement("div");
+    root.innerHTML = renderCompanionList({
+      entries: [entry],
+      owner: f.actor,
+      adapter: dnd5eAdapter,
+      filter: "all",
+      combatMode: false,
+      showEffects: false,
+      t: key => key,
+      escapeHTML: foundry.utils.escapeHTML
+    });
+    return root;
+  };
+  const root = render();
+  const button = root.querySelector(".ws-companion-open");
+  const tooltip = document.createElement("div");
+  tooltip.innerHTML = button.dataset.tooltip;
+  assert.equal(button.dataset.tooltipClass, "ws-gm-effects-tooltip");
+  assert.match(tooltip.textContent, /Poisoned/);
+  assert.match(tooltip.textContent, /<Buff & "ward">/);
+  assert.doesNotMatch(tooltip.textContent, /Inactive|Suppressed/);
+  assert.equal(tooltip.querySelector("buff"), null);
+  assert.equal(root.querySelector(".ws-companion-effects"), null);
+  actor.effects = [];
+  actor.statuses.clear();
+  assert.match(
+    render().querySelector(".ws-companion-open").dataset.tooltip,
+    /GM.NoEffects/
+  );
+  entry.tokenOptions.push({}, {});
+  assert.equal(
+    render().querySelector(".ws-companion-open").hasAttribute("data-tooltip"),
+    false
+  );
+});
 
 test("roster scans the actor and token catalogs once and action resolution stays fresh", async t => {
   const f = await fixture();
@@ -254,4 +306,94 @@ test("removed owner closes the panel and releases all companion subscriptions", 
   await waitFor(() => !app.rendered);
   assert.equal(__adventurerHud.app, null);
   assert.equal(f.callbacks.size, baseline);
+});
+
+test("player and companion concentration stays first while both honour effect visibility settings", async () => {
+  const f = await fixture();
+  const actor = f.npc("concentrating");
+  const statuses = ["poisoned", "bloodied", "concentrating"];
+  CONFIG.statusEffects = statuses.map(id => ({
+    id,
+    name: id,
+    img: "icons/svg/aura.svg"
+  }));
+  CONFIG.DND5E.conditionTypes = { poisoned: {} };
+  actor.statuses = new Set(statuses);
+  actor.effects = [
+    { id: "buff", name: "Buff" },
+    { id: "hidden", name: "Hidden buff" },
+    { id: "extra", name: "Extra buff" }
+  ];
+  const renderPlayer = () => {
+    const root = document.createElement("div");
+    root.innerHTML = createCombatStatusRenderer({
+      actor,
+      adapter: dnd5eAdapter,
+      escapeHTML: foundry.utils.escapeHTML,
+      hudState: {},
+      t: key => key,
+      visibility: {
+        hiddenEffects: f.current.get("hiddenEffects"),
+        statusFilter: f.current.get("statusFilter")
+      }
+    }).combatStatuses();
+    return [...root.querySelectorAll(".ws-status")].map(
+      node => node.dataset.statusId
+    );
+  };
+  const renderCompanion = () => {
+    const root = document.createElement("div");
+    root.innerHTML = renderCompanionList({
+      entries: [{ uuid: actor.uuid, actor, tokenOptions: [], sceneTokens: [] }],
+      owner: f.actor,
+      adapter: dnd5eAdapter,
+      filter: "all",
+      combatMode: false,
+      t: key => key,
+      escapeHTML: foundry.utils.escapeHTML
+    });
+    return root;
+  };
+  assert.equal(renderPlayer()[0], "concentrating");
+  assert.equal(companionEffects(actor, dnd5eAdapter)[0].id, "concentrating");
+  assert.equal(
+    renderCompanion()
+      .querySelector(".ws-companion-effects > span")
+      .getAttribute("aria-label"),
+    "concentrating"
+  );
+  f.current.set("hiddenEffects", ["status:concentrating"]);
+  assert.equal(renderPlayer().includes("concentrating"), false);
+  assert.equal(
+    companionEffects(actor, dnd5eAdapter).some(
+      effect => effect.id === "concentrating"
+    ),
+    false
+  );
+  f.current.set("hiddenEffects", []);
+  assert.ok(renderCompanion().querySelector(".ws-companion-effects-extra"));
+  f.current.set("hiddenEffects", ["status:poisoned", "effect:Hidden buff"]);
+  const filtered = renderCompanion();
+  assert.ok(filtered.querySelector(".ws-companion-effects-extra"));
+  assert.equal(filtered.querySelector('[aria-label="poisoned"]'), null);
+  assert.equal(filtered.querySelector('[aria-label="Hidden buff"]'), null);
+  f.current.set("hiddenEffects", []);
+  f.current.set("statusFilter", "conditions");
+  assert.equal(renderPlayer()[0], "concentrating");
+  assert.deepEqual(
+    companionEffects(actor, dnd5eAdapter).map(effect => effect.id),
+    renderPlayer()
+  );
+  assert.equal(
+    renderCompanion()
+      .querySelector(".ws-companion-effects > span")
+      .getAttribute("aria-label"),
+    "concentrating"
+  );
+  assert.equal(
+    companionEffects(actor, dnd5eAdapter).some(
+      effect => effect.name === "Buff"
+    ),
+    false
+  );
 });

@@ -7,7 +7,8 @@ export function createCombatSpellRenderer({
   hudState,
   t,
   tf,
-  escapeHTML
+  escapeHTML,
+  visibility
 }) {
   const spellSlots = level => {
     if (level <= 0) {
@@ -36,22 +37,42 @@ export function createCombatSpellRenderer({
         const kind = `<span class="ws-slot-kind" aria-hidden="true">${t(isPact ? "Combat.PactSlotsShort" : "Combat.SpellSlotsShort")}</span>`;
         const poolClass = isPact ? "ws-pact-slots" : "";
 
-        return `<span class="ws-spell-slots ${poolClass}" title="${label}: ${value}/${max}">${kind}${dots}<b>${value}/${max}</b></span>`;
+        return `<button type="button" class="ws-spell-slots ws-button ${poolClass}" data-action="editspellslots" data-spell-pool="${escapeHTML(pool)}" ${actor.isOwner ? "" : "disabled"} aria-label="${escapeHTML(label + ": " + value + "/" + max + " — " + t("Combat.EditSlots"))}" title="${escapeHTML(label + ": " + value + "/" + max + " — " + t("Combat.EditSlots"))}">${kind}${dots}<b>${value}/${max}</b></button>`;
       })
       .join("");
   };
 
   const spellGroups = items => {
-    const filtered = hudState.preparedSpellsOnly
-      ? items.filter(item => adapter.isPreparedSpell(item))
+    const filtersEnabled = visibility?.spellPreparation !== false;
+    const sourceAvailable =
+      filtersEnabled &&
+      hudState.spellSource &&
+      (adapter.spellSources?.(actor) ?? []).some(
+        source => source.source === hudState.spellSource
+      );
+    const sourceItems = sourceAvailable
+      ? items.filter(
+          item => adapter.spellSourceId?.(item) === hudState.spellSource
+        )
       : items;
+    const filtered = !filtersEnabled
+      ? items
+      : hudState.unpreparedSpellsOnly
+        ? sourceItems.filter(
+            item =>
+              adapter.spellPreparation?.(item)?.canPrepare &&
+              !adapter.isPreparedSpell(item)
+          )
+        : hudState.preparedSpellsOnly
+          ? sourceItems.filter(item => adapter.isPreparedSpell(item))
+          : sourceItems;
     if (diagnosticsRecording())
       recordDiagnostic(
         "hud.cards.filter",
         {
           category: "spells",
           reason: "prepared-only",
-          preparedOnly: hudState.preparedSpellsOnly,
+          preparedOnly: filtersEnabled && hudState.preparedSpellsOnly,
           requested: items.length,
           processed: filtered.length
         },

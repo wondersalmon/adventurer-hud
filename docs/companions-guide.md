@@ -2,28 +2,30 @@
 
 [Player guide](player-guide.md) · [GM guide](gm-guide.md) · [Русский](companions-guide.ru.md)
 
-## Finding and controlling companions
+## Control a companion
 
-The **Companions** button automatically lists owned characters and creatures except your main/assigned character.
+Open **Companions** to see characters and creatures you own. Click a companion to open its actions in the same window; **Return to …** brings you back to your character.
 
-Open a companion's actions in the same window; switch to another below **Return to …**. Ending its turn returns to your character. Return restores the original character token, including outside the companion's vision. **Follow companion selection** selects its token, uses native sight and centers the camera; disable it to switch only the panel. Ping marks a token without selecting it. This preference is separate from camera movement during shared senses.
+Hover over a card to see effects and conditions. **+N** reveals additional effect icons. Shift-click a card to confirm healing to full HP.
 
-## Placing creatures: player and GM
-
-In **All**, **Add to scene** places an absent creature from its prototype token. Choose a map position; Escape or right-click cancels. Actor ownership and token-creation permission are required; players cannot place while paused. A placed creature does not automatically join combat. GMs add its exact token to the encounter to enable initiative.
-
-Grant Actor or token ownership to make companions available. Token-only ownership gives access to that instance; directory placement requires Actor ownership. Configure the prototype token and sight beforehand. Cast summon spells through native D&D activities rather than creating manual HUD links.
+**Follow companion selection** also selects the token and moves the camera. Turn it off if you only want to switch the panel.
 
 ![Companions panel](../media/summons-panel.webp)
 
-## Shared senses
+## Add to the scene
 
-Use the eye from your character's companion list. It adds the companion's configured native sight while your character stays controlled and retains their actions. Walls and configured vision still apply; hearing and telepathic range are not simulated. Camera movement is off by default; enable **Move camera with shared senses** separately.
+Use **Add to scene** for an absent companion and choose a position. Escape or right-click cancels. You need ownership and permission to create tokens; players cannot place them while the game is paused.
 
-Both tokens must be on this scene and controllable. The companion needs enabled sight and more than 0 HP. During combat the caster must participate and have the current turn. With multiple character tokens, select the intended one first. Hover a disabled eye for the reason.
+Placement does not automatically add a companion to combat. Ask the GM to add its token to the encounter. If a companion is missing from the list, check ownership with the GM.
 
-The ordinary mode supports owned companions and does not verify Find Familiar provenance or spend a Bonus Action. Agree the applicable feature with your GM and track costs yourself. Sharing lasts until the start of the caster's next turn, or six seconds of advanced game time outside combat. A green eye and message mark it; click again to stop early. Changing token/panel or closing/reopening stops sharing.
+## Share senses
 
-## Optional Find Familiar (2024) mode
+Click the eye in your character's companion list to see through a companion while keeping control of your character. Both tokens must be on the scene; the companion needs sight and more than 0 HP. Hover over an unavailable eye to learn why.
 
-**Companions settings → Familiar vision (2024)** is off by default. Enable it voluntarily for native Find Familiar summons. This mode verifies summon provenance and an eligible caster, rejects incapacitation, and uses a native Bonus Action activity on the summoning item without another spell slot. Native cancellation does not start sharing. The activity is created once and remains on the item; it can be inspected in the sheet. The **Familiars** filter appears for linked native familiars, including absent ones in the full roster.
+In combat, sharing normally requires your turn. **Share vision on any turn** relaxes that restriction. Camera movement is a separate option.
+
+Click the eye again to stop. Sharing also ends at your next turn, after six seconds of game time outside combat, or when you change the panel or close the HUD. Hearing and telepathic range are not simulated; agree any action cost with the GM.
+
+## Familiar vision (2024)
+
+This optional setting is for familiars summoned through D&D's Find Familiar activity. It checks the familiar and caster and uses a Bonus Action without another spell slot. Leave it off for ordinary companion vision.

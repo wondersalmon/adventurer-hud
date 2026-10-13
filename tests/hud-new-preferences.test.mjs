@@ -1,3 +1,4 @@
+import { createTroubleshootingController } from "../scripts/settings-applications.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -55,7 +56,7 @@ test("window resets are independent and clear separate player mode sizes", async
       windowModeSizes: { combat: { width: 900, height: 500 } }
     }
   });
-  const App = f.menus.get("troubleshooting").type;
+  const App = createTroubleshootingController().constructor;
   const app = new App();
   app.t = key => key;
   foundry.applications.api.DialogV2 = { confirm: async () => true };
@@ -89,7 +90,7 @@ test("player geometry reset moves and resizes an open pinned HUD immediately thr
     width: 650,
     height: 430
   });
-  const App = f.menus.get("troubleshooting").type,
+  const App = createTroubleshootingController().constructor,
     troubleshooting = new App();
   troubleshooting.t = key => key;
   foundry.applications.api.DialogV2.confirm = async () => true;

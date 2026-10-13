@@ -19,20 +19,32 @@ import {
   renderCompanionSection
 } from "../scripts/hud/companions/companion-panel.js";
 
-export async function layoutFixture(
-  language = "ru",
-  { documentation = false, editing = false } = {}
-) {
+// Runtime files are immutable during one worker; actor/state fixtures stay fresh.
+const stylesPromise = (async () => {
   const manifest = JSON.parse(
     await readFile(new URL("../module.json", import.meta.url), "utf8")
   );
-  const css = (
+  return (
     await Promise.all(
       manifest.styles.map(file =>
         readFile(new URL("../" + file, import.meta.url), "utf8")
       )
     )
   ).join("\n");
+})();
+
+export async function layoutFixture(
+  language = "ru",
+  {
+    documentation = false,
+    editing = false,
+    expandedStat = null,
+    searchQuery = "",
+    hudLayouts = {},
+    featureCount = 7
+  } = {}
+) {
+  const css = await stylesPromise;
   const portrait =
     "data:image/svg+xml," +
     encodeURIComponent(
@@ -47,6 +59,8 @@ export async function layoutFixture(
   actor.img = portrait;
   actor.system.details.level = 12;
   actor.system.attributes.hp = { value: 128, max: 245, temp: 18 };
+  actor.system.attributes.ac = { value: 17, base: 15, shield: 2 };
+  actor.system.attributes.init = { mod: 2, total: 7 };
   actor.system.attributes.encumbrance = { value: 87.5, max: 180 };
   actor.system.currency = { gp: 1234, pp: 10, ep: 0, sp: 3, cp: 5 };
   actor.system.attributes.movement = {
@@ -128,7 +142,7 @@ export async function layoutFixture(
   actor.statuses = new Set(
     documentation ? [] : CONFIG.statusEffects.map(s => s.id)
   );
-  const items = Array.from({ length: 27 }, (_, index) => {
+  const items = Array.from({ length: 20 + featureCount }, (_, index) => {
     const type = index < 8 ? "weapon" : index < 20 ? "spell" : "feat";
     const activity = {
       id: "a" + index,
@@ -294,6 +308,9 @@ export async function layoutFixture(
         : {})
     };
     const state = createHudState({
+      searchQuery,
+      hudLayouts,
+      armorClassExpanded: expandedStat === "ac",
       hudEditing: editing,
       companionsExpanded: scenario.startsWith("player-companions"),
       currentView:
@@ -421,8 +438,16 @@ export async function layoutFixture(
                         actor: {
                           ...actor,
                           name: "Сова",
+                          statuses: new Set(),
                           effects: [
+                            ...Array.from({ length: 3 }, (_, index) => ({
+                              id: `companion-extra-${index}`,
+                              name: `Effect ${index}`,
+                              img: portrait,
+                              statuses: new Set()
+                            })),
                             {
+                              id: "bless",
                               name: "Благословение",
                               img: "icons/svg/aura.svg",
                               statuses: new Set()

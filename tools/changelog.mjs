@@ -29,3 +29,19 @@ export function assertReleaseReady(notes, version) {
   )
     throw new Error(`Release notes for ${version} are not finalized.`);
 }
+
+/** GitHub release bodies resolve repository-relative links outside the repo. */
+export function resolveReleaseNoteLinks(notes, repository, version) {
+  const base = `${repository
+    .replace(/\.git$/, "")
+    .replace(/^git\+/, "")
+    .replace(/\/$/, "")}/blob/v${version}/CHANGELOG.md`;
+  return notes.replace(
+    /(!?\[[^\]]*\]\()([^)]+)(\))/g,
+    (match, start, reference, end) => {
+      if (/^[a-z][a-z\d+.-]*:/i.test(reference) || reference.startsWith("#"))
+        return match;
+      return `${start}${new URL(reference, base).href}${end}`;
+    }
+  );
+}

@@ -1,6 +1,6 @@
 {
   "name": "adventurer-hud",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
   "type": "module",
   "description": "A player-focused character, rolls and combat HUD for Foundry VTT D&D 5e.",
@@ -11,13 +11,17 @@
   "scripts": {
     "build": "node tools/build.mjs",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run validate",
+    "check:ci": "npm run format:check && npm run lint && npm run typecheck && npm run test:coverage && npm run validate",
     "typecheck": "tsc --project jsconfig.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint scripts tools tests test-ui playwright.config.mjs && stylelint \"styles/**/*.css\"",
     "release:notes": "node tools/release-notes.mjs",
-    "test": "node --test",
-    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=tests/**",
+    "test": "node tools/test-suite.mjs all",
+    "test:runtime": "node tools/test-suite.mjs runtime",
+    "test:integration": "node tools/test-suite.mjs integration",
+    "test:local": "node tools/test-suite.mjs local",
+    "test:coverage": "node tools/test-suite.mjs all --coverage",
     "validate": "node tools/validate.mjs",
     "version:sync": "node tools/sync-version.mjs",
     "test:ui": "playwright test"

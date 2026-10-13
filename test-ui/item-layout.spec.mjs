@@ -67,6 +67,23 @@ test("shared player/GM editor supports drag, arrows, hiding and keyboard restora
   await page.locator('[data-action="togglehudedit"]').click();
   await page.locator(".ws-combat-item").first().click();
   expect(await page.evaluate(() => window.layoutUses())).toBe(0);
+  await expect(
+    page.locator('[data-action="moveitemtop"]').first()
+  ).toBeDisabled();
+  await page.locator('[data-action="moveitembottom"]').first().click();
+  await expect(page.locator(".ws-organized-entry").last()).toHaveAttribute(
+    "data-layout-key",
+    "item-0"
+  );
+  await expect(
+    page.locator('[data-action="moveitembottom"]').last()
+  ).toBeDisabled();
+  await page.locator('[data-action="moveitemtop"]').last().focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".ws-organized-entry").first()).toHaveAttribute(
+    "data-layout-key",
+    "item-0"
+  );
   await page.locator('[data-action="moveitemdown"]').first().click();
   await expect(page.locator(".ws-organized-entry").first()).toHaveAttribute(
     "data-layout-key",

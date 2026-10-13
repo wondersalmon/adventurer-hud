@@ -1,6 +1,10 @@
 // @ts-check
 import { MODULE_ID } from "./module-id.js";
-import { SETTINGS, getSettingDefinitions } from "./settings-schema.js";
+import {
+  SETTINGS,
+  getSettingDefinitions,
+  normalizeHudTheme
+} from "./settings-schema.js";
 import {
   getSetting,
   saveChangedSettings,
@@ -32,7 +36,12 @@ export async function settingsBackup() {
     format: 1,
     settings: Object.fromEntries(
       backupKeys()
-        .filter(key => !getSettingDefinitions()[key]?.gmOnly || game.user?.isGM)
+        .filter(
+          key =>
+            game.user?.isGM ||
+            (!getSettingDefinitions()[key]?.gmOnly &&
+              key !== SETTINGS.gmWindowGeometry)
+        )
         .map(key => [key, getSetting(key)])
     )
   };
@@ -71,8 +80,43 @@ export function settingsBackupEntries(text) {
     /** @type {Record<string, unknown>} */ (data.settings)
   ).filter(([key]) => keys.includes(key));
   if (!entries.length) throw new Error("backup-invalid");
+  const importedKeys = new Set(entries.map(([key]) => key));
+  if (
+    importedKeys.has(SETTINGS.twoColumnWidth) &&
+    !importedKeys.has(SETTINGS.twoColumnMode)
+  )
+    entries.push([
+      SETTINGS.twoColumnMode,
+      entries.find(([key]) => key === SETTINGS.twoColumnWidth)?.[1] === 450
+        ? "auto"
+        : "manual"
+    ]);
+  for (const [
+    modeKey,
+    oldKey,
+    attackKey
+  ] of /** @type {[string, string, string | null][]} */ ([
+    [SETTINGS.cardDetails, SETTINGS.showItemDetails, null],
+    [
+      SETTINGS.gmCardDetails,
+      SETTINGS.gmShowItemDetails,
+      SETTINGS.gmShowAttackDetails
+    ]
+  ]))
+    if (!importedKeys.has(modeKey) && importedKeys.has(oldKey)) {
+      const values = Object.fromEntries(entries);
+      entries.push([
+        modeKey,
+        values[oldKey]
+          ? "all"
+          : attackKey && !values[attackKey]
+            ? "off"
+            : "basic"
+      ]);
+    }
   const candidate = Object.fromEntries(keys.map(key => [key, getSetting(key)]));
   for (const [key, value] of entries) candidate[key] = value;
+  candidate[SETTINGS.theme] = normalizeHudTheme(candidate[SETTINGS.theme]);
   // Only supported legacy fields may change before strict validation.
   const panels = candidate[SETTINGS.panelStates];
   if (panels && typeof panels === "object" && !Array.isArray(panels)) {

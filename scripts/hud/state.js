@@ -16,6 +16,7 @@ export function createHudState(initial = {}) {
     explorationSkillsCollapsed: false,
     combatCategory: null,
     conditionsExpanded: false,
+    armorClassExpanded: false,
     currentView: "main",
     favoritesExpanded: true,
     itemLayouts: {},
@@ -23,12 +24,16 @@ export function createHudState(initial = {}) {
     hudEditing: false,
     hudLayoutUndo: null,
     itemHiddenExpanded: null,
+    collapsedFeatureGroups: [],
     companionsExpanded: false,
     companionFilter: "scene",
     forcedMode: null,
     inventoryCategory: "equipped",
+    spellSource: null,
     preparedSpellsOnly: true,
+    unpreparedSpellsOnly: false,
     showPassiveFeatures: false,
+    allFeatures: false,
     proficientSkillsOnly: true,
     renderedMode: null,
     searchQuery: "",
@@ -40,6 +45,14 @@ export function createHudState(initial = {}) {
         ? "skills"
         : (initial.currentView ?? "main")
   };
+}
+
+/** @param {import('../../types/hud.js').HudState} state
+ * @param {'armorClassExpanded' | 'gmSpeedsExpanded'} key */
+export function toggleStatDetails(state, key) {
+  const expanded = !state[key];
+  state.armorClassExpanded = state.gmSpeedsExpanded = false;
+  state[key] = expanded;
 }
 
 export function setForcedMode(state, mode) {

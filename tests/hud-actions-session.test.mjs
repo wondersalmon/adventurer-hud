@@ -357,8 +357,9 @@ test("window session updates live settings and releases document hooks", async (
         removeAttribute() {},
         querySelector: () => null,
         querySelectorAll: () => [],
-        style: { setProperty() {} },
+        style: resizeDocument.createElement("div").style,
         classList: {
+          contains: name => elementClasses.has(name),
           add: name => elementClasses.add(name),
           toggle: (name, enabled) =>
             enabled ? elementClasses.add(name) : elementClasses.delete(name),
@@ -454,7 +455,8 @@ test("window session updates live settings and releases document hooks", async (
     playersTurn = true;
     hookCallbacks.get("updateCombat")();
     assert.equal(elementClasses.has("ws-turn-arrival"), true);
-    assert.equal(elementClasses.has("ws-heal-flash"), false);
+    assert.equal(elementClasses.has("ws-heal-flash"), true);
+    assert.equal(elementClasses.has("ws-hp-feedback"), true);
     assert.equal(elementClasses.has("ws-initiative-flash"), false);
     hookCallbacks.get("createCombatant")({ id: "own", initiative: null });
     assert.equal(elementClasses.has("ws-initiative-flash"), false);

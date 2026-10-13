@@ -1,3 +1,4 @@
+import { getSetting, SETTINGS } from "../settings-access.js";
 import { ownerTokenForActor } from "../runtime-helpers.js";
 import { openActorPicker } from "./actor-picker.js";
 
@@ -33,6 +34,19 @@ export async function selectHudActor({
     } else if (availableActors.length === 1) {
       return { actor: availableActors[0], token: null };
     } else {
+      const policy = getSetting(SETTINGS.hudActorSelection);
+      const uuid =
+        policy === "assigned"
+          ? game.user?.character?.uuid
+          : policy === "last"
+            ? getSetting(SETTINGS.lastHudActor)
+            : policy === "specific"
+              ? getSetting(SETTINGS.hudPreferredActor)
+              : null;
+      const preferred = availableActors.find(
+        candidate => candidate.uuid === uuid
+      );
+      if (preferred) return { actor: preferred, token: null };
       await openActorPicker({
         actors: availableActors,
         DialogV2,

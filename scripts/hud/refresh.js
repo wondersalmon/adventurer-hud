@@ -130,6 +130,9 @@ export function refreshHudView({
       const input = panel.querySelector('[data-action="searchitems"]');
       if (input && input.value !== hudState.searchQuery)
         input.value = hudState.searchQuery;
+      panel
+        .querySelector('[data-action="clearsearch"]')
+        ?.toggleAttribute("hidden", !hudState.searchQuery);
       if (previous?.outerHTML !== next?.outerHTML) {
         beforeReplace?.();
         if (previous && next) previous.replaceWith(next);

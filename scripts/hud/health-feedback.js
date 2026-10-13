@@ -1,3 +1,21 @@
+export function healthColor(percent) {
+  return percent <= 0
+    ? "var(--muted)"
+    : percent >= 70
+      ? "var(--success)"
+      : percent > 50
+        ? "var(--warning)"
+        : `hsl(3 65% ${Math.round(35 + percent * 0.3)}%)`;
+}
+
+/** Dedicated meter colors keep HP fills independent of readable warning text. */
+export function healthFillColor(percent) {
+  const color = healthColor(percent);
+  return percent <= 0
+    ? color
+    : `var(--ws-palette-hp-${percent >= 70 ? "healthy" : percent > 50 ? "warning" : "danger"}, ${color})`;
+}
+
 export function healthWidths({ value = 0, temp = 0, max = 0 }) {
   const scale = Math.max(1, max, value + temp);
   return {

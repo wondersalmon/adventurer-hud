@@ -185,3 +185,69 @@ test("GM selection coalesces opens and ignores callbacks from superseded session
   assert.equal(resumes, 1);
   assert.equal(schedules, 2);
 });
+
+test("player block layouts are shared by default while character settings and legacy layouts survive", async () => {
+  const { flushPanelPreferences } =
+    await import("../scripts/hud/panel-preferences.js");
+  let separate = false;
+  const layout = key => ({ "regular:info": { order: [key], hidden: [] } });
+  let stored = {
+    "Actor.one": {
+      hudLayouts: layout("hp"),
+      currentView: "inventory",
+      itemLayouts: { "inventory:other": { order: ["one"], hidden: [] } }
+    },
+    "Actor.two": { hudLayouts: layout("stats"), currentView: "spells" }
+  };
+  const options = actorUuid => ({
+    actorUuid,
+    gmActive: false,
+    readSetting: key =>
+      key === "panelStates"
+        ? stored
+        : key === "perCharacterLayout"
+          ? separate
+          : false,
+    writeSetting: async (_key, value) => {
+      stored = value;
+    }
+  });
+  const first = createPanelPreferences(options("Actor.one"));
+  await flushPanelPreferences();
+  assert.deepEqual(stored["player:layout"].hudLayouts, layout("hp"));
+  const second = createPanelPreferences(options("Actor.two"));
+  assert.deepEqual(second.initialState.hudLayouts, layout("hp"));
+  assert.equal(second.initialState.currentView, "spells");
+  const stale = createHudState(first.initialState);
+  const edited = createHudState(second.initialState);
+  edited.hudLayouts = layout("rests");
+  await second.save(edited);
+  stale.currentView = "skills";
+  await first.save(stale);
+  assert.deepEqual(stored["player:layout"].hudLayouts, layout("rests"));
+  assert.deepEqual(stored["Actor.one"].hudLayouts, layout("hp"));
+  assert.deepEqual(stored["Actor.two"].hudLayouts, layout("stats"));
+  assert.deepEqual(stored["Actor.one"].itemLayouts["inventory:other"].order, [
+    "one"
+  ]);
+  assert.deepEqual(
+    createPanelPreferences(options("Actor.new")).initialState.hudLayouts,
+    layout("rests")
+  );
+  separate = true;
+  assert.deepEqual(
+    createPanelPreferences(options("Actor.one")).initialState.hudLayouts,
+    layout("hp")
+  );
+  const own = createPanelPreferences(options("Actor.two"));
+  const ownState = createHudState(own.initialState);
+  ownState.hudLayouts = layout("identity");
+  await own.save(ownState);
+  assert.deepEqual(stored["Actor.two"].hudLayouts, layout("identity"));
+  assert.deepEqual(stored["player:layout"].hudLayouts, layout("rests"));
+  separate = false;
+  assert.deepEqual(
+    createPanelPreferences(options("Actor.two")).initialState.hudLayouts,
+    layout("rests")
+  );
+});

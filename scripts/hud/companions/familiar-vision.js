@@ -90,7 +90,9 @@ export function createFamiliarVision({
     if (!placeableFor(ownerToken)) return "Actor.TokenNotOnScene";
     const combat = getCurrentCombat(game);
     const owner = ownerCombatant(combat, ownerToken);
-    return combat?.started && (!owner || combat.combatant?.id !== owner.id)
+    return !getSetting(SETTINGS.companionVisionAnyTurn) &&
+      combat?.started &&
+      (!owner || combat.combatant?.id !== owner.id)
       ? "Companions.VisionOwnTurn"
       : null;
   };
@@ -181,15 +183,21 @@ export function createFamiliarVision({
       const isOwnerTurn = combat?.combatant?.id === owner?.id;
       const turns = combat?.turns ?? [];
       const ownerIndex = turns.findIndex(turn => turn.id === owner?.id);
-      expired =
-        combat !== state.combat ||
-        !combat?.started ||
-        !owner ||
-        Number(combat.round) < state.round ||
-        (Number(combat.round) > state.round &&
-          (isOwnerTurn ||
-            (ownerIndex >= 0 && Number(combat.turn) >= ownerIndex))) ||
-        (state.leftOwner && isOwnerTurn);
+      if (!owner && getSetting(SETTINGS.companionVisionAnyTurn)) {
+        expired =
+          combat !== state.combat ||
+          !combat?.started ||
+          Number(game.time?.worldTime ?? 0) >= state.until;
+      } else
+        expired =
+          combat !== state.combat ||
+          !combat?.started ||
+          !owner ||
+          Number(combat.round) < state.round ||
+          (Number(combat.round) > state.round &&
+            (isOwnerTurn ||
+              (ownerIndex >= 0 && Number(combat.turn) >= ownerIndex))) ||
+          (state.leftOwner && isOwnerTurn);
       if (!isOwnerTurn) state.leftOwner = true;
     } else {
       expired =
@@ -225,7 +233,11 @@ export function createFamiliarVision({
         return ui.notifications.warn(t("Companions.VisionUnavailable"));
       const combat = getCurrentCombat(game);
       const owner = ownerCombatant(combat, ownerToken);
-      if (combat?.started && (!owner || combat.combatant?.id !== owner.id))
+      if (
+        !getSetting(SETTINGS.companionVisionAnyTurn) &&
+        combat?.started &&
+        (!owner || combat.combatant?.id !== owner.id)
+      )
         return ui.notifications.warn(t("Companions.VisionOwnTurn"));
       busy = true;
       const operation = ++revision;

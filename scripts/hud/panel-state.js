@@ -6,7 +6,9 @@ const BOOLEAN_KEYS = [
   "conditionsExpanded",
   "favoritesExpanded",
   "preparedSpellsOnly",
-  "showPassiveFeatures"
+  "unpreparedSpellsOnly",
+  "showPassiveFeatures",
+  "allFeatures"
 ];
 
 const COMBAT_CATEGORIES = new Set([
@@ -36,6 +38,24 @@ export function panelStateForActor(stored, actorUuid) {
   if (!saved || typeof saved !== "object") return {};
 
   const state = {};
+  if (
+    saved.spellSource === null ||
+    (typeof saved.spellSource === "string" &&
+      saved.spellSource.length <= 256 &&
+      !/[\u0000-\u001f]/.test(saved.spellSource))
+  )
+    state.spellSource = saved.spellSource;
+  if (Array.isArray(saved.collapsedFeatureGroups))
+    state.collapsedFeatureGroups = [
+      ...new Set(
+        saved.collapsedFeatureGroups.filter(
+          key =>
+            typeof key === "string" &&
+            key.length <= 256 &&
+            !/[\u0000-\u001f]/.test(key)
+        )
+      )
+    ].slice(0, 1000);
   if (saved.itemLayouts)
     state.itemLayouts = normalizeItemLayouts(saved.itemLayouts);
   if (saved.hudLayouts)
@@ -72,7 +92,17 @@ export function panelStateSnapshot(state) {
     ...(Object.keys(state.itemLayouts ?? {}).length
       ? { itemLayouts: normalizeItemLayouts(state.itemLayouts) }
       : {}),
+    collapsedFeatureGroups: [...(state.collapsedFeatureGroups ?? [])].slice(
+      0,
+      1000
+    ),
     ...Object.fromEntries(BOOLEAN_KEYS.map(key => [key, Boolean(state[key])])),
+    spellSource:
+      typeof state.spellSource === "string" &&
+      state.spellSource.length <= 256 &&
+      !/[\u0000-\u001f]/.test(state.spellSource)
+        ? state.spellSource
+        : null,
     combatCategory: validCombatCategory(state.combatCategory)
       ? state.combatCategory
       : null,

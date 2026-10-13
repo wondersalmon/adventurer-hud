@@ -1,7 +1,11 @@
 import { restoreGlobalsAfterEach } from "./helpers/foundry.mjs";
 import assert from "node:assert/strict";
 import test, { beforeEach } from "node:test";
-import { escapeHTML, itemRendererFixture } from "./helpers/rendering.mjs";
+import {
+  escapeHTML,
+  fragment,
+  itemRendererFixture
+} from "./helpers/rendering.mjs";
 
 import { createHudActions } from "../scripts/hud/actions.js";
 import { createItemPanelRenderer } from "../scripts/hud/items/item-panels.js";
@@ -223,7 +227,7 @@ test("hidden item details skip attack and damage calculations", () => {
   }
 });
 
-test("multi-activity cards show a chooser and permanent item and activity stars", () => {
+test("multi-activity cards show a chooser and item and activity stars in favorite mode", () => {
   const activities = [
     { id: "attack", name: "Attack", use() {} },
     { id: "save", name: "Save", use() {} }
@@ -249,7 +253,11 @@ test("multi-activity cards show a chooser and permanent item and activity stars"
     hudState,
     t: key => key,
     tf: key => key,
-    visibility: { activityPicker: true, favorites: true, search: true }
+    visibility: {
+      activityPicker: true,
+      favorites: true,
+      search: true
+    }
   });
 
   const html = renderer.combatItemButton(item);
@@ -268,7 +276,7 @@ test("multi-activity cards show a chooser and permanent item and activity stars"
   assert.match(renderer.globalSearchPanel(), /value="staff"/);
 });
 
-test("compact favorites use the displayed item for descriptions and always expose activity removal", () => {
+test("compact favorites use the displayed item for descriptions and expose activity removal in favorite mode", () => {
   const item = { id: "spell", name: "Spell", type: "spell", system: {} };
   const source = { id: "wand" };
   const { renderer, hudState } = itemRendererFixture({
@@ -278,7 +286,10 @@ test("compact favorites use the displayed item for descriptions and always expos
       favoritesExpanded: true
     },
     adapter: { itemUsageTarget: () => ({ item: source, activityId: "cast" }) },
-    visibility: { favorites: true }
+    visibility: {
+      favorites: true,
+      hideItemOpenButton: false
+    }
   });
   let html = renderer.favoriteSection();
   assert.match(html, /data-description-item-id="spell"/);
@@ -440,7 +451,10 @@ test("spell preparation is a separate pressed-state control beside the name", ()
     escapeHTML,
     hudState: { favoriteEntries: [] },
     t: key => key,
-    visibility: { favorites: true }
+    visibility: {
+      favorites: true,
+      hideItemOpenButton: false
+    }
   });
 
   const html = renderer.combatItemButton(item);
@@ -457,7 +471,7 @@ test("spell preparation is a separate pressed-state control beside the name", ()
   assert.doesNotMatch(renderer.combatItemButton(item), /togglespellprepared/);
 });
 
-test("spell slot counters display regular and pact pools without manual edits", () => {
+test("spell slot counters expose separate current-value editors for regular and pact pools", () => {
   const item = { id: "spell", name: "Spell", type: "spell" };
   const adapter = {
     spellLevel: () => 2,
@@ -471,7 +485,7 @@ test("spell slot counters display regular and pact pools without manual edits", 
     itemUsesData: () => null
   };
   const options = {
-    actor: { items: new Map([[item.id, item]]) },
+    actor: { isOwner: true, items: new Map([[item.id, item]]) },
     adapter,
     escapeHTML,
     hudState: { favoriteEntries: [], preparedSpellsOnly: false },
@@ -483,8 +497,12 @@ test("spell slot counters display regular and pact pools without manual edits", 
     ...options,
     canRollActor: true
   }).spellGroups([item]);
-  assert.doesNotMatch(html, /openspellslots/);
-  assert.doesNotMatch(html, /openspellslots/);
+  const root = fragment(html);
+  assert.equal(
+    root.querySelectorAll('[data-action="editspellslots"]').length,
+    2
+  );
+  assert.equal(root.querySelector('[data-spell-pool="pact"]').disabled, false);
   assert.match(html, /ws-slot-kind[^>]*>Combat.SpellSlotsShort<\/span>/);
   assert.match(html, /ws-pact-slots[\s\S]*Combat.PactSlotsShort/);
   assert.doesNotMatch(
@@ -742,7 +760,10 @@ test("native availability keeps empty-charge overrides usable and disabled favor
       favoriteEntries: [{ itemId: item.id, activityId: "hidden" }],
       favoritesExpanded: true
     },
-    visibility: { favorites: true }
+    visibility: {
+      favorites: true,
+      hideItemOpenButton: false
+    }
   });
   const html = renderer.favoriteSection();
   assert.match(html, /Wand: Hidden/);
@@ -783,7 +804,10 @@ test("empty favorites offer editing guidance and depleted items retain their ord
     items: [empty, charged],
     adapter: dnd5eAdapter,
     hudState: { favoriteEntries: entries, favoritesExpanded: true },
-    visibility: { favorites: true }
+    visibility: {
+      favorites: true,
+      hideItemOpenButton: false
+    }
   });
   const html = renderer.favoriteSection();
   assert.ok(html.indexOf("Empty") < html.indexOf("Ready"));

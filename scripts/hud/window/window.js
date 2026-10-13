@@ -21,11 +21,6 @@ function windowControls(t, gmActive) {
             icon: gmActive ? "fa-solid fa-user" : "fa-solid fa-dragon",
             label: t(gmActive ? "Window.SwitchToPlayer" : "Window.SwitchToGm"),
             action: "togglepreset"
-          },
-          {
-            icon: "fa-solid fa-dragon",
-            label: t("Settings.GM.Name"),
-            action: "gmsettings"
           }
         ]
       : []),
@@ -38,12 +33,7 @@ function windowControls(t, gmActive) {
           }
         ]
       : []),
-    { icon: "fa-solid fa-gear", label: t("Settings.Open"), action: "settings" },
-    {
-      icon: "fa-solid fa-wrench",
-      label: t("Settings.Troubleshooting.Name"),
-      action: "troubleshooting"
-    }
+    { icon: "fa-solid fa-gear", label: t("Settings.Open"), action: "settings" }
   ];
 }
 

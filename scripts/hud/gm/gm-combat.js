@@ -272,7 +272,7 @@ export function renderGmCombatHeader({
     <div class="ws-gm-toolbar">
       ${
         controller.combats().length > 1
-          ? `<select data-gm-combat-select aria-label="${t("GM.ChooseCombat")}">${controller
+          ? `<select name="gmCombat" data-gm-combat-select aria-label="${t("GM.ChooseCombat")}">${controller
               .combats()
               .map(
                 entry =>
@@ -290,6 +290,7 @@ export function renderGmCombatHeader({
     <div class="ws-gm-setup"><button type="button" class="ws-button" data-action="gmaddcreatures"><i class="fa-solid fa-users" aria-hidden="true"></i>${t("GM.AddCreatures")}</button><button type="button" class="ws-button" data-action="gmaddcreatures" data-scope="all"><i class="fa-solid fa-layer-group" aria-hidden="true"></i>${t("GM.AddSceneCreatures")}</button></div>
     <div class="ws-gm-initiative-controls">${renderGmInitiativeButtons(combat, list, t, { resets: true })}</div>
     ${combat ? `<div class="ws-gm-initiative-controls"><button type="button" class="ws-button" data-action="gmremovecombatants" data-scope="all" ${initiativeOrder.length ? "" : "disabled"}><i class="fa-solid fa-user-minus" aria-hidden="true"></i>${t("GM.RemoveAllCombatants")}</button><button type="button" class="ws-button" data-action="gmremovecombatants" data-scope="npc" ${initiativeOrder.some(entry => entry.isNPC ?? !hasPlayerOwner(entry)) ? "" : "disabled"}><i class="fa-solid fa-user-minus" aria-hidden="true"></i>${t("GM.RemoveNpcCombatants")}</button></div>` : ""}
+    ${combat ? `<div class="ws-gm-initiative-controls">${renderGmRevealButton(combat, t)}</div>` : ""}
 </section>`
         : ""
     }
@@ -318,7 +319,7 @@ export function renderGmCombatHeader({
     }
     ${showRemoval && combat?.started ? `<div class="ws-gm-tools">${renderGmTurnControls(combat, t)}${renderGmInitiativeButtons(combat, list, t)}${renderGmRemovalButton(list, t)}${renderGmRevealButton(combat, t)}${renderGmEndCombatButton(combat, t)}</div>` : ""}
     ${combat && !list.length ? `<div class="ws-empty">${t("GM.NoCreatures")}</div>` : ""}
-  </section>${preparing ? `${combat ? `<footer class="ws-gm-preparation-footer">${renderGmRevealButton(combat, t)}<button type="button" class="ws-button ws-gm-start" data-action="gmstartcombat"><i class="fa-solid fa-play" aria-hidden="true"></i>${t("GM.StartCombat")}</button></footer>` : ""}</div>` : ""}`;
+  </section>${preparing ? `${combat ? `<footer class="ws-gm-preparation-footer"><button type="button" class="ws-button ws-gm-start" data-action="gmstartcombat"><i class="fa-solid fa-play" aria-hidden="true"></i>${t("GM.StartCombat")}</button></footer>` : ""}</div>` : ""}`;
 }
 
 export function renderGmRemovalButton(list, t) {

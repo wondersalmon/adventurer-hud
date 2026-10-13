@@ -16,6 +16,162 @@ import { SETTINGS, settingRefreshStrategy } from "../scripts/settings.js";
 
 restoreGlobalsAfterEach();
 
+test("GM action categories retain spells alongside weapons when spell tabs are visible", () => {
+  installSettings();
+  globalThis.CONFIG = { DND5E: {} };
+  const spell = {
+    id: "fire",
+    type: "spell",
+    name: "Fire Bolt",
+    system: {
+      activities: new Map([
+        ["cast", { id: "cast", activation: { type: "action" }, use() {} }]
+      ])
+    }
+  };
+  const weapon = {
+    id: "dagger",
+    type: "weapon",
+    name: "Dagger",
+    system: {
+      activities: new Map([
+        ["stab", { id: "stab", activation: { type: "action" }, use() {} }]
+      ])
+    }
+  };
+  const f = itemRendererFixture({
+    items: [spell, weapon],
+    adapter: dnd5eAdapter,
+    visibility: { gm: true, showActionTypes: true, actionTypesOnly: false },
+    hudState: { combatCategory: "action" }
+  });
+  const root = fragment(f.renderer.combatActions());
+  assert.equal(
+    root.querySelector('[data-category="action"] small').textContent,
+    "2"
+  );
+  const cards = root.querySelectorAll(
+    ".ws-combat-item-list [data-description-item-id]"
+  );
+  assert.deepEqual(
+    [...cards].map(card => card.dataset.descriptionItemId),
+    ["fire", "dagger"]
+  );
+  assert.ok(root.querySelector('[data-category="spells"]'));
+});
+
+test("Features use native advancement origins and retain hidden cards and personal order", () => {
+  installSettings();
+  game.i18n.localize = key =>
+    ({
+      "ADVENTURER_HUD.Features.Class": "Class",
+      "ADVENTURER_HUD.Features.Species": "Species feature"
+    })[key] ?? key;
+  globalThis.CONFIG = {
+    DND5E: {
+      featureTypes: {
+        race: { label: "Species" },
+        class: { label: "Class" },
+        background: { label: "Background" },
+        feat: { label: "Feats" }
+      }
+    }
+  };
+  const origins = itemCollection([
+    { id: "monk", type: "class", name: "Monk <class>" },
+    { id: "race", type: "race", name: "Elf" }
+  ]);
+  const items = [
+    ["a", "Armor", "monk"],
+    ["b", "Burst", "race"],
+    ["c", "Counter", "monk"],
+    ["d", "Darkvision", "race"]
+  ].map(([id, name, source]) => ({
+    id,
+    name,
+    type: "feat",
+    parent: { items: origins },
+    flags: { dnd5e: { advancementRoot: `${source}.advancement` } },
+    system: {
+      type: { value: "feat" },
+      activities: [{ activation: { type: "action" } }]
+    }
+  }));
+  const f = itemRendererFixture({
+    items,
+    t: key => game.i18n.localize(`ADVENTURER_HUD.${key}`),
+    adapter: dnd5eAdapter,
+    hudState: {
+      combatCategory: "features",
+      itemLayouts: {
+        "combat:features:active": {
+          order: ['["c",null]', '["a",null]'],
+          hidden: ['["d",null]']
+        }
+      }
+    }
+  });
+  const root = fragment(f.renderer.combatActions());
+  assert.deepEqual(
+    [...root.querySelectorAll(".ws-feature-source")].map(
+      node => node.textContent
+    ),
+    ["Class: Monk <class> 2", "Species feature: Elf 1"]
+  );
+  assert.equal(root.querySelector(".ws-feature-source class"), null);
+  assert.deepEqual(
+    [...root.querySelectorAll(".ws-organized-entry")].map(
+      node => JSON.parse(node.dataset.layoutKey)[0]
+    ),
+    ["c", "a", "b"]
+  );
+  f.hudState.hudEditing = true;
+  const edited = fragment(f.renderer.combatActions());
+  assert.equal(edited.querySelector(".ws-feature-source"), null);
+  assert.equal(
+    edited.querySelectorAll('[data-action="moveitemdown"]').length,
+    3
+  );
+  assert.equal(
+    dnd5eAdapter.featureSource({
+      flags: { dnd5e: { advancementOrigin: "race.a" } },
+      parent: { items: origins },
+      system: {}
+    }).label,
+    "Species feature: Elf"
+  );
+  assert.equal(
+    dnd5eAdapter.featureSource({ system: { type: { value: "background" } } })
+      .label,
+    "Background"
+  );
+  assert.equal(
+    dnd5eAdapter.featureSource({
+      parent: { items: origins },
+      system: { type: { value: "race" } }
+    }).label,
+    "Species feature: Elf"
+  );
+  assert.equal(
+    dnd5eAdapter.featureSource({ system: { type: { value: "race" } } }).label,
+    "Species"
+  );
+  game.i18n.localize = key =>
+    ({
+      "ADVENTURER_HUD.Features.Class": "Класс",
+      "ADVENTURER_HUD.Features.Species": "Особенности вида"
+    })[key] ?? key;
+  assert.equal(
+    dnd5eAdapter.featureSource(items[0]).label,
+    "Класс: Monk <class>"
+  );
+  assert.equal(
+    dnd5eAdapter.featureSource(items[1]).label,
+    "Особенности вида: Elf"
+  );
+  assert.equal(dnd5eAdapter.featureSource({ system: {} }).id, "other");
+});
+
 for (const [name, type, count, passiveNames] of [
   ["Humongous Fungus Troll", "epic", 5, ["False Appearance", "Epic Boss"]],
   [
@@ -368,5 +524,145 @@ test("a passive-only Features tab remains reachable and its filter is restored a
     restored.querySelector(
       '[data-item-id="darkvision"][data-action="openitem"]'
     )
+  );
+});
+
+test("Features All combines native active and passive features and persists the filter independently", async () => {
+  const f = customNpcFixture("Humongous Fungus Troll", {
+    hudState: { combatCategory: "features" }
+  });
+  const { panelStateForActor, panelStateSnapshot } =
+    await import("../scripts/hud/panel-state.js");
+  const actions = createHudActions({
+    actor: f.actor,
+    hudState: f.hudState,
+    refreshHud() {},
+    t: key => key
+  });
+  await actions.featurefilter(null, { dataset: { filter: "all" } });
+  const root = fragment(f.renderer.combatActions());
+  assert.equal(
+    root.querySelectorAll("[data-description-item-id]").length,
+    f.actor.items.filter(item => item.type === "feat").length
+  );
+  assert.equal(
+    root.querySelector('[data-filter="all"]').getAttribute("aria-pressed"),
+    "true"
+  );
+  const saved = panelStateForActor(
+    { "Actor.a": panelStateSnapshot(f.hudState) },
+    "Actor.a"
+  );
+  assert.equal(saved.allFeatures, true);
+  assert.equal(saved.showPassiveFeatures, false);
+  await actions.featurefilter(null, { dataset: { filter: "passive" } });
+  assert.equal(f.hudState.allFeatures, false);
+  assert.equal(f.hudState.showPassiveFeatures, true);
+  await actions.featurefilter(null, { dataset: { filter: "active" } });
+  assert.equal(f.hudState.allFeatures, false);
+  assert.equal(f.hudState.showPassiveFeatures, false);
+});
+
+test("feature source headings follow the HUD locale when Foundry has no module keys", async () => {
+  installSettings();
+  const { readFile } = await import("node:fs/promises");
+  const { createModuleTranslator } = await import("../scripts/localization.js");
+  const origins = itemCollection([
+    { id: "monk", type: "class", name: "Monk" },
+    { id: "race", type: "race", name: "Bugbear" }
+  ]);
+  const items = ["monk", "race"].map((source, i) => ({
+    id: String(i),
+    name: "Feature",
+    type: "feat",
+    parent: { items: origins },
+    flags: { dnd5e: { advancementRoot: `${source}.a` } },
+    system: { activities: [{ activation: { type: "action" } }] }
+  }));
+  for (const language of ["en", "ru"]) {
+    const { t } = await createModuleTranslator({
+      language,
+      i18n: game.i18n,
+      fetchCatalog: async lang =>
+        JSON.parse(
+          await readFile(
+            new URL(`../lang/${lang}.json`, import.meta.url),
+            "utf8"
+          )
+        )
+    });
+    const f = itemRendererFixture({
+      items,
+      adapter: dnd5eAdapter,
+      t,
+      hudState: { combatCategory: "features" }
+    });
+    const headings = [
+      ...fragment(f.renderer.combatActions()).querySelectorAll(
+        ".ws-feature-source"
+      )
+    ].map(node => node.textContent);
+    assert.deepEqual(
+      headings,
+      language === "en"
+        ? ["Class: Monk 1", "Species feature: Bugbear 1"]
+        : ["Класс: Monk 1", "Особенности вида: Bugbear 1"]
+    );
+    assert.ok(headings.every(label => !label.includes("ADVENTURER_HUD")));
+  }
+});
+
+test("inventory displays native quantities and attunement states without adding controls or combat metadata", () => {
+  installSettings();
+  for (const [quantity, attunement, attuned] of [
+    [0, "required", false],
+    [1, "required", true],
+    [12, "", false],
+    [2, "optional", false]
+  ]) {
+    const item = {
+      id: "ring",
+      name: "Ring",
+      type: "equipment",
+      system: { quantity, attunement, attuned }
+    };
+    const f = itemRendererFixture({
+      adapter: { inventoryInfo: dnd5eAdapter.inventoryInfo },
+      visibility: { cardDetailFields: [] }
+    });
+    const root = fragment(
+      f.renderer.combatItemButton(item, { inventory: true })
+    );
+    assert.equal(
+      root.querySelector(".ws-inventory-quantity").textContent,
+      `× ${quantity}`
+    );
+    const indicator = root.querySelector(".ws-inventory-attunement");
+    assert.equal(Boolean(indicator), Boolean(attunement));
+    if (indicator) {
+      assert.ok(
+        indicator.classList.contains(attuned ? "ws-attuned" : "ws-not-attuned")
+      );
+      assert.ok(
+        indicator.textContent.includes(
+          attuned
+            ? "Inventory.Attuned"
+            : attunement === "required"
+              ? "Inventory.AttunementRequired"
+              : "Inventory.AttunementOptional"
+        )
+      );
+      assert.equal(indicator.querySelector("button"), null);
+    }
+    assert.equal(
+      fragment(f.renderer.combatItemButton(item)).querySelector(
+        ".ws-inventory-quantity"
+      ),
+      null
+    );
+  }
+  assert.equal(
+    dnd5eAdapter.inventoryInfo({ system: { quantity: NaN } }).quantity,
+    null
   );
 });

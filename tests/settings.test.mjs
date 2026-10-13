@@ -1,3 +1,4 @@
+import { createTroubleshootingController } from "../scripts/settings-applications.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -22,7 +23,7 @@ for (const immediate of [false, true]) {
   test(`window geometry writes preserve both modes with ${immediate ? "immediate" : "deferred"} saving`, async () => {
     const { saveWindowGeometry, flushWindowGeometry, getWindowGeometry } =
       await import("../scripts/settings.js");
-    const { writes } = installSettings();
+    const { writes } = installSettings({ isGM: true });
     const player = { left: 10, top: 20, width: 300, height: 500 };
     const gm = { left: 30, top: 40, width: 1000, height: 400 };
     saveWindowGeometry({ ...player, width: 280 });
@@ -127,10 +128,10 @@ test("main and additional settings use task-based groups", async () => {
 
   assert.equal(registrations.get(SETTINGS.showModeNavigation)?.default, false);
   assert.equal(registrations.get(SETTINGS.showModeNavigation)?.config, false);
-  assert.equal(registrations.get(SETTINGS.fontSize)?.config, true);
+  assert.equal(registrations.get(SETTINGS.fontSize)?.config, false);
   assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.config, false);
   assert.equal(registrations.get(SETTINGS.autoUpdateActor)?.default, true);
-  assert.equal(registrations.get(SETTINGS.autoOpenHud)?.config, true);
+  assert.equal(registrations.get(SETTINGS.autoOpenHud)?.config, false);
   assert.equal(registrations.get(SETTINGS.autoOpenHud)?.default, false);
   assert.equal(registrations.get(SETTINGS.autoOpenHud)?.scope, "user");
   assert.equal(registrations.get(SETTINGS.panelStates)?.config, false);
@@ -153,7 +154,7 @@ test("main and additional settings use task-based groups", async () => {
   assert.equal(registrations.get(SETTINGS.showVisualEffects)?.config, false);
   assert.deepEqual(
     Object.keys(registrations.get(SETTINGS.fontSize)?.choices ?? {}),
-    ["small", "medium", "large", "extraLarge"]
+    ["small", "medium", "large", "extraLarge", "custom"]
   );
   assert.equal(registrations.get(SETTINGS.fontSize)?.default, "large");
   assert.equal(registrations.get(SETTINGS.language)?.default, "en");
@@ -166,7 +167,7 @@ test("main and additional settings use task-based groups", async () => {
   assert.equal(SETTING_DEFINITIONS[SETTINGS.language].placement, "basic");
   assert.equal(menus.get("configure")?.restricted, false);
   assert.equal(menus.has("reset"), false);
-  assert.equal(menus.get("gm")?.restricted, true);
+  assert.equal(menus.has("gm"), false);
   assert.equal(SETTING_DEFINITIONS[SETTINGS.fontSize].placement, "basic");
   assert.equal(
     SETTING_DEFINITIONS[SETTINGS.autoUpdateActor].placement,
@@ -189,14 +190,7 @@ test("main and additional settings use task-based groups", async () => {
     [...registrations]
       .filter(([, definition]) => definition.config)
       .map(([key]) => key),
-    [
-      SETTINGS.language,
-      SETTINGS.theme,
-      SETTINGS.fontSize,
-      SETTINGS.slidePanel,
-      SETTINGS.openPlayerOnCombat,
-      SETTINGS.autoOpenHud
-    ]
+    []
   );
   const visibleKeys = context.groups.flatMap(group =>
     group.settings.map(setting => setting.key)
@@ -204,9 +198,10 @@ test("main and additional settings use task-based groups", async () => {
   for (const key of [
     SETTINGS.slidePanel,
     SETTINGS.openPlayerOnCombat,
-    SETTINGS.autoOpenHud
+    SETTINGS.autoOpenHud,
+    SETTINGS.showInventorySummary
   ])
-    assert.equal(visibleKeys.includes(key), false);
+    assert.equal(visibleKeys.includes(key), true);
   assert.equal(registrations.get(SETTINGS.slidePanel)?.default, true);
   assert.equal(visibleKeys.includes(SETTINGS.pinWindow), false);
   assert.equal(visibleKeys.includes(SETTINGS.showModeNavigation), false);
@@ -217,15 +212,22 @@ test("main and additional settings use task-based groups", async () => {
   assert.deepEqual(
     context.groups.map(group => group.label),
     [
-      "ADVENTURER_HUD.Settings.Groups.behavior",
-      "ADVENTURER_HUD.Settings.Groups.windowLayout",
-      "ADVENTURER_HUD.Settings.Groups.quickAccess",
-      "ADVENTURER_HUD.Settings.Groups.itemUse",
-      "ADVENTURER_HUD.Settings.Groups.interface"
+      "ADVENTURER_HUD.Settings.Groups.behavior.Name",
+      "ADVENTURER_HUD.Settings.Groups.windowLayout.Name",
+      "ADVENTURER_HUD.Settings.Groups.appearance.Name",
+      "ADVENTURER_HUD.Settings.Groups.appearanceTheme.Name",
+      "ADVENTURER_HUD.Settings.Groups.appearanceAnimations.Name",
+      "ADVENTURER_HUD.Settings.Groups.quickAccess.Name",
+      "ADVENTURER_HUD.Settings.Groups.panelSections.Name",
+      "ADVENTURER_HUD.Settings.Groups.panelItems.Name",
+      "ADVENTURER_HUD.Settings.Groups.effects.Name",
+      "ADVENTURER_HUD.Settings.Groups.cardDetails.Name",
+      "ADVENTURER_HUD.Settings.Groups.companions.Name"
     ]
   );
   for (const key of [
     SETTINGS.showSearch,
+    SETTINGS.showInventorySummary,
     SETTINGS.showFavorites,
     SETTINGS.showActivityPicker,
     SETTINGS.showCompanions,
@@ -335,9 +337,10 @@ test("troubleshooting reset requires confirmation and preserves saved data", asy
       .flatMap(group => group.settings)
       .find(setting => setting.key === SETTINGS.showSearch)?.value;
   assert.equal(searchValue(), false);
-  const cancelled = await menus
-    .get("troubleshooting")
-    .type.DEFAULT_OPTIONS.actions.resetsettings.call({});
+  const cancelled =
+    await createTroubleshootingController().constructor.DEFAULT_OPTIONS.actions.resetsettings.call(
+      {}
+    );
   assert.equal(cancelled.rendered, true);
   assert.deepEqual(writes, []);
   cancelled.constructor.DEFAULT_OPTIONS.actions.cancel.call(cancelled);
@@ -345,9 +348,10 @@ test("troubleshooting reset requires confirmation and preserves saved data", asy
   assert.equal(current.get(SETTINGS.pinWindow), true);
   assert.deepEqual(writes, []);
 
-  const confirmation = await menus
-    .get("troubleshooting")
-    .type.DEFAULT_OPTIONS.actions.resetsettings.call({});
+  const confirmation =
+    await createTroubleshootingController().constructor.DEFAULT_OPTIONS.actions.resetsettings.call(
+      {}
+    );
   await confirmation.constructor.DEFAULT_OPTIONS.form.handler.call(
     confirmation
   );
@@ -369,7 +373,7 @@ test("setting metadata drives defaults, placement, and refresh behavior", () => 
   );
   assert.equal(settingRefreshStrategy(SETTINGS.pinWindow), "runtime");
   assert.equal(settingRefreshStrategy(SETTINGS.showVisualEffects), "runtime");
-  assert.equal(settingRefreshStrategy(SETTINGS.fontSize), "reopen");
+  assert.equal(settingRefreshStrategy(SETTINGS.fontSize), "runtime");
   assert.equal(
     settingRefreshStrategy(SETTINGS.proficientSkillsOnly),
     "content"

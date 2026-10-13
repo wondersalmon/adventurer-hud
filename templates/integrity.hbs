@@ -1,28 +1,46 @@
 <div class="ws-settings-form ws-troubleshooting">
-  <fieldset class="ws-settings-group ws-diagnostics">
-    <legend>{{recordingSectionLabel}}</legend>
-    <p class="hint">{{recordingHint}}</p>
-    {{#if recording}}<p
-        class="ws-diagnostic-recording"
-        role="status"
-      >{{recordingLabel}}</p>{{/if}}
+  <fieldset class="ws-settings-group" data-troubleshooting-section="saved">
+    <legend>{{integritySectionLabel}}</legend>
+    <p class="hint">{{intro}}</p>
+    <p
+      class="ws-integrity-result"
+      data-integrity-status="{{summarySeverity}}"
+      role="status"
+    >{{summary}}</p>
+    {{#if checks.length}}<ul class="ws-integrity-results">{{#each checks}}<li
+            class="ws-integrity-result"
+            data-integrity-status="{{severity}}"
+          >{{label}}
+            —
+            {{status}}</li>{{/each}}</ul>{{/if}}
+    {{#if repaired}}<p>{{repaired}}</p>{{/if}}
+    {{#if issues.length}}<ul class="ws-integrity-results">{{#each issues}}<li
+            class="ws-integrity-result"
+            data-integrity-status="{{severity}}"
+          >{{message}}
+            —
+            {{action}}
+            {{#if changes.length}}<ul>{{#each changes}}<li>{{kind}}:
+                    {{path}}<br />{{before}}
+                    →
+                    {{after}}</li>{{/each}}</ul>{{/if}}
+          </li>{{/each}}</ul>{{/if}}
+    {{#if manualHint}}<p class="hint">{{manualHint}}</p>{{/if}}
+    {{#if layoutHint}}<p class="hint">{{layoutHint}}</p>{{/if}}
+    <p class="hint">{{automaticBackupHint}}</p>
     <div class="ws-troubleshooting-actions">
-      {{#if recording}}
-        <button
+      {{#if busy}}<button
           type="button"
-          data-action="mark"
-          class="ws-troubleshooting-primary"
-        >{{markLabel}}</button>
-        <button
+          disabled
+        >{{checkLabel}}</button>{{else}}<button
           type="button"
-          data-action="stoprecord"
-        >{{stopRecordLabel}}</button>
-      {{else}}<button
+          data-action="check"
+        >{{checkLabel}}</button>{{/if}}
+      {{#if canRepair}}<button
           type="button"
-          data-action="record"
-        >{{recordLabel}}</button>{{/if}}
+          data-action="repair"
+        >{{repairLabel}}</button>{{/if}}
     </div>
-    <p class="hint">{{recordingStatus}}</p>
   </fieldset>
   <details
     class="ws-settings-group ws-diagnostics"
@@ -31,17 +49,51 @@
   >
     <summary>{{reportSectionLabel}}</summary>
     <p class="hint">{{reportHelpLabel}}</p>
+    <fieldset
+      class="ws-settings-group ws-diagnostics"
+      data-troubleshooting-section="recording"
+    >
+      <legend>{{recordingSectionLabel}}</legend>
+      <p class="hint">{{recordingHint}}</p>
+      {{#if recording}}<p
+          class="ws-diagnostic-recording"
+          role="status"
+        >{{recordingLabel}}</p>{{/if}}
+      <div class="ws-troubleshooting-actions">
+        {{#if recording}}
+          <button
+            type="button"
+            data-action="mark"
+            class="ws-troubleshooting-primary"
+          >{{markLabel}}</button>
+          <button
+            type="button"
+            data-action="stoprecord"
+          >{{stopRecordLabel}}</button>
+        {{else}}<button
+            type="button"
+            data-action="record"
+          >{{recordLabel}}</button>{{/if}}
+      </div>
+      <p class="hint">{{recordingStatus}}</p>
+    </fieldset>
     <p role="status">{{diagnosticSummary}}</p>
     <label class="ws-diagnostic-comment">{{commentLabel}}<textarea
+        name="diagnosticComment"
         data-diagnostic-comment
         maxlength="4000"
         rows="3"
       >{{diagnosticComment}}</textarea></label>
     <label class="ws-setting-toggle">{{#if includeErrorText}}<input
           type="checkbox"
+          name="diagnosticIncludeErrors"
           data-diagnostic-errors
           checked
-        />{{else}}<input type="checkbox" data-diagnostic-errors />{{/if}}
+        />{{else}}<input
+          type="checkbox"
+          name="diagnosticIncludeErrors"
+          data-diagnostic-errors
+        />{{/if}}
       <span>{{includeErrorsLabel}}</span></label>
     <p class="hint">{{privacyHint}}</p>
     <div class="ws-troubleshooting-actions">
@@ -64,53 +116,18 @@
   </details>
   <details
     class="ws-settings-group"
-    data-troubleshooting-section="saved"
-    {{expandedSectionAttributes.saved}}
-  >
-    <summary>{{integritySectionLabel}}</summary>
-    <p class="hint">{{intro}}</p>
-    <p role="status">{{summary}}</p>
-    {{#if checks.length}}<ul>{{#each checks}}<li>{{label}}
-            —
-            {{status}}</li>{{/each}}</ul>{{/if}}
-    {{#if repaired}}<p>{{repaired}}</p>{{/if}}
-    {{#if issues.length}}<ul>{{#each issues}}<li>{{message}}
-            —
-            {{action}}
-            {{#if changes.length}}<ul>{{#each changes}}<li>{{kind}}:
-                    {{path}}<br />{{before}}
-                    →
-                    {{after}}</li>{{/each}}</ul>{{/if}}
-          </li>{{/each}}</ul>{{/if}}
-    {{#if manualHint}}<p class="hint">{{manualHint}}</p>{{/if}}
-    {{#if layoutHint}}<p class="hint">{{layoutHint}}</p>{{/if}}
-    {{#if repairBackupDate}}<p class="hint">{{repairBackupHint}}
-        {{repairBackupDate}}</p><button
-        type="button"
-        data-action="backuprepair"
-      >{{repairBackupLabel}}</button>{{/if}}
-    <div class="ws-troubleshooting-actions">
-      {{#if busy}}<button
-          type="button"
-          disabled
-        >{{checkLabel}}</button>{{else}}<button
-          type="button"
-          data-action="check"
-        >{{checkLabel}}</button>{{/if}}
-      {{#if canRepair}}<button
-          type="button"
-          data-action="repair"
-        >{{repairLabel}}</button>{{/if}}
-    </div>
-  </details>
-  <details
-    class="ws-settings-group"
     data-troubleshooting-section="backup"
     {{expandedSectionAttributes.backup}}
   >
     <summary>{{backupSectionLabel}}</summary>
     <p class="hint">{{backupHint}}</p>
+    {{#if repairBackupDate}}<p class="hint">{{repairBackupHint}}
+        {{repairBackupDate}}</p>{{/if}}
     <div class="ws-troubleshooting-actions">
+      {{#if repairBackupDate}}<button
+          type="button"
+          data-action="backuprepair"
+        >{{repairBackupLabel}}</button>{{/if}}
       <button
         type="button"
         data-action="backupsettings"
@@ -121,7 +138,11 @@
       >{{restoreLabel}}</button>
     </div>
   </details>
-  <details class="ws-settings-group ws-troubleshooting-resets">
+  <details
+    class="ws-settings-group ws-troubleshooting-resets"
+    data-troubleshooting-section="resets"
+    {{expandedSectionAttributes.resets}}
+  >
     <summary>{{resetsLabel}}</summary>
     <div class="ws-troubleshooting-actions">
       <button
@@ -143,15 +164,15 @@
       <button type="button" data-action="resetall">{{resetAllLabel}}</button>
     </div>
   </details>
-  <footer class="form-footer ws-troubleshooting-footer">
-    <div class="ws-troubleshooting-actions">
-      {{#if busy}}<button
-          type="button"
-          disabled
-        >{{closeLabel}}</button>{{else}}<button
-          type="button"
-          data-action="close"
-        >{{closeLabel}}</button>{{/if}}
-    </div>
-  </footer>
+  {{#unless embedded}}<footer class="form-footer ws-troubleshooting-footer">
+      <div class="ws-troubleshooting-actions">
+        {{#if busy}}<button
+            type="button"
+            disabled
+          >{{closeLabel}}</button>{{else}}<button
+            type="button"
+            data-action="close"
+          >{{closeLabel}}</button>{{/if}}
+      </div>
+    </footer>{{/unless}}
 </div>

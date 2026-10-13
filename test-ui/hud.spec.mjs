@@ -9,7 +9,7 @@ import { createCombatRenderer } from "../scripts/hud/combat.js";
 import { createHudComponents } from "../scripts/hud/components.js";
 import { bindItemDescriptionInteractions } from "../scripts/hud/items/item-interactions.js";
 import { renderInventorySummary } from "../scripts/hud/items/inventory-summary.js";
-import { synchronizeHudTheme, watchHudTheme } from "../scripts/hud/theme.js";
+import { loadHudModules } from "./module-fixture.mjs";
 import {
   captureHudDomState,
   restoreHudDomState
@@ -288,15 +288,32 @@ test("GM identity and bottom tools fit a narrow window with long action lists", 
   await page.locator(".window-content").evaluate(node => {
     node.style.height = "380px";
   });
+  await loadHudModules(page, {
+    "hud/window/gm-column-dividers.js": ["bindGmColumnDividers"]
+  });
+  await page.evaluate(() => {
+    window.gmTestDividers = window.bindGmColumnDividers(
+      document.querySelector(".ws-rolls-dialog"),
+      {
+        readRatio: () => 0,
+        saveRatio: () => {},
+        isPinned: () => false,
+        t: key => key
+      }
+    );
+  });
   await page.locator(".ws-rolls-dialog").evaluate(node => {
     node.style.width = "1100px";
+    window.gmTestDividers.sync();
   });
   const columns = await page.locator(".ws-gm-body").evaluate(node =>
-    [...node.children].map(child => ({
-      left: child.getBoundingClientRect().left,
-      top: child.getBoundingClientRect().top,
-      bottom: child.getBoundingClientRect().bottom
-    }))
+    [...node.children]
+      .filter(child => !child.matches(".ws-column-divider"))
+      .map(child => ({
+        left: child.getBoundingClientRect().left,
+        top: child.getBoundingClientRect().top,
+        bottom: child.getBoundingClientRect().bottom
+      }))
   );
   expect(columns[1].left).toBeGreaterThan(columns[0].left);
   expect(columns).toHaveLength(2);
@@ -737,7 +754,10 @@ test("favorite cards reclaim both side columns and removal controls fit in editi
       favoritesExpanded: true
     },
     adapter: { itemUsesData: () => ({ value: 2, max: 2 }) },
-    visibility: { favorites: true }
+    visibility: {
+      favorites: true,
+      hideItemOpenButton: false
+    }
   });
   for (const width of [270, 320, 600]) {
     await page.setContent(
@@ -790,6 +810,15 @@ test("unstarted combat has a prominent start button with a bounded red alert and
   );
   const start = page.locator('[data-action="gmstartcombat"]');
   await expect(start).toBeVisible();
+  await expect(
+    page.locator('.ws-gm-encounter-tools [data-action="gmrevealhidden"]')
+  ).toHaveCount(1);
+  await expect(
+    page.locator('.ws-gm-encounter-tools [data-action="gmrevealhidden"]')
+  ).toBeDisabled();
+  await expect(
+    page.locator('.ws-gm-preparation-footer [data-action="gmrevealhidden"]')
+  ).toHaveCount(0);
   await expect(start.locator(".fa-play")).toHaveCount(1);
   expect(
     await start.evaluate(
@@ -810,17 +839,21 @@ test("automatic themes match manual palettes, follow native theme changes and st
   await page.setContent(
     `<style>${css}</style><style>.theme-dark { color-scheme: dark; --color-text-primary: #ddd; background: #101217; }.theme-light { color-scheme: light; --color-text-primary: #111; background: #fff; }</style><main class="theme-dark"><section class="ws-rolls-dialog"><header class="window-header">HUD</header><div class="window-content"><div class="ws-shell"><div class="ws-view"><button class="ws-button">Attack</button><input value="Search"></div></div></div></section></main>`
   );
-  await page.addScriptTag({
-    content: `${synchronizeHudTheme.toString()}\n${watchHudTheme.toString()}`
+  await loadHudModules(page, {
+    "hud/theme.js": ["synchronizeHudTheme", "watchHudTheme"]
   });
+  await page.waitForFunction(() => Boolean(window.synchronizeHudTheme));
   await page.addStyleTag({
     content: "* { transition: none !important; animation: none !important; }"
   });
   await page.evaluate(() => {
     window.selectedTheme = "auto";
     const element = document.querySelector("section");
-    synchronizeHudTheme(element, window.selectedTheme);
-    window.unwatchTheme = watchHudTheme(element, () => window.selectedTheme);
+    window.synchronizeHudTheme(element, window.selectedTheme);
+    window.unwatchTheme = window.watchHudTheme(
+      element,
+      () => window.selectedTheme
+    );
   });
   const palette = () =>
     page
@@ -845,7 +878,7 @@ test("automatic themes match manual palettes, follow native theme changes and st
   const dark = await palette();
   await page.evaluate(() => {
     window.selectedTheme = "dark";
-    synchronizeHudTheme(document.querySelector("section"), "dark");
+    window.synchronizeHudTheme(document.querySelector("section"), "dark");
   });
   expect(await palette()).toEqual(dark);
   await page.evaluate(() => {
@@ -855,7 +888,7 @@ test("automatic themes match manual palettes, follow native theme changes and st
   expect(await palette()).toEqual(dark);
   await page.evaluate(() => {
     window.selectedTheme = "auto";
-    synchronizeHudTheme(document.querySelector("section"), "auto");
+    window.synchronizeHudTheme(document.querySelector("section"), "auto");
   });
   await expect(page.locator("section")).toHaveAttribute(
     "data-ws-auto-theme",
@@ -864,12 +897,12 @@ test("automatic themes match manual palettes, follow native theme changes and st
   const light = await palette();
   await page.evaluate(() => {
     window.selectedTheme = "light";
-    synchronizeHudTheme(document.querySelector("section"), "light");
+    window.synchronizeHudTheme(document.querySelector("section"), "light");
   });
   expect(await palette()).toEqual(light);
   await page.evaluate(() => {
     window.selectedTheme = "auto";
-    synchronizeHudTheme(document.querySelector("section"), "auto");
+    window.synchronizeHudTheme(document.querySelector("section"), "auto");
     document.querySelector("main").className = "theme-dark";
   });
   await expect(page.locator("section")).toHaveAttribute(

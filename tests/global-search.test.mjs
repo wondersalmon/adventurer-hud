@@ -145,7 +145,7 @@ test("moved search remains above identity while typing, clearing and refreshing;
   );
   await app.hudActions.togglehudedit();
   await waitFor(() => {
-    const saved = f.current.get("panelStates")[f.actor.uuid];
+    const saved = f.current.get("panelStates")["player:layout"];
     return (
       saved &&
       Object.values(saved.hudLayouts).every(

@@ -62,6 +62,20 @@ export function installSettings({
   }
   globalThis.Hooks = { callAll: onEvent };
   globalThis.foundry = {
+    utils: {
+      escapeHTML: value =>
+        String(value).replace(
+          /[&<>"']/g,
+          character =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;"
+            })[character]
+        )
+    },
     applications: {
       api: {
         ApplicationV2,

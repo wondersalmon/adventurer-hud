@@ -28,11 +28,15 @@ test("panel layout is restored per actor and ignores transient state", () => {
     conditionsExpanded: true,
     favoritesExpanded: true,
     preparedSpellsOnly: true,
+    unpreparedSpellsOnly: false,
+    spellSource: null,
     showPassiveFeatures: false,
+    allFeatures: false,
     combatCategory: "spells",
     currentView: "inventory",
     inventoryCategory: "equipped",
-    companionsExpanded: false
+    companionsExpanded: false,
+    collapsedFeatureGroups: []
   });
   assert.deepEqual(panelStateForActor(stored, "Actor.other"), {});
   assert.equal(

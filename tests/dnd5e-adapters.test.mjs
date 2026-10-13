@@ -5,6 +5,72 @@ import { actorDeathData } from "../scripts/dnd5e/actor-data.js";
 import { itemRangeData } from "../scripts/dnd5e/items.js";
 import { dnd5eAdapter } from "../scripts/dnd5e/index.js";
 
+test("AC attribution delegates to the native sheet without opening it or rolling", async () => {
+  const actor = {
+    getAttributionData: async property => {
+      assert.equal(property, "attributes.ac");
+      return "<table><tr><td>10</td><td>Unarmored Defense (Monk)</td></tr></table>";
+    }
+  };
+  assert.match(
+    await dnd5eAdapter.armorClassAttribution(actor),
+    /Unarmored Defense/
+  );
+});
+
+test("AC details read the selected native formula, shield, effects, cover, minimum and override without rolling", () => {
+  const previousRoll = globalThis.Roll;
+  const ac = {
+    value: 21,
+    formula: "10 + @abilities.dex.mod",
+    shield: 2,
+    bonus: 1,
+    cover: 2,
+    min: 18
+  };
+  const data = { abilities: { dex: { mod: 6 } } };
+  const actor = {
+    system: { attributes: { ac, init: { total: 7, mod: 2 } } },
+    getRollData: options => {
+      assert.deepEqual(options, { deterministic: true });
+      return data;
+    }
+  };
+  try {
+    globalThis.Roll = {
+      replaceFormulaData: (formula, values) => {
+        assert.equal(formula, ac.formula);
+        assert.equal(values, data);
+        return "10 + 6";
+      }
+    };
+    assert.deepEqual(dnd5eAdapter.armorClassDetails(actor), {
+      label: "",
+      formula: "max(18, (10 + 6 + 2 + 1 + 2))",
+      value: 21
+    });
+    ac.override = 13;
+    ac.value = 13;
+    assert.deepEqual(dnd5eAdapter.armorClassDetails(actor), {
+      label: "",
+      formula: "13",
+      value: 13
+    });
+    assert.equal(dnd5eAdapter.initiativeBonus(actor), 7);
+    actor.system.attributes.init.total = 0;
+    assert.equal(dnd5eAdapter.initiativeBonus(actor), 0);
+    assert.equal(
+      dnd5eAdapter.armorClassDetails({
+        system: { attributes: { ac: { value: 16 } } }
+      }),
+      null
+    );
+  } finally {
+    if (previousRoll === undefined) delete globalThis.Roll;
+    else globalThis.Roll = previousRoll;
+  }
+});
+
 test("D&D status configuration accepts collection and object forms", () => {
   const previousConfig = globalThis.CONFIG;
   const bloodied = { id: "bloodied", name: "Bloodied" };

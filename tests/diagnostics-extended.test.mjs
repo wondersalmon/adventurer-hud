@@ -1,3 +1,4 @@
+import { createTroubleshootingController } from "../scripts/settings-applications.js";
 import assert from "node:assert/strict";
 import test, { afterEach } from "node:test";
 import {
@@ -287,9 +288,9 @@ test("cancelled export retains recorded evidence and retry uses the native downl
 
 test("troubleshooting actions preview escaped report text and preserve optional comment", async () => {
   clearDiagnostics();
-  const { menus } = installSettings();
+  installSettings();
   installDom();
-  const C = menus.get("troubleshooting").type;
+  const C = createTroubleshootingController().constructor;
   const app = new C();
   app.element = document.createElement("div");
   app.element.innerHTML =

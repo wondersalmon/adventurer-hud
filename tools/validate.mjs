@@ -3,6 +3,7 @@ import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { listFiles } from "./files.mjs";
+import { releaseAssetUrls } from "./release-channel.mjs";
 import { verifyReleaseDocumentation } from "./release-documentation.mjs";
 import {
   collectReleaseFiles,
@@ -24,6 +25,18 @@ const catalogs = await readLocalizationCatalogs(manifest);
   const russian = localeForLanguage(catalogs, "ru");
   const english = localeForLanguage(catalogs, "en");
   assert.ok(Object.keys(english).length, `Empty English catalog for languages`);
+  for (const catalog of [english, russian]) {
+    for (const key of Object.keys(catalog)) {
+      const parts = key.split(".");
+      for (let index = 1; index < parts.length; index++) {
+        const parent = parts.slice(0, index).join(".");
+        assert.ok(
+          !Object.hasOwn(catalog, parent),
+          `Localization key is also a parent: ${parent}`
+        );
+      }
+    }
+  }
   for (const [key, value] of Object.entries(english)) {
     assert.equal(typeof value, "string", `${key} must be a string`);
     assert.ok(value.trim(), `${key} must not be empty`);
@@ -51,11 +64,9 @@ assert.equal(manifest.id, "adventurer-hud");
 assert.equal(manifest.type, "module");
 assert.equal(manifest.version, packageJson.version);
 assert.equal(manifest.url, "https://github.com/wondersalmon/adventurer-hud");
-assert.match(manifest.manifest, /releases\/latest\/download\/module\.json$/);
-assert.equal(
-  manifest.download,
-  `${manifest.url}/releases/download/v${packageJson.version}/adventurer-hud.zip`
-);
+const releaseUrls = releaseAssetUrls(manifest.url, packageJson.version);
+assert.equal(manifest.manifest, releaseUrls.manifest);
+assert.equal(manifest.download, releaseUrls.download);
 for (const key of ["readme", "changelog", "bugs", "license"])
   assert.ok(manifest[key], `Missing manifest ${key}`);
 assert.equal(

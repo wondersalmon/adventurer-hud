@@ -68,16 +68,44 @@ export function renderItemLayout({ entries, scope, hudState, escapeHTML, t }) {
         `${opening}${classes} ws-organized-entry" data-layout-key="${escapeHTML(entry.key)}"`
     );
   };
+  // Keep the released editor's flat order and controls. Group only the reading view.
+  /** @type {Map<string, {label: string, entries: import('../../../types/hud.js').ItemLayoutEntry[]}>} */
+  const groups = new Map();
+  if (!editing && visible.some(entry => entry.group))
+    for (const entry of visible) {
+      const id = entry.group?.id ?? "other";
+      if (!groups.has(id))
+        groups.set(id, { label: entry.group?.label ?? "", entries: [] });
+      const group = groups.get(id);
+      if (group) group.entries.push(entry);
+    }
   return `<section class="ws-item-organization ${editing ? "ws-items-editing" : visible.length > 50 ? "ws-items-long" : ""}" data-layout-scope="${escapeHTML(scope)}">
+    ${
+      groups.size
+        ? [...groups.entries()]
+            .map(([id, group], index) => {
+              const expanded = !(
+                hudState.collapsedFeatureGroups ?? []
+              ).includes(JSON.stringify([scope, id]));
+              const bodyId =
+                "ws-feature-group-" +
+                scope.replace(/[^a-z0-9_-]/gi, "-") +
+                "-" +
+                index;
+              return `<details class="ws-feature-group ws-spell-level" ${expanded ? "open" : ""}><summary class="ws-feature-source ws-spell-level-heading" data-action="togglefeaturegroup" data-layout-scope="${escapeHTML(scope)}" data-feature-group="${escapeHTML(id)}" aria-expanded="${expanded}" aria-controls="${bodyId}"><strong>${escapeHTML(group.label)}</strong> <span>${group.entries.length}</span></summary><div id="${bodyId}" class="ws-combat-item-grid" ${expanded ? "" : "hidden"}>${group.entries.map(entryMarkup).join("")}</div></details>`;
+            })
+            .join("")
+        : `
     <div class="ws-combat-item-grid">${visible
       .map((entry, index) =>
         editing
           ? `<div class="ws-organized-entry" data-layout-key="${escapeHTML(entry.key)}">
-      ${editing ? `<div class="ws-item-layout-controls"><button type="button" class="ws-button ws-item-drag" draggable="true" data-layout-key="${escapeHTML(entry.key)}" aria-label="${escapeHTML(`${t("ItemLayout.Drag")}: ${entry.name}`)}" title="${t("ItemLayout.Drag")}"><i class="fa-solid fa-grip-vertical" aria-hidden="true"></i></button>${control("moveitemup", entry, "ItemLayout.Up", "fa-arrow-up", index === 0)}${control("moveitemdown", entry, "ItemLayout.Down", "fa-arrow-down", index === visible.length - 1)}${control("toggleitemhidden", entry, preference.hidden.includes(entry.key) ? "ItemLayout.Show" : "ItemLayout.Hide", preference.hidden.includes(entry.key) ? "fa-eye" : "fa-eye-slash")}</div>` : ""}
+      ${editing ? `<div class="ws-item-layout-controls"><button type="button" class="ws-button ws-item-drag" draggable="true" data-layout-key="${escapeHTML(entry.key)}" aria-label="${escapeHTML(`${t("ItemLayout.Drag")}: ${entry.name}`)}" title="${t("ItemLayout.Drag")}"><i class="fa-solid fa-grip-vertical" aria-hidden="true"></i></button>${control("moveitemtop", entry, "ItemLayout.Top", "fa-angles-up", index === 0)}${control("moveitemup", entry, "ItemLayout.Up", "fa-arrow-up", index === 0)}${control("moveitemdown", entry, "ItemLayout.Down", "fa-arrow-down", index === visible.length - 1)}${control("moveitembottom", entry, "ItemLayout.Bottom", "fa-angles-down", index === visible.length - 1)}${control("toggleitemhidden", entry, preference.hidden.includes(entry.key) ? "ItemLayout.Show" : "ItemLayout.Hide", preference.hidden.includes(entry.key) ? "fa-eye" : "fa-eye-slash")}</div>` : ""}
       ${entry.html}</div>`
           : entryMarkup(entry)
       )
-      .join("")}</div>
+      .join("")}</div>`
+    }
     ${editing && hidden.length ? `<div class="ws-item-layout-hidden"><button type="button" class="ws-button" data-action="togglehiddenitems" aria-expanded="${hudState.itemHiddenExpanded === scope}"><span>${t("ItemLayout.Hidden")} · ${hidden.length}</span><i class="fa-solid fa-chevron-${hudState.itemHiddenExpanded === scope ? "up" : "down"}" aria-hidden="true"></i></button>${hudState.itemHiddenExpanded === scope ? hidden.map(entry => `<div class="ws-item-layout-restore"><span>${escapeHTML(entry.name)}</span>${control("toggleitemhidden", entry, "ItemLayout.Show", "fa-eye")}</div>`).join("") : ""}</div>` : ""}
   </section>`;
 }

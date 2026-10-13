@@ -465,3 +465,22 @@ test("HUD theme applies immediately, restores Foundry colors and persists on reo
   await __adventurerHud.app.close();
 });
 import { diagnosticReport } from "../scripts/diagnostics.js";
+
+test("player mode navigation never offers GM access and forged preset switches cannot change settings", async () => {
+  const f = await hudFixture({
+    combat: true,
+    values: { showModeNavigation: true }
+  });
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  assert.equal(
+    app.element.querySelector(
+      '.ws-mode-navigation [data-action="togglepreset"]'
+    ),
+    null
+  );
+  const before = game.settings.get("adventurer-hud", "gmEnabled");
+  await app.options.actions.togglepreset();
+  assert.equal(game.settings.get("adventurer-hud", "gmEnabled"), before);
+  await app.close();
+});

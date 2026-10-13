@@ -1,12 +1,21 @@
 .ws-rolls-dialog {
   --ws-text-font: arial, helvetica, sans-serif;
+  --ws-window-accent: var(--ws-accent-dark, #c19a58);
+  --color-scrollbar: var(--ws-window-accent);
 
   min-width: 270px;
+  scrollbar-color: var(--ws-window-accent) transparent;
+}
+
+.ws-rolls-dialog :is(.window-content, .ws-shell, .ws-shell *) {
+  scrollbar-color: var(--ws-window-accent) transparent;
 }
 
 /* Use one Cyrillic/Latin family instead of per-glyph native font fallbacks. */
 .ws-rolls-dialog :is(.ws-shell, .window-title, .ws-dice-tray) {
   font-family: var(--ws-text-font);
+  font-style: var(--ws-text-style, normal);
+  font-weight: var(--ws-text-weight, 400);
 }
 
 .ws-rolls-dialog
@@ -52,7 +61,11 @@
   animation: ws-initiative-request 1400ms ease-out;
 }
 
-.ws-rolls-dialog.ws-turn-arrival:not(.ws-player-mode) {
+.ws-rolls-dialog.ws-turn-arrival:not(
+    .ws-player-mode,
+    .ws-heal-flash,
+    .ws-damage-flash
+  ) {
   animation: ws-turn-panel-glow 1450ms ease-out;
 }
 
@@ -160,7 +173,12 @@
     animation: none;
   }
 
-  .ws-rolls-dialog.ws-turn-arrival {
+  .ws-rolls-dialog.ws-turn-arrival,
+  .ws-rolls-dialog.ws-turn-arrival:not(
+      .ws-player-mode,
+      .ws-heal-flash,
+      .ws-damage-flash
+    ) {
     animation: none;
   }
 
@@ -171,19 +189,6 @@
   .ws-rolls-dialog.ws-hp-feedback .ws-health-temp-fill {
     animation: none;
   }
-}
-
-.ws-rolls-dialog
-  .window-header
-  :is([data-action="togglepin"], [data-action="togglefavoriteedit"]).ws-active {
-  color: var(--color-text-accent, #c19a58);
-  text-shadow: 0 0 6px currentcolor;
-}
-
-.ws-rolls-dialog.ws-effects-disabled
-  .window-header
-  :is([data-action="togglepin"], [data-action="togglefavoriteedit"]).ws-active {
-  text-shadow: none;
 }
 
 .ws-rolls-dialog .window-content {
@@ -208,8 +213,9 @@
   --surface: color-mix(in srgb, var(--text) 6%, transparent);
   --hover: color-mix(in srgb, var(--text) 12%, transparent);
   --subtle: color-mix(in srgb, var(--text) 9%, transparent);
-  --accent: #c19a58;
-  --accent-bg: rgb(193 154 88 / 0.12);
+  --accent: var(--ws-accent-dark, #c19a58);
+  --accent-highlight: var(--ws-accent-dark, #c19a58);
+  --accent-bg: var(--ws-accent-bg-dark, rgb(193 154 88 / 0.12));
   --success: #79a866;
   --success-bg: rgb(121 168 102 / 0.13);
   --warning: #d4b34f;
@@ -233,7 +239,7 @@
 
 .ws-rolls-dialog .ws-view {
   --ws-user-type-scale: 1.15;
-  --ws-type-scale: var(--ws-user-type-scale);
+  --ws-type-scale: var(--ws-custom-type-scale, var(--ws-user-type-scale));
 
   width: 100%;
   min-height: 0;
@@ -467,7 +473,11 @@
 }
 
 .ws-rolls-dialog .ws-inspiration.ws-active {
-  border-color: rgb(193 154 88 / 0.65) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--accent-highlight) 65%,
+    transparent
+  ) !important;
   background: var(--accent-bg) !important;
   color: var(--accent) !important;
 }
@@ -496,9 +506,14 @@
 }
 
 .ws-rolls-dialog .ws-header-initiative.ws-unrolled {
-  border-color: rgb(193 154 88 / 0.7) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--accent-highlight) 70%,
+    transparent
+  ) !important;
   background: var(--accent-bg) !important;
-  box-shadow: 0 0 0 1px rgb(193 154 88 / 0.16) !important;
+  box-shadow: 0 0 0 1px
+    color-mix(in srgb, var(--accent-highlight) 16%, transparent) !important;
 }
 
 .ws-rolls-dialog.ws-effects-disabled .ws-header-initiative.ws-unrolled {
@@ -550,7 +565,11 @@
 
 .ws-rolls-dialog .ws-button:hover {
   background: var(--hover) !important;
-  border-color: rgb(193 154 88 / 0.48) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--accent-highlight) 48%,
+    transparent
+  ) !important;
   transform: translateY(-1px);
 }
 
@@ -598,6 +617,7 @@
   --color-text-secondary: #625d53;
   --background: #f5f1e8;
   --color-cool-5: #f5f1e8;
+  --ws-window-accent: var(--ws-accent-light, #79551c);
 
   color: var(--color-text-primary);
   background: var(--background);
@@ -636,7 +656,9 @@
   --surface: #e9e4da;
   --hover: #ddd6c8;
   --subtle: #e1dace;
-  --accent: #79551c;
+  --accent: var(--ws-accent-light, #79551c);
+  --accent-highlight: var(--ws-accent-light, #c19a58);
+  --accent-bg: var(--ws-accent-bg-light, rgb(193 154 88 / 0.12));
   --success: #386329;
   --warning: #795b0a;
   --danger: #a13b34;
@@ -712,27 +734,102 @@
   color: #21677f;
 }
 
-.ws-rolls-dialog .ws-inventory-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
-  gap: 6px;
-  margin-bottom: 8px;
+/* Window controls use the same palette and remain visible outside the shell. */
+.ws-rolls-dialog
+  .window-header
+  :is(button.header-control, button.icon, button[data-action]) {
+  --button-text-color: var(--color-text-primary);
+
+  position: relative;
+  flex: 0 0 28px;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-primary);
+  text-shadow: none;
+  box-shadow: none;
 }
 
-.ws-rolls-dialog button.ws-inventory-summary {
+.ws-rolls-dialog
+  .window-header
+  :is(button.header-control, button.icon, button[data-action]):hover {
+  border-color: var(--ws-window-accent);
+  background: color-mix(in srgb, var(--ws-window-accent) 12%, transparent);
+}
+
+.ws-rolls-dialog
+  .window-header
+  :is(button.header-control, button.icon, button[data-action]):focus-visible {
+  outline: 2px solid var(--ws-window-accent);
+  outline-offset: 2px;
+}
+
+.ws-rolls-dialog
+  .window-header
+  :is(
+    [data-action="togglepin"],
+    [data-action="togglehudedit"]
+  )[aria-pressed="true"] {
+  color: var(--ws-window-accent) !important;
+  background: color-mix(
+    in srgb,
+    var(--ws-window-accent) 18%,
+    var(--background)
+  ) !important;
+  border: 1px solid var(--ws-window-accent);
+}
+
+.ws-rolls-dialog
+  .window-header
+  [data-action="togglehudedit"][aria-pressed="true"] {
+  box-shadow: inset 0 -3px 0 var(--ws-window-accent);
+}
+
+.ws-rolls-dialog
+  .window-header
+  [data-action="togglehudedit"][aria-pressed="true"]::after {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentcolor;
+  content: "";
+}
+
+.ws-rolls-dialog .window-header [data-action="close"]:hover {
+  color: #f0aaa1 !important;
+  border-color: #b96b63;
+  background: rgb(185 107 99 / 0.15);
+}
+
+.ws-rolls-dialog .ws-inventory-summary {
+  margin-bottom: 4px;
+  padding: 4px 7px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.ws-rolls-dialog .ws-inventory-summary[hidden] {
+  display: none;
+}
+
+.ws-rolls-dialog button.ws-inventory-content {
   width: 100%;
   height: auto;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
   text-align: left;
 }
 
 .ws-rolls-dialog .ws-inventory-coins {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px 12px;
+  gap: 3px 8px;
 }
 
 .ws-rolls-dialog .ws-coin {
@@ -787,16 +884,16 @@
 
 .ws-rolls-dialog .ws-inventory-stat {
   min-width: 0;
-  padding: 7px;
   display: flex;
   flex-direction: column;
   gap: 5px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: var(--surface);
 }
 
-.ws-rolls-dialog .ws-inventory-stat > span {
+.ws-rolls-dialog .ws-inventory-summary > .ws-hud-block-tools {
+  grid-column: 1 / -1;
+}
+
+.ws-rolls-dialog .ws-inventory-content > span {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -844,4 +941,193 @@
   box-shadow:
     0 0 0 1px rgb(242 108 35 / 0.55),
     0 0 18px 3px rgb(242 108 35 / 0.42);
+}
+
+.ws-rolls-dialog .ws-inventory-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ws-rolls-dialog button.ws-inventory-content.ws-button {
+  padding: 0;
+  height: auto;
+  min-height: 0;
+  border: 0 !important;
+  background: transparent !important;
+  transform: none;
+}
+
+.ws-rolls-dialog.ws-theme-graphite {
+  --ws-graphite-accent: var(--ws-accent-dark, #c19a58);
+  --background: color-mix(in srgb, var(--ws-graphite-accent) 3%, #19181f);
+  --color-cool-5: var(--background);
+  --color-text-primary: #f0efed;
+  --color-text-secondary: #b8b6bd;
+  --ws-graphite-sidebar: color-mix(
+    in srgb,
+    var(--ws-graphite-accent) 5%,
+    #232228
+  );
+}
+
+.ws-rolls-dialog.ws-theme-graphite :is(.ws-shell, .ws-dice-tray) {
+  --line: #48464e;
+  --surface: color-mix(in srgb, var(--ws-graphite-accent) 6%, #2d2c33);
+  --hover: color-mix(in srgb, var(--ws-graphite-accent) 12%, #2d2c33);
+  --subtle: var(--ws-graphite-sidebar);
+}
+
+.ws-rolls-dialog.ws-theme-graphite :is(.window-header, .ws-player-footer) {
+  background: var(--ws-graphite-sidebar);
+}
+
+/* Resolved surfaces are shared by player, GM, tray and settings previews. */
+.ws-rolls-dialog[data-ws-palette] {
+  --background: var(--ws-palette-background);
+  --color-cool-5: var(--ws-palette-background);
+  --color-text-primary: var(--ws-palette-text);
+  --color-text-secondary: var(--ws-palette-muted);
+  --ws-window-accent: var(--ws-palette-accent);
+
+  color: var(--ws-palette-text);
+  background: var(--ws-palette-background);
+  border-color: var(--ws-palette-border);
+}
+
+.ws-rolls-dialog[data-ws-palette],
+.ws-rolls-dialog[data-ws-palette] :is(.ws-shell, .ws-dice-tray) {
+  --text: var(--ws-palette-text);
+  --muted: var(--ws-palette-muted);
+  --line: var(--ws-palette-border);
+  --surface: var(--ws-palette-card);
+  --subtle: var(--ws-palette-group);
+  --hover: var(--ws-palette-hover);
+  --accent: var(--ws-palette-accent);
+  --accent-highlight: var(--ws-palette-accent);
+  --accent-bg: color-mix(in srgb, var(--ws-palette-accent) 12%, transparent);
+  --success: var(--ws-palette-success);
+  --warning: var(--ws-palette-warning);
+  --danger: var(--ws-palette-danger);
+}
+
+.ws-rolls-dialog[data-ws-palette]
+  :is(.window-header, .ws-player-footer, .ws-nav) {
+  background: var(--ws-palette-group) !important;
+  border-color: var(--ws-palette-border);
+}
+
+.ws-rolls-dialog[data-ws-palette] .window-content {
+  background: var(--ws-palette-background);
+}
+
+.ws-rolls-dialog[data-ws-palette] :is(input, select, .controls-dropdown) {
+  background: var(--ws-palette-card) !important;
+  color: var(--ws-palette-text) !important;
+  border-color: var(--ws-palette-border);
+}
+
+.ws-rolls-dialog[data-ws-palette] .window-header :is(button, .window-title),
+.ws-rolls-dialog[data-ws-palette] .controls-dropdown :is(button, .control) {
+  --button-text-color: var(--ws-palette-text);
+
+  color: var(--ws-palette-text) !important;
+}
+
+.ws-rolls-dialog[data-ws-palette] .ws-health-condition {
+  color: var(--ws-palette-warning);
+  background: var(--ws-palette-group);
+}
+
+.ws-rolls-dialog[data-ws-palette] .ws-health-label small {
+  color: var(--ws-palette-accent);
+}
+
+.ws-rolls-dialog[data-ws-palette]
+  .ws-health-condition:is(.ws-health-critical, .ws-health-unconscious) {
+  color: var(--ws-palette-danger);
+  background: var(--ws-palette-group);
+}
+
+@media (pointer: coarse) {
+  .ws-rolls-dialog .ws-button,
+  .ws-rolls-dialog .ws-companion-effects-more summary {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+.ws-rolls-dialog[data-turn-animation="soft"].ws-turn-arrival:not(
+    .ws-heal-flash,
+    .ws-damage-flash
+  ),
+.ws-rolls-dialog.ws-turn-soft {
+  animation: ws-turn-soft 1100ms ease-out;
+}
+
+@keyframes ws-turn-soft {
+  40% {
+    box-shadow: 0 0 0 2px var(--ws-palette-accent, #c19a58);
+  }
+}
+
+.ws-rolls-dialog[data-turn-animation="off"].ws-turn-arrival {
+  animation: none;
+}
+
+.ws-rolls-dialog[data-turn-animation="off"]
+  :is(.ws-companion-turn, .ws-gm-start)::after {
+  animation: none;
+}
+
+.ws-rolls-dialog[data-hp-animation="bar"] .ws-health-button::after,
+.ws-rolls-dialog[data-hp-animation="off"] .ws-health-button::after,
+.ws-rolls-dialog[data-hp-animation="bar"] .ws-health-track::before,
+.ws-rolls-dialog[data-hp-animation="off"] .ws-health-track::before {
+  display: none;
+  animation: none !important;
+}
+
+.ws-rolls-dialog.ws-hp-feedback[data-hp-animation="off"]
+  :is(.ws-health-fill, .ws-health-temp-fill) {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-rolls-dialog[data-turn-animation].ws-turn-arrival,
+  .ws-rolls-dialog.ws-turn-soft {
+    animation: none;
+  }
+}
+
+.ws-rolls-dialog .ws-inventory-summary-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 3px 8px;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  text-align: left;
+}
+
+.ws-rolls-dialog .ws-inventory-currency {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.ws-rolls-dialog .ws-inventory-divider {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.ws-rolls-dialog button.ws-inventory-summary-content.ws-button {
+  padding: 0;
+  min-height: 0;
+  border: 0 !important;
+  background: transparent !important;
+  transform: none;
 }

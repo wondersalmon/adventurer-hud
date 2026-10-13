@@ -18,12 +18,17 @@ export function captureHudDomState(root) {
     "data-companion-uuid",
     "data-companion-direction",
     "data-companion-filter",
+    "data-companion-effects-toggle",
     "data-category",
     "data-type",
     "data-proficient",
     "data-prepared",
+    "data-source",
     "data-spell-level",
+    "data-spell-filters-toggle",
     "data-layout-key",
+    "data-layout-scope",
+    "data-feature-group",
     "data-view",
     "data-scope",
     "data-reroll",
@@ -34,7 +39,17 @@ export function captureHudDomState(root) {
     "id"
   ];
   return {
+    companionSwitchesExpanded: Boolean(
+      root?.querySelector(".ws-companion-switch-list")?.open
+    ),
     gmSearchExpanded: Boolean(root?.querySelector(".ws-gm-search")?.open),
+    spellFiltersExpanded: Boolean(
+      root?.querySelector("details[data-spell-filters]")?.open
+    ),
+    companionEffects: Array.from(
+      root?.querySelectorAll("details[data-companion-effects]") ?? [],
+      node => [node.dataset.companionEffects, node.open]
+    ),
     spellLevels: Array.from(
       root?.querySelectorAll("details[data-spell-level]") ?? [],
       node => [node.dataset.spellLevel, node.open]
@@ -100,6 +115,14 @@ export function restoreHudDomState(
     if (defaultBody) defaultBody.hidden = !state.playerColumns;
   }
   synchronizeStatusLayout(root);
+  const companionSwitches = root.querySelector(".ws-companion-switch-list");
+  if (companionSwitches)
+    companionSwitches.open = Boolean(state.companionSwitchesExpanded);
+  const spellFilters = root.querySelector("details[data-spell-filters]");
+  if (spellFilters) spellFilters.open = Boolean(state.spellFiltersExpanded);
+  const effectStates = new Map(state.companionEffects ?? []);
+  for (const node of root.querySelectorAll("details[data-companion-effects]"))
+    node.open = Boolean(effectStates.get(node.dataset.companionEffects));
   const traits = root.querySelector(".ws-gm-defenses");
   if (traits) traits.open = Boolean(state.traitsExpanded);
   for (const [level, open] of state.spellLevels ?? []) {

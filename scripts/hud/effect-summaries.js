@@ -1,3 +1,9 @@
+/** Stable status IDs and custom effect names identify personal display choices. */
+export const effectVisibilityKey = effect =>
+  effect.id.startsWith("effect:")
+    ? `effect:${effect.name || effect.id}`
+    : `status:${effect.id}`;
+
 /** Read native effects once, for both player status icons and companion rows. */
 export function activeEffectSummaries(actor, definitions = []) {
   if (!actor) return [];
@@ -35,4 +41,24 @@ export function activeEffectSummaries(actor, definitions = []) {
     }
   }
   return [...statuses.values(), ...effects.values()];
+}
+
+/** Shared visibility and order for the player and companion icons. */
+export function visibleEffectSummaries(
+  actor,
+  adapter,
+  { hiddenEffects = [], statusFilter = "all" } = {}
+) {
+  const hidden = new Set(Array.isArray(hiddenEffects) ? hiddenEffects : []);
+  const priority = effect => {
+    const kind = adapter.statusKind?.(effect);
+    return kind === "concentrating" ? 0 : kind === "bloodied" ? 1 : 2;
+  };
+  return activeEffectSummaries(actor, adapter.statusDefinitions?.() ?? [])
+    .filter(
+      effect =>
+        !hidden.has(effectVisibilityKey(effect)) &&
+        (statusFilter !== "conditions" || adapter.isStandardStatus?.(effect))
+    )
+    .sort((left, right) => priority(left) - priority(right));
 }

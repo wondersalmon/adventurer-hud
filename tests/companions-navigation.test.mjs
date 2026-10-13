@@ -610,3 +610,74 @@ test("recording indicator follows session reuse and releases its listener when H
   stopDiagnosticRecording();
   clearDiagnostics();
 });
+
+test("Shift-click heals the exact companion only after confirmation and rechecking ownership and session", async () => {
+  const f = await fixture();
+  const token = f.token(f.npc("hurt"), "hurt");
+  const actor = token.actor;
+  actor.system.attributes.hp = { value: 3, max: 20, temp: 5 };
+  const damage = [];
+  actor.applyDamage = async value => {
+    damage.push(value);
+    actor.system.attributes.hp.value -= value;
+  };
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  let accept = false;
+  const confirmations = [];
+  foundry.applications.api.DialogV2.confirm = async options => {
+    confirmations.push(options);
+    return accept;
+  };
+  await app.hudActions.opencompanion({ shiftKey: true }, target(token.uuid));
+  assert.equal(confirmations.length, 1);
+  assert.deepEqual(damage, []);
+  accept = true;
+  await app.hudActions.opencompanion({ shiftKey: true }, target(token.uuid));
+  assert.deepEqual(damage, [-17]);
+  assert.equal(actor.system.attributes.hp.value, 20);
+  assert.equal(actor.system.attributes.hp.temp, 5);
+  assert.equal(__adventurerHud.actor, f.actor);
+  actor.system.attributes.hp.value = 2;
+  foundry.applications.api.DialogV2.confirm = async () => {
+    actor.isOwner = false;
+    return true;
+  };
+  await app.hudActions.opencompanion({ shiftKey: true }, target(token.uuid));
+  assert.deepEqual(damage, [-17]);
+  actor.isOwner = true;
+  foundry.applications.api.DialogV2.confirm = async () => {
+    token.actor = { ...actor };
+    return true;
+  };
+  await app.hudActions.opencompanion({ shiftKey: true }, target(token.uuid));
+  assert.deepEqual(damage, [-17]);
+  token.actor = actor;
+  foundry.applications.api.DialogV2.confirm = async () => {
+    await app.close();
+    return true;
+  };
+  await app.hudActions.opencompanion({ shiftKey: true }, target(token.uuid));
+  assert.deepEqual(damage, [-17]);
+});
+
+test("companion camera movement is independent from automatic token selection", async () => {
+  const f = await fixture({
+    values: { companionAutoFocus: true, companionCameraPan: false }
+  });
+  f.token(f.actor, "hero", true);
+  const token = f.token(f.npc(), "owl");
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  await app.hudActions.opencompanion(null, target(token.uuid));
+  assert.deepEqual(f.calls, [["control", token.uuid]]);
+  await app.hudActions.companionback();
+  f.calls.length = 0;
+  f.current.set("companionCameraPan", true);
+  await app.hudActions.opencompanion(null, target(token.uuid));
+  assert.deepEqual(f.calls, [
+    ["control", token.uuid],
+    ["pan", f.placeables.get(token.id).center]
+  ]);
+  await app.close();
+});

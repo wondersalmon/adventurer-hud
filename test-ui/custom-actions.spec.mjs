@@ -49,6 +49,9 @@ for (const [name, type, count] of [
       f.hudState.showPassiveFeatures = true;
       views.featuresPassive = f.renderer.combatActions();
       f.hudState.showPassiveFeatures = false;
+      f.hudState.allFeatures = true;
+      views.featuresAll = f.renderer.combatActions();
+      f.hudState.allFeatures = false;
       await page.setContent(
         `<style>${css}</style><main class="ws-rolls-dialog ws-theme-${theme}" style="width:${width}px"><div class="ws-shell"><section class="ws-view">${views[`activation:${type}`]}</section></div></main>`
       );
@@ -62,9 +65,11 @@ for (const [name, type, count] of [
             view.innerHTML = views[control.dataset.category] ?? view.innerHTML;
           else if (control.dataset.action === "featurefilter")
             view.innerHTML =
-              control.getAttribute("aria-pressed") === "true"
-                ? views.features
-                : views.featuresPassive;
+              control.dataset.filter === "all"
+                ? views.featuresAll
+                : control.dataset.filter === "passive"
+                  ? views.featuresPassive
+                  : views.features;
           else
             window.executed.push([
               control.dataset.action,
@@ -89,19 +94,21 @@ for (const [name, type, count] of [
       );
       await page.locator('[data-category="features"]').click();
       await expect(
-        page.locator('[data-action="featurefilter"]')
-      ).toHaveAttribute("aria-pressed", "false");
-      await expect(page.locator('[data-action="openitem"]')).toHaveCount(
+        page.locator('[data-action="featurefilter"][data-filter="active"]')
+      ).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator("[data-description-item-id]")).toHaveCount(
         f.actor.items.filter(
           item =>
             item.type === "feat" &&
             item.system.activities.some(activity => activity.activation?.type)
         ).length
       );
-      await page.locator('[data-action="featurefilter"]').focus();
+      await page
+        .locator('[data-action="featurefilter"][data-filter="passive"]')
+        .focus();
       await page.keyboard.press("Space");
       await expect(
-        page.locator('[data-action="featurefilter"]')
+        page.locator('[data-action="featurefilter"][data-filter="passive"]')
       ).toHaveAttribute("aria-pressed", "true");
       await expect(page.locator("[data-description-item-id]")).toHaveCount(
         f.actor.items.filter(
@@ -112,10 +119,18 @@ for (const [name, type, count] of [
       );
       await expect(page.locator('[data-action="openitem"]')).not.toHaveCount(0);
       await expect(page.locator('[data-action="useactivity"]')).toHaveCount(0);
-      await expect(page.locator('[data-action="featurefilter"]')).toHaveText(
-        t("Combat.ShowActiveFeatures")
+      await expect(
+        page.locator('[data-action="featurefilter"][data-filter="passive"]')
+      ).toHaveText(t("Combat.PassiveFeatures"));
+      await page
+        .locator('[data-action="featurefilter"][data-filter="all"]')
+        .click();
+      await expect(page.locator("[data-description-item-id]")).toHaveCount(
+        f.actor.items.filter(item => item.type === "feat").length
       );
-      await page.locator('[data-action="featurefilter"]').click();
+      await page
+        .locator('[data-action="featurefilter"][data-filter="active"]')
+        .click();
       await expect(page.locator("[data-description-item-id]")).toHaveCount(
         f.actor.items.filter(
           item =>
@@ -198,9 +213,9 @@ test("pinned descriptions move by mouse and allow another hover preview", async 
     window.secondItem = { id: "b", name: "Another trait" };
     const card = document.createElement("div");
     card.dataset.descriptionItemId = "b";
-    card.style.marginTop = "450px";
+    card.style.marginTop = "12px";
     card.innerHTML = "<button>Read another trait</button>";
-    document.querySelector(".ws-view").append(card);
+    document.querySelector(".ws-view").prepend(card);
   });
   await page.getByRole("button", { name: "Read another trait" }).hover();
   await expect(page.locator(".ws-item-preview")).toHaveCount(2);
@@ -240,7 +255,7 @@ test("hover preview is readable in both themes, stays in the viewport and can be
   }
 });
 
-test("disabled hover and F2 stay inactive; enabled focus supports pinning and Escape", async ({
+test("disabled descriptions keep distinct shortcut hints; enabled focus supports pinning and Escape", async ({
   page
 }) => {
   await previewPage(page, { enabled: false });
@@ -248,7 +263,9 @@ test("disabled hover and F2 stay inactive; enabled focus supports pinning and Es
   await card.focus();
   await page.keyboard.press("F2");
   await page.waitForTimeout(500);
-  await expect(page.locator(".ws-item-preview")).toHaveCount(0);
+  await expect(page.locator(".ws-item-preview")).toBeVisible();
+  await expect(page.locator(".ws-item-preview-body")).toHaveCount(0);
+  await expect(page.locator(".ws-item-preview-shortcuts kbd")).toHaveCount(3);
   await page.evaluate(() => (window.automatic = true));
   await card.blur();
   await card.focus();
@@ -323,7 +340,7 @@ test("unavailable native actions remain readable from the keyboard", async ({
     "Unavailable action description"
   );
   await page.keyboard.press("Escape");
-  await expect(card.locator('[data-action="openitem"]')).toBeFocused();
+  await expect(card).toBeFocused();
 });
 
 test("player categories keep nonstandard activations under Special", async ({

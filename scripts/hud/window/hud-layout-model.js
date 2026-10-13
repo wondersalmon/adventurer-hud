@@ -8,6 +8,10 @@ export const HUD_LAYOUT_BLOCKS = [
   ["return", ".ws-companion-navigation", "HudLayout.Return"],
   ["hp", ".ws-regular-health, .ws-health-stack", "Combat.HP"],
   ["rests", ".ws-exploration-rests", "Labels.Rests"],
+  ["weight", ".ws-inventory-summary", "Inventory.Summary"],
+  ["recent-actions", ".ws-footer-recent", "Recent.Title"],
+  ["footer-controls", ".ws-footer-controls", "HudLayout.FooterControls"],
+  ["end-turn", ".ws-footer-turn", "Combat.EndTurn"],
   ["effects", ".ws-combat-statuses", "HudLayout.Effects"],
   ["favorites", ".ws-player-favorites", "Quick.Favorites"],
   [
@@ -21,7 +25,7 @@ export const HUD_LAYOUT_BLOCKS = [
   ["resources", ".ws-gm-resources", "HudLayout.Resources"],
   ["traits", ".ws-gm-traits", "HudLayout.Traits"],
   ["search", ".ws-global-search, .ws-item-search", "Quick.Search"],
-  ["hints", ".ws-shortcuts", "HudLayout.Hints"],
+  ["hints", "[data-hud-hints]", "HudLayout.Hints"],
   ["setup", ".ws-gm-encounter-tools", "GM.CombatSetup"],
   ["creatures", ".ws-gm-preparation-creatures", "GM.Creatures"],
   ["players", ".ws-gm-preparation-players", "GM.Players"]
@@ -33,7 +37,10 @@ export const hudElementHidden = (state, key) =>
     ([scope, preference]) =>
       /^(regular|combat|preparation):(info|actions|extra|footer|tabs|expanded)$/.test(
         scope
-      ) && preference.hidden.includes(key)
+      ) &&
+      preference.hidden.some(
+        id => id === key || (key === "weight" && id === "currency")
+      )
   );
 
 /** @param {import('../../../types/hud.js').ItemLayouts} layouts */
@@ -83,7 +90,7 @@ export function restoreHudLayoutSnapshot(state) {
  */
 export function hudLaneOrder(state, mode, lane, sectionKeys) {
   const explicitlyPlaced = new Set(
-    ["info", "actions", "extra"].flatMap(
+    ["info", "actions", "extra", "footer"].flatMap(
       name => state.hudLayouts[`${mode}:${name}`]?.order ?? []
     )
   );
@@ -92,14 +99,24 @@ export function hudLaneOrder(state, mode, lane, sectionKeys) {
     ...order,
     ...sectionKeys.filter(key => !order.includes(key))
   ].filter(key => sectionKeys.includes(key) && !explicitlyPlaced.has(key));
-  return (state.hudLayouts[`${mode}:${lane}`]?.order ?? []).flatMap(key =>
-    key === "actions" && sectionKeys.length ? grouped : [key]
-  );
+  return [
+    ...new Set(
+      (state.hudLayouts[`${mode}:${lane}`]?.order ?? []).flatMap(key =>
+        key === "currency" || key === "weight"
+          ? []
+          : key === "actions" && sectionKeys.length
+            ? grouped
+            : [key]
+      )
+    )
+  ];
 }
 
 /** @param {import('../../../types/hud.js').HudState} state @param {string} mode @param {string} key @param {string} laneName @param {string[]} sectionKeys */
 export function toggleHudBlockHidden(state, mode, key, laneName, sectionKeys) {
   const shared = key === "search" || key === "hints";
+  /** @param {string} id */
+  const matches = id => id === key || (key === "weight" && id === "currency");
   if (mode === "regular" && key.startsWith("tab:")) {
     for (const [scope, preference] of Object.entries(state.hudLayouts)) {
       if (scope.startsWith("regular:") && preference.hidden.includes("actions"))
@@ -115,12 +132,12 @@ export function toggleHudBlockHidden(state, mode, key, laneName, sectionKeys) {
   const preference = state.hudLayouts[scope] ?? { order: [], hidden: [] };
   const wasHidden = Object.entries(state.hudLayouts).some(
     ([scope, value]) =>
-      (shared || scope.startsWith(`${mode}:`)) && value.hidden.includes(key)
+      (shared || scope.startsWith(`${mode}:`)) && value.hidden.some(matches)
   );
   if (wasHidden)
     for (const [scope, value] of Object.entries(state.hudLayouts)) {
       if (shared || scope.startsWith(`${mode}:`))
-        value.hidden = value.hidden.filter(id => id !== key);
+        value.hidden = value.hidden.filter(id => !matches(id));
     }
   else
     state.hudLayouts[scope] = {
@@ -141,10 +158,12 @@ export function toggleHudBlockHidden(state, mode, key, laneName, sectionKeys) {
 /** @param {import('../../../types/hud.js').HudState} state @param {string} mode @param {string} key */
 export function resetHudBlockPreferences(state, mode, key) {
   const shared = key === "search" || key === "hints";
+  /** @param {string} id */
+  const matches = id => id === key || (key === "weight" && id === "currency");
   for (const [scope, value] of Object.entries(state.hudLayouts)) {
     if (!scope.startsWith(`${mode}:`) && !shared) continue;
     if (scope.startsWith(`${mode}:`))
-      value.order = value.order.filter(id => id !== key);
-    value.hidden = value.hidden.filter(id => id !== key);
+      value.order = value.order.filter(id => !matches(id));
+    value.hidden = value.hidden.filter(id => !matches(id));
   }
 }

@@ -22,6 +22,7 @@ for (const template of ["settings.hbs", "reset-settings.hbs"]) {
               settings: [
                 {
                   key: "enabled",
+                  idPrefix: "adventurer-hud-settings",
                   name: "Enabled <flag>",
                   hint: "A & B",
                   value: true
@@ -37,7 +38,10 @@ for (const template of ["settings.hbs", "reset-settings.hbs"]) {
         })
       );
       assert.equal(root.children.length, 1);
-      assert.equal(root.querySelectorAll('button[type="submit"]').length, 1);
+      assert.equal(
+        root.querySelectorAll('button[type="submit"]').length,
+        template === "settings.hbs" ? 2 : 1
+      );
       if (template === "reset-settings.hbs")
         assert.equal(
           root.querySelector("button[data-action]").getAttribute("type"),
@@ -47,7 +51,8 @@ for (const template of ["settings.hbs", "reset-settings.hbs"]) {
       if (template === "settings.hbs") {
         assert.equal(root.querySelectorAll("input[checked]").length, 1);
         assert.equal(
-          root.querySelector('label[for="adventurer-hud-enabled"]').textContent,
+          root.querySelector('label[for="adventurer-hud-settings-enabled"]')
+            .textContent,
           "Enabled <flag>"
         );
         assert.equal(root.querySelector(".hint").textContent, "A & B");

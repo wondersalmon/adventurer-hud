@@ -277,12 +277,12 @@ test("GM settings reuse the form, reject player access and isolate reset from pl
     isGM: true,
     values: { showSearch: false, gmAutoAdvance: true }
   });
-  assert.equal(f.menus.get("gm").restricted, true);
-  const gmApp = new (f.menus.get("gm").type)();
+  assert.equal(f.menus.has("gm"), false);
+  const gmApp = await openGmSettings();
   const context = await gmApp._prepareContext();
-  const keys = context.groups.flatMap(group =>
-    group.settings.map(setting => setting.key)
-  );
+  const keys = context.groups
+    .filter(group => group.id === "gm")
+    .flatMap(group => group.settings.map(setting => setting.key));
   assert.ok(
     keys.every(
       key =>
@@ -294,8 +294,7 @@ test("GM settings reuse the form, reject player access and isolate reset from pl
   await submit.call(gmApp, null, null, {
     object: {
       gmEnabled: true,
-      gmSelectionMode: "turn",
-      showSearch: true
+      gmSelectionMode: "turn"
     }
   });
   assert.equal(f.current.get("gmEnabled"), true);
@@ -315,7 +314,7 @@ test("players cannot enable the GM preset or open NPCs through the HUD API", asy
   const f = await hudFixture();
   await setSetting(SETTINGS.gmEnabled, true);
   assert.equal(f.current.get(SETTINGS.gmEnabled), false);
-  assert.equal(f.menus.get("gm").restricted, true);
+  assert.equal(f.menus.has("gm"), false);
   assert.equal(openGmSettings(), undefined);
   f.current.set(SETTINGS.gmEnabled, true);
   await f.api.open({ ...f.actor, type: "npc" });
@@ -508,7 +507,7 @@ test("GM menu registers before users exist and opens after the user is initializ
   const f = installSettings();
   game.user = null;
   registerSettings();
-  assert.equal(f.menus.get("gm").restricted, true);
+  assert.equal(f.menus.has("gm"), false);
   assert.equal(openGmSettings(), undefined);
   game.user = { isGM: true };
   const app = await openGmSettings();

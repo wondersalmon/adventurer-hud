@@ -149,6 +149,7 @@ export interface ItemLayoutEntry {
   key: string;
   name: string;
   html: string;
+  group?: { id: string; label: string } | null;
 }
 export interface HudState {
   explorationSkillsCollapsed: boolean;
@@ -161,18 +162,23 @@ export interface HudState {
   hudEditing: boolean;
   hudLayoutUndo: HudLayoutUndo | null;
   itemHiddenExpanded: string | null;
+  collapsedFeatureGroups: string[];
   companionsExpanded: boolean;
   companionFilter: "scene" | "all" | "familiars";
   forcedMode: "regular" | "combat" | null;
   inventoryCategory: string;
+  spellSource: string | null;
   preparedSpellsOnly: boolean;
+  unpreparedSpellsOnly: boolean;
   showPassiveFeatures: boolean;
+  allFeatures: boolean;
   proficientSkillsOnly: boolean;
   renderedMode: string | null;
   searchQuery: string;
   openActivityItemId: string | null;
   favoriteEntries: ({ itemId: string; activityId: string } | null)[];
   gmSpeedsExpanded?: boolean;
+  armorClassExpanded?: boolean;
   gmLegendaryExpanded?: boolean;
 }
 export interface HudActionsOptions {
@@ -248,4 +254,11 @@ export interface CompanionActionDependencies extends CompanionRosterDependencies
   >;
   refresh(): Promise<unknown>;
   getEntries(): CompanionEntry[];
+}
+export type HudTheme =
+  "auto" | "dark" | "light" | "graphite" | "pearl" | "custom";
+export interface HudAnimationPreferences {
+  showVisualEffects: boolean;
+  hpAnimation: "off" | "bar" | "full";
+  turnAnimation: "off" | "soft" | "full";
 }

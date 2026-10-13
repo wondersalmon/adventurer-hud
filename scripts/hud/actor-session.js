@@ -1,4 +1,5 @@
 // @ts-check
+import { cardDetailFields } from "../settings-schema.js";
 import { createHudState, setRegularView, syncHudPreferences } from "./state.js";
 import { createHudActions } from "./actions.js";
 import { createGmSelection } from "./gm/gm-selection.js";
@@ -7,6 +8,7 @@ import { syncHealthAppearance as syncHealthAppearanceClass } from "./health-feed
 import { createRefreshScheduler, refreshHudView } from "./refresh.js";
 import { createHudRollRunner } from "./roll-runner.js";
 import { createHudToolState } from "./tool-state.js";
+import { createArmorClassRefresh } from "./stat-details.js";
 import {
   favoriteEntries,
   addFavorite,
@@ -19,7 +21,7 @@ import { pruneItemLayouts } from "./items/item-layout.js";
 import { createHudWindow } from "./window/window.js";
 import { syncHeaderEditControl } from "./window/window-controls.js";
 import { readHudVisibility } from "./visibility.js";
-import { getSetting, SETTINGS } from "../settings-access.js";
+import { getSetting, setSetting, SETTINGS } from "../settings-access.js";
 import { actorActionCooldown } from "./action-cooldown.js";
 import { reportFailure } from "../diagnostics.js";
 import { createCompanionPanel } from "./companions/companion-panel.js";
@@ -81,7 +83,12 @@ export async function openActorHud(
           filterActions: getSetting(SETTINGS.gmFilterActions),
           actionTypesOnly: getSetting(SETTINGS.gmActionTypesOnly),
           showActionTypes: true,
+          cardDetailFields: cardDetailFields(
+            getSetting(SETTINGS.gmCardDetails),
+            getSetting(SETTINGS.gmCardDetailFields)
+          ),
           itemDetails: getSetting(SETTINGS.gmShowItemDetails),
+          hideItemOpenButton: getSetting(SETTINGS.gmHideItemOpenButton),
           attackDetails: getSetting(SETTINGS.gmShowAttackDetails)
         }
       : {})
@@ -253,8 +260,21 @@ export async function openActorHud(
       syncLayout: () => app?.syncHudLayout?.(),
       beforeReplace: () => app?.closeDiceTray?.()
     });
+    if (
+      hudState.armorClassExpanded &&
+      region !== "search" &&
+      region !== "actions"
+    )
+      void refreshArmorClass();
   };
 
+  const refreshArmorClass = createArmorClassRefresh({
+    actor,
+    adapter,
+    getRoot: () => app?.element ?? null,
+    isCurrent: () =>
+      Boolean(app?.rendered && isSessionCurrent() && isActorCurrent())
+  });
   const refreshScheduler = createRefreshScheduler(refreshHud);
   const recoverActor = () => {
     if (isActorCurrent()) return false;
@@ -469,6 +489,7 @@ export async function openActorHud(
   });
 
   syncHealthAppearance();
+  if (hudState.armorClassExpanded) void refreshArmorClass();
   app.hudEditingState = () => hudState.hudEditing;
   app.updateHudEditControl = () =>
     syncHeaderEditControl({
@@ -482,6 +503,21 @@ export async function openActorHud(
       besidePin: true
     });
   app.updateHudEditControl();
+  if (!gmActive && !companion && isSessionCurrent()) {
+    const worldActor = game.actors?.get(actor.id);
+    if (
+      worldActor?.isOwner &&
+      worldActor.type === "character" &&
+      getSetting(SETTINGS.lastHudActor) !== worldActor.uuid
+    ) {
+      try {
+        await setSetting(SETTINGS.lastHudActor, worldActor.uuid);
+      } catch (error) {
+        reportFailure("hud.actor.remember", error, { notify: false });
+      }
+    }
+  }
+  if (!isSessionCurrent()) return;
   companions?.start();
   app.stopFamiliarVision = options => companions?.stopVision(options);
   app.getFamiliarVisionOwnerTokenUuid = () =>
@@ -502,7 +538,9 @@ export async function openActorHud(
     isSessionCurrent()
   ) {
     try {
-      const warning = await focusHudToken(actorContext);
+      const warning = await focusHudToken(actorContext, {
+        pan: getSetting(SETTINGS.companionCameraPan)
+      });
       if (warning && warning !== "Actor.TokenNotOnScene")
         ui.notifications.warn(t(warning));
     } catch (error) {

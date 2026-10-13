@@ -72,6 +72,53 @@ function blockLabel(key, t) {
     : t(HUD_LAYOUT_BLOCKS.find(block => block[0] === key)?.[2] ?? key);
 }
 
+// Keep keyboard targets alive when editor controls change after a move/resize.
+/** @param {HTMLElement} current @param {HTMLElement} next */
+function updateEditorControls(current, next) {
+  const identity = (/** @type {Element} */ node) => {
+    const control =
+      node.tagName === "DETAILS"
+        ? null
+        : node.hasAttribute("data-action")
+          ? node
+          : node.querySelector("[data-action]");
+    return JSON.stringify([
+      node.tagName,
+      control?.getAttribute("data-action"),
+      control?.getAttribute("data-hud-key"),
+      control?.getAttribute("data-hud-direction")
+    ]);
+  };
+  const previous = new Map(
+    [...current.children].map(node => [identity(node), node])
+  );
+  for (const attribute of [...current.attributes])
+    if (!next.hasAttribute(attribute.name))
+      current.removeAttribute(attribute.name);
+  for (const attribute of next.attributes)
+    if (current.getAttribute(attribute.name) !== attribute.value)
+      current.setAttribute(attribute.name, attribute.value);
+  let index = 0;
+  for (const child of [...next.children]) {
+    const key = identity(child);
+    const existing = previous.get(key);
+    const node = existing ?? child;
+    if (existing) {
+      previous.delete(key);
+      if (!child.children.length && existing.textContent !== child.textContent)
+        existing.textContent = child.textContent;
+      updateEditorControls(
+        /** @type {HTMLElement} */ (existing),
+        /** @type {HTMLElement} */ (child)
+      );
+    }
+    if (current.children[index] !== node)
+      current.insertBefore(node, current.children[index] ?? null);
+    index++;
+  }
+  for (const node of previous.values()) node.remove();
+}
+
 /** @param {HTMLElement} root @param {import('../../../types/hud.js').HudState} state @param {(key:string)=>string} t */
 export function synchronizeHudLayout(root, state, t) {
   const focused = /** @type {HTMLElement|null} */ (
@@ -102,9 +149,11 @@ export function synchronizeHudLayout(root, state, t) {
     badge.textContent = t("HudLayout.Editing");
   }
   const oldMenu = root.querySelector(".ws-hud-layout-menu");
-  root.querySelector(".ws-hud-layout-controls")?.remove();
+  const oldControls = /** @type {HTMLElement|null} */ (
+    root.querySelector(".ws-hud-layout-controls")
+  );
   if (!view) {
-    oldMenu?.remove();
+    oldControls?.remove();
     return;
   }
   const preparation = view.classList.contains("ws-gm-preparation");
@@ -130,6 +179,13 @@ export function synchronizeHudLayout(root, state, t) {
   const laneNames = extraLane
     ? ["info", "actions", "extra"]
     : ["info", "actions"];
+  const playerFooter = /** @type {HTMLElement|null} */ (
+    root.querySelector(".ws-player-footer")
+  );
+  if (playerFooter) {
+    lanes.push(playerFooter);
+    laneNames.push("footer");
+  }
   lanes.forEach((lane, index) =>
     lane?.setAttribute("data-hud-lane", laneNames[index])
   );
@@ -188,12 +244,10 @@ export function synchronizeHudLayout(root, state, t) {
     );
     if (!node) continue;
     if (
-      (key === "search" || key === "hints" || key === "rests") &&
+      ["search", "hints", "rests"].includes(key) &&
       !lanes.includes(node.parentElement)
     ) {
-      const customized = laneNames.some(lane =>
-        state.hudLayouts[`${mode}:${lane}`]?.order.includes(key)
-      );
+      const customized = laneNames.some(lane => laneOrder(lane).includes(key));
       if (state.hudEditing || customized) {
         let home = root.querySelector(`[data-hud-home-slot="${key}"]`);
         if (!home) {
@@ -210,11 +264,9 @@ export function synchronizeHudLayout(root, state, t) {
       }
     }
     if (
-      (key === "search" || key === "hints" || key === "rests") &&
+      ["search", "hints", "rests"].includes(key) &&
       !state.hudEditing &&
-      !laneNames.some(lane =>
-        state.hudLayouts[`${mode}:${lane}`]?.order.includes(key)
-      )
+      !laneNames.some(lane => laneOrder(lane).includes(key))
     )
       root.querySelector(`[data-hud-home-slot="${key}"]`)?.after(node);
     // Only whole blocks are movable; nested native controls keep their structure.
@@ -226,7 +278,8 @@ export function synchronizeHudLayout(root, state, t) {
       !node.dataset.hudBlock &&
       key !== "search" &&
       key !== "hints" &&
-      key !== "rests"
+      key !== "rests" &&
+      key !== "weight"
     )
       continue;
     node.dataset.hudBlock = key;
@@ -295,6 +348,23 @@ export function synchronizeHudLayout(root, state, t) {
     nodes.set(key, node);
     rememberBlockHome(root, node, key);
   }
+  const hints = nodes.get("hints");
+  const hintsPlaced = laneNames.some(name =>
+    state.hudLayouts[`${mode}:${name}`]?.order.includes("hints")
+  );
+  if (hints && lanes[0] && !hintsPlaced) lanes[0].append(hints);
+  // Keep the default footer slot until End turn is explicitly placed.
+  const turnSlot = playerFooter?.querySelector(":scope > .ws-footer-turn");
+  const turnPlaced = laneNames.some(name =>
+    state.hudLayouts[`${mode}:${name}`]?.order.includes("end-turn")
+  );
+  if (turnSlot && playerFooter && !turnPlaced) {
+    const footerControls = playerFooter.querySelector(
+      ":scope > .ws-footer-controls"
+    );
+    if (footerControls) footerControls.before(turnSlot);
+    else playerFooter.append(turnSlot);
+  }
   /** @type {HTMLElement|null} */
   let tabAnchor = null;
   for (const key of [...tabPreference.order].reverse()) {
@@ -311,6 +381,7 @@ export function synchronizeHudLayout(root, state, t) {
       lane => state.hudLayouts[`${mode}:${lane}`]?.hidden ?? []
     )
   );
+  if (hidden.has("currency")) hidden.add("weight");
   for (const key of ["search", "hints"])
     if (hudElementHidden(state, key)) hidden.add(key);
   if (exploration.length && hidden.has("actions")) {
@@ -336,10 +407,42 @@ export function synchronizeHudLayout(root, state, t) {
   };
   for (const [key, node] of nodes) {
     node.classList.toggle("ws-hud-block-hidden", hidden.has(key));
-    node.querySelector(":scope > .ws-hud-block-tools")?.remove();
-    if (!state.hudEditing || hidden.has(key)) continue;
+    const previousTools = /** @type {HTMLElement|null} */ (
+      node.querySelector(":scope > .ws-hud-block-tools")
+    );
+    if (!state.hudEditing || hidden.has(key) || key === "weight") {
+      previousTools?.remove();
+      continue;
+    }
+    const peers = [...(node.parentElement?.children ?? [])].filter(
+      peer =>
+        peer.hasAttribute("data-hud-block") &&
+        !hidden.has(peer.getAttribute("data-hud-block") ?? "")
+    );
+    const index = peers.indexOf(node);
+    const signature = JSON.stringify([
+      node.dataset.hudLabel,
+      node.parentElement?.hasAttribute("data-hud-lane"),
+      lanes.indexOf(node.parentElement),
+      lanes.length,
+      index,
+      peers.length,
+      [
+        "ItemLayout.Drag",
+        "ItemLayout.Top",
+        "ItemLayout.Up",
+        "ItemLayout.Down",
+        "ItemLayout.Bottom",
+        "HudLayout.ColumnLeft",
+        "HudLayout.ColumnRight",
+        "ItemLayout.Hide",
+        "HudLayout.ResetBlock"
+      ].map(t)
+    ]);
+    if (previousTools?.dataset.editorSignature === signature) continue;
     const tools = root.ownerDocument.createElement("div");
     tools.className = "ws-hud-block-tools";
+    tools.dataset.editorSignature = signature;
     const grip = button(
       "hudblockmove",
       "fa-grip-vertical",
@@ -361,8 +464,10 @@ export function synchronizeHudLayout(root, state, t) {
       key.startsWith("tab:")
     ) {
       for (const [direction, icon, label] of [
+        ["top", "fa-angles-up", "ItemLayout.Top"],
         ["up", "fa-arrow-up", "ItemLayout.Up"],
         ["down", "fa-arrow-down", "ItemLayout.Down"],
+        ["bottom", "fa-angles-down", "ItemLayout.Bottom"],
         ["left", "fa-arrow-left", "HudLayout.ColumnLeft"],
         ["right", "fa-arrow-right", "HudLayout.ColumnRight"]
       ]) {
@@ -374,14 +479,8 @@ export function synchronizeHudLayout(root, state, t) {
           continue;
         const control = button("hudblockmove", icon, label, node);
         control.dataset.hudDirection = direction;
-        const peers = [...(node.parentElement?.children ?? [])].filter(
-          peer =>
-            peer.hasAttribute("data-hud-block") &&
-            !hidden.has(peer.getAttribute("data-hud-block") ?? "")
-        );
-        const index = peers.indexOf(node);
-        if (direction === "up") control.disabled = index <= 0;
-        if (direction === "down")
+        if (["up", "top"].includes(direction)) control.disabled = index <= 0;
+        if (["down", "bottom"].includes(direction))
           control.disabled = index < 0 || index === peers.length - 1;
         if (direction === "left")
           control.disabled = lanes.indexOf(node.parentElement) <= 0;
@@ -402,10 +501,24 @@ export function synchronizeHudLayout(root, state, t) {
         node
       )
     );
-    node.prepend(tools);
+    if (previousTools) updateEditorControls(previousTools, tools);
+    else node.prepend(tools);
   }
-  oldMenu?.remove();
+  if (playerFooter) {
+    playerFooter.hidden =
+      !state.hudEditing &&
+      ![...playerFooter.children].some(
+        child =>
+          !child.hasAttribute("hidden") &&
+          !child.classList.contains("ws-hud-block-hidden") &&
+          Boolean(
+            child.textContent?.trim() ||
+            child.querySelector("button, .ws-combat-statuses")
+          )
+      );
+  }
   if (!state.hudEditing) {
+    oldControls?.remove();
     // Hiding identity must not hide independently visible rest controls.
     const rests = nodes.get("rests");
     if (hidden.has("identity") && rests?.closest(".ws-actor-header")) {
@@ -416,13 +529,54 @@ export function synchronizeHudLayout(root, state, t) {
     restoreFocus();
     return;
   }
+  // Read all toolbar heights before writing padding, including wrapped controls.
+  const editorSpacing = [...root.querySelectorAll(".ws-hud-block-tools")].map(
+    tools => {
+      const toolbar = /** @type {HTMLElement} */ (tools);
+      return {
+        parent: /** @type {HTMLElement|null} */ (toolbar.parentElement),
+        value: `${Math.max(58, (toolbar.offsetHeight || 0) + 8)}px`
+      };
+    }
+  );
+  for (const { parent, value } of editorSpacing)
+    if (
+      parent &&
+      parent.style.getPropertyValue("--ws-hud-editor-space") !== value
+    )
+      parent.style.setProperty("--ws-hud-editor-space", value);
+  const controlsSignature = JSON.stringify([
+    mode,
+    Boolean(extraLane),
+    state.hudLayoutUndo?.mode === mode,
+    [...hidden].map(key => [
+      key,
+      nodes.get(key)?.dataset.hudLabel ?? blockLabel(key, t)
+    ]),
+    [
+      "HudLayout.HiddenBlocks",
+      "ItemLayout.Show",
+      "HudLayout.ResetBlock",
+      "HudLayout.Hint",
+      "HudLayout.Undo",
+      "HudLayout.RemoveColumn",
+      "HudLayout.AddColumn",
+      "HudLayout.ResetLayout",
+      "HudLayout.InventorySummary"
+    ].map(t)
+  ]);
+  if (oldControls?.dataset.editorSignature === controlsSignature) {
+    restoreFocus();
+    return;
+  }
   const menu = root.ownerDocument.createElement("details");
   menu.className = "ws-hud-layout-menu";
   menu.open = oldMenu?.hasAttribute("open") ?? false;
   const summary = root.ownerDocument.createElement("summary");
-  summary.textContent = `${t("HudLayout.HiddenBlocks")} · ${hidden.size}`;
+  summary.textContent = `${t("HudLayout.HiddenBlocks")} · ${[...hidden].filter(key => key !== "weight" && key !== "currency").length}`;
   menu.append(summary);
   for (const key of hidden) {
+    if (key === "weight" || key === "currency") continue;
     const node = nodes.get(key) ?? root.ownerDocument.createElement("div");
     if (!nodes.has(key)) {
       node.dataset.hudBlock = key;
@@ -449,6 +603,7 @@ export function synchronizeHudLayout(root, state, t) {
   menu.append(hint);
   const controls = root.ownerDocument.createElement("div");
   controls.className = "ws-hud-layout-controls";
+  controls.dataset.editorSignature = controlsSignature;
   const undo = root.ownerDocument.createElement("button");
   undo.type = "button";
   undo.className = "ws-button ws-hud-layout-undo";
@@ -469,8 +624,27 @@ export function synchronizeHudLayout(root, state, t) {
   reset.textContent = t("HudLayout.ResetLayout");
   controls.append(undo, reset);
   if (!preparation) controls.append(extraControl);
+  if (!preparation) {
+    const inventory = root.ownerDocument.createElement("div");
+    inventory.dataset.hudBlock = "weight";
+    inventory.dataset.hudLabel = t("HudLayout.InventorySummary");
+    const row = root.ownerDocument.createElement("div");
+    row.className = "ws-hud-layout-fixed";
+    const label = root.ownerDocument.createElement("span");
+    label.textContent = inventory.dataset.hudLabel;
+    const toggle = button(
+      "hudblockhide",
+      hidden.has("weight") ? "fa-eye" : "fa-eye-slash",
+      hidden.has("weight") ? "ItemLayout.Show" : "ItemLayout.Hide",
+      inventory
+    );
+    toggle.setAttribute("aria-pressed", String(!hidden.has("weight")));
+    row.append(label, toggle);
+    controls.append(row);
+  }
   controls.append(menu);
-  lanes[0]?.prepend(controls);
+  if (oldControls) updateEditorControls(oldControls, controls);
+  else lanes[0]?.prepend(controls);
   restoreFocus();
 }
 
@@ -485,6 +659,7 @@ export function changeHudLayout(root, state, target, hide = false) {
   const nodes = [...root.querySelectorAll("[data-hud-block]")];
   const node = nodes.find(node => node.getAttribute("data-hud-block") === key);
   if (!view || !key || key === "modes" || (!node && !hide)) return false;
+  if (!hide && (key === "weight" || key === "currency")) return false;
   const mode = view.getAttribute("data-hud-layout-mode");
   const lane = node?.parentElement;
   const laneName =
@@ -524,6 +699,14 @@ export function changeHudLayout(root, state, target, hide = false) {
       destination.getAttribute("data-hud-block")?.startsWith("tab:")
     )
       destination.before(node);
+    else if (target.dataset.hudDirection === "top" && index > 0)
+      peers[0].before(node);
+    else if (
+      target.dataset.hudDirection === "bottom" &&
+      index >= 0 &&
+      index < peers.length - 1
+    )
+      peers[peers.length - 1].after(node);
     else if (target.dataset.hudDirection === "up" && peers[index - 1])
       peers[index - 1].before(node);
     else if (target.dataset.hudDirection === "down" && peers[index + 1])
@@ -558,7 +741,9 @@ export function changeHudLayout(root, state, target, hide = false) {
     return true;
   }
   if (!node || !lane?.hasAttribute("data-hud-lane")) return false;
-  const laneList = [...view.querySelectorAll("[data-hud-lane]")];
+  const laneList = [...root.querySelectorAll("[data-hud-lane]")].filter(
+    lane => !lane.hasAttribute("data-action")
+  );
   const other = laneList[(laneList.indexOf(lane) + 1) % laneList.length];
   const adjacent =
     laneList[
@@ -580,7 +765,7 @@ export function changeHudLayout(root, state, target, hide = false) {
       !child.classList.contains("ws-hud-block-hidden")
   );
   const index = peers.indexOf(node);
-  if (targetLane && targetLane !== lane) targetLane.append(node);
+  if (targetLane && targetLane !== lane) targetLane.prepend(node);
   else if (
     destination &&
     destination !== node &&
@@ -588,12 +773,20 @@ export function changeHudLayout(root, state, target, hide = false) {
   )
     destination.before(node);
   else if (target.dataset.hudDirection === "column" && other)
-    other.append(node);
+    other.prepend(node);
   else if (
     ["left", "right"].includes(target.dataset.hudDirection ?? "") &&
     adjacent
   )
-    adjacent.append(node);
+    adjacent.prepend(node);
+  else if (target.dataset.hudDirection === "top" && index > 0)
+    peers[0].before(node);
+  else if (
+    target.dataset.hudDirection === "bottom" &&
+    index >= 0 &&
+    index < peers.length - 1
+  )
+    peers[peers.length - 1].after(node);
   else if (target.dataset.hudDirection === "up" && peers[index - 1])
     peers[index - 1].before(node);
   else if (target.dataset.hudDirection === "down" && peers[index + 1])
@@ -608,16 +801,21 @@ export function changeHudLayout(root, state, target, hide = false) {
 /** @param {Element} view @param {import('../../../types/hud.js').HudState} state @param {string} mode @param {Element[]} nodes */
 function saveHudLaneOrders(view, state, mode, nodes) {
   const layout = view.closest(".ws-player-frame") ?? view;
-  for (const name of ["info", "actions", "extra"]) {
+  for (const name of ["info", "actions", "extra", "footer"]) {
     const parent = layout.querySelector(`[data-hud-lane="${name}"]`);
     if (!parent) continue;
     const scope = `${mode}:${name}`;
     const preference = state.hudLayouts[scope] ?? { order: [], hidden: [] };
     const present = [...(parent?.children ?? [])]
-      .filter(child => child.hasAttribute("data-hud-block"))
+      .filter(child => {
+        const key = child.getAttribute("data-hud-block");
+        return key && key !== "weight" && key !== "currency";
+      })
       .map(child => child.getAttribute("data-hud-block") ?? "");
     const available = new Set(
-      nodes.map(node => node.getAttribute("data-hud-block"))
+      nodes
+        .map(node => node.getAttribute("data-hud-block"))
+        .filter(key => key !== "weight" && key !== "currency")
     );
     state.hudLayouts[scope] = {
       ...preference,

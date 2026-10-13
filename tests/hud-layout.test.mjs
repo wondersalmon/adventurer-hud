@@ -4,6 +4,7 @@ import { hudFixture, waitFor } from "./helpers/hud.mjs";
 import { fixture } from "./helpers/companions.mjs";
 import { restoreGlobalsAfterEach } from "./helpers/foundry.mjs";
 import { createHudState } from "../scripts/hud/state.js";
+import { createViewActions } from "../scripts/hud/view-actions.js";
 import {
   panelStateSnapshot,
   panelStateForActor
@@ -20,6 +21,36 @@ import { fragment } from "./helpers/rendering.mjs";
 import { flushPanelPreferences } from "../scripts/hud/panel-preferences.js";
 
 restoreGlobalsAfterEach();
+
+test("opening a combat category closes only other categories in its lane and preserves native buttons", () => {
+  const root = fragment(
+    '<div data-hud-lane="info"><section class="ws-combat-category-section"><button data-action="combatfilter" data-category="weapons">Weapons</button></section></div><div data-hud-lane="actions"><section class="ws-combat-category-section"><button data-action="combatfilter" data-category="features">Features</button></section><section class="ws-combat-category-section"><button data-action="combatfilter" data-category="inventory">Inventory</button></section></div>'
+  );
+  const state = createHudState({
+    combatCategory: "features",
+    hudLayouts: {
+      "combat:expanded": { order: ["weapons", "features"], hidden: [] }
+    }
+  });
+  const calls = [];
+  const actions = createViewActions({
+    hudState: state,
+    savePanelState: () => calls.push("save"),
+    refreshHud: region => calls.push(region)
+  });
+  const inventory = root.querySelector('[data-category="inventory"]');
+  actions.combatfilter(null, inventory);
+  assert.deepEqual(state.hudLayouts["combat:expanded"].order, [
+    "weapons",
+    "inventory"
+  ]);
+  assert.equal(state.combatCategory, "inventory");
+  assert.deepEqual(calls, ["save", "actions"]);
+  assert.equal(root.querySelector('[data-category="inventory"]'), inventory);
+  actions.combatfilter(null, inventory);
+  assert.deepEqual(state.hudLayouts["combat:expanded"].order, ["weapons"]);
+  assert.equal(state.combatCategory, "weapons");
+});
 
 test("block reset restores only its default position and undo preserves other blocks, mode data and native controls", () => {
   const root = fragment(
@@ -53,6 +84,7 @@ test("block reset restores only its default position and undo preserves other bl
     identity.querySelector('[data-hud-direction="right"]')
   );
   sync();
+  assert.deepEqual(keys("actions"), ["identity", "actions"]);
   const beforeReset = captureHudLayoutUndo(state, "regular");
   assert.equal(
     resetHudBlock(
@@ -75,7 +107,7 @@ test("block reset restores only its default position and undo preserves other bl
   assert.equal(undoHudLayout(root, state), true);
   sync();
   assert.deepEqual(keys("info"), ["hp", "abilities"]);
-  assert.deepEqual(keys("actions"), ["actions", "identity"]);
+  assert.deepEqual(keys("actions"), ["identity", "actions"]);
   assert.equal(state.searchQuery, "new query after reset");
   assert.equal(undoHudLayout(root, state), false);
   assert.equal(panelStateSnapshot(state).hudLayoutUndo, undefined);
@@ -434,7 +466,7 @@ test("header editor sits beside pin, saves block settings and survives refresh; 
   await waitFor(() =>
     f.current
       .get("panelStates")
-      [f.actor.uuid]?.hudLayouts?.["regular:info"]?.hidden.includes("hp")
+      ["player:layout"]?.hudLayouts?.["regular:info"]?.hidden.includes("hp")
   );
   await app.hudActions.togglehudedit();
   assert.equal(app.element.querySelector(".ws-hud-layout-menu"), null);
@@ -599,7 +631,9 @@ test("compact rests retain independent editing, hiding and saved column placemen
   await waitFor(() =>
     f.current
       .get("panelStates")
-      [f.actor.uuid]?.hudLayouts?.["regular:actions"]?.order.includes("rests")
+      ["player:layout"]?.hudLayouts?.["regular:actions"]?.order.includes(
+        "rests"
+      )
   );
   await app.close();
   await f.api.open(f.actor);

@@ -7,6 +7,7 @@ const rootFiles = [
   "README.md",
   "README.ru.md",
   "CHANGELOG.md",
+  "CHANGELOG.ru.md",
   "LICENSE"
 ];
 const directories = ["lang", "scripts", "styles", "templates", "docs", "media"];

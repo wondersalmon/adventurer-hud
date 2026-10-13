@@ -1,3 +1,4 @@
+import { createTroubleshootingController } from "../scripts/settings-applications.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { hudFixture, waitFor } from "./helpers/hud.mjs";
@@ -239,7 +240,7 @@ test("full reset clears editor data; geometry-only reset preserves it and native
   });
   await f.api.open(f.actor);
   const favorites = structuredClone(f.actor.system.favorites);
-  const App = f.menus.get("troubleshooting").type;
+  const App = createTroubleshootingController().constructor;
   const app = new App();
   app.t = key => key;
   foundry.applications.api.DialogV2.confirm = async () => true;

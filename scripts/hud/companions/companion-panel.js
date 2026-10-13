@@ -45,7 +45,8 @@ export function renderCompanionNavigation({
         return `<button type="button" class="ws-companion-switch ws-button ${isTurn ? "ws-companion-turn" : ""}" data-action="opencompanion" data-companion-uuid="${escapeHTML(entry.uuid)}" title="${escapeHTML(hint)}" aria-label="${escapeHTML(hint)}" ${entry.actor ? "" : "disabled"}><img src="${escapeHTML(entry.token?.texture?.src ?? entry.actor?.img ?? "icons/svg/mystery-man.svg")}" alt=""><span>${escapeHTML(name)}</span></button>`;
       })
       .join("");
-    return `<div class="ws-companion-navigation"><button type="button" class="ws-companion-back ws-button" data-action="companionback" title="${label}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>${label}</button>${others.length ? `<nav class="ws-companion-switches" aria-label="${t("Companions.Other")}">${switches}</nav>` : ""}</div>`;
+    const otherLabel = escapeHTML(t("Companions.Other"));
+    return `<div class="ws-companion-navigation"><button type="button" class="ws-companion-back ws-button" data-action="companionback" title="${label}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>${label}</button>${others.length ? `<details class="ws-companion-switch-list"><summary id="ws-companion-switch-toggle"><i class="fa-solid fa-paw" aria-hidden="true"></i><span>${otherLabel} · ${others.length}</span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></summary><nav class="ws-companion-switches" aria-label="${otherLabel}">${switches}</nav></details>` : ""}</div>`;
   }
   return "";
 }

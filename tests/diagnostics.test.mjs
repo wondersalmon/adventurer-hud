@@ -1,3 +1,4 @@
+import { createTroubleshootingController } from "../scripts/settings-applications.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { inspectSavedData } from "../scripts/integrity.js";
@@ -16,14 +17,14 @@ import { fragment } from "./helpers/rendering.mjs";
 restoreGlobalsAfterEach();
 
 test("empty diagnostic export explains the absence of errors and still downloads environment information", async () => {
-  const { menus, notifications } = installSettings();
+  const { notifications } = installSettings();
   let data;
   foundry.utils = {
     saveDataToFile: value => {
       data = JSON.parse(value);
     }
   };
-  const C = menus.get("troubleshooting").type;
+  const C = createTroubleshootingController().constructor;
   const app = new C();
   app.t = key => key;
   await C.DEFAULT_OPTIONS.actions.export.call(app);
@@ -38,7 +39,7 @@ test("empty diagnostic export explains the absence of errors and still downloads
 });
 
 test("export waits for the native downloader before reporting a result", async () => {
-  const { menus, notifications } = installSettings();
+  const { notifications } = installSettings();
   let resolveDownload;
   foundry.utils = {
     saveDataToFile: () =>
@@ -46,7 +47,7 @@ test("export waits for the native downloader before reporting a result", async (
         resolveDownload = resolve;
       })
   };
-  const C = menus.get("troubleshooting").type;
+  const C = createTroubleshootingController().constructor;
   const app = new C();
   app.t = key => key;
   const pending = C.DEFAULT_OPTIONS.actions.export.call(app);
@@ -60,7 +61,7 @@ test("export waits for the native downloader before reporting a result", async (
 for (const outcome of ["rejection", "refusal"]) {
   test(`diagnostic export reports asynchronous ${outcome} instead of announcing a download`, async t => {
     t.mock.method(console, "error", () => {});
-    const { menus, notifications } = installSettings();
+    const { notifications } = installSettings();
     foundry.utils = {
       saveDataToFile: async () => {
         if (outcome === "rejection")
@@ -68,7 +69,7 @@ for (const outcome of ["rejection", "refusal"]) {
         return false;
       }
     };
-    const C = menus.get("troubleshooting").type;
+    const C = createTroubleshootingController().constructor;
     const app = new C();
     await C.DEFAULT_OPTIONS.actions.export.call(app);
     assert.equal(notifications.length, 1);
@@ -185,14 +186,14 @@ test("diagnostics deduplicate bursts, bound the log and do not include world doc
 });
 
 test("settings export delegates a readable report to the native Foundry downloader", async () => {
-  const { menus } = installSettings();
+  installSettings();
   let saved;
   foundry.utils = {
     saveDataToFile: (...args) => {
       saved = args;
     }
   };
-  const C = menus.get("troubleshooting").type;
+  const C = createTroubleshootingController().constructor;
   const app = new C();
   app.report = {
     issues: [
@@ -224,10 +225,10 @@ test("settings export delegates a readable report to the native Foundry download
 
 test("repair and export failures reach both the journal and the user", async t => {
   t.mock.method(console, "error", () => {});
-  const { menus, notifications, current } = installSettings({
+  const { notifications, current } = installSettings({
     values: { showSearch: "broken", language: "auto" }
   });
-  const C = menus.get("troubleshooting").type;
+  const C = createTroubleshootingController().constructor;
   const app = new C();
   app.report = {
     issues: inspectSavedData(Object.fromEntries(current))

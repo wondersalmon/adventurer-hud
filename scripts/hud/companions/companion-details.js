@@ -1,5 +1,6 @@
 import { findCombatant, getCurrentCombat } from "../../runtime-helpers.js";
-import { activeEffectSummaries } from "../effect-summaries.js";
+import { visibleEffectSummaries } from "../effect-summaries.js";
+import { getSetting, SETTINGS } from "../../settings-access.js";
 
 export function companionInitiative(entry) {
   const combat = getCurrentCombat(game);
@@ -38,5 +39,8 @@ export function companionInitiative(entry) {
 }
 
 export function companionEffects(actor, adapter) {
-  return activeEffectSummaries(actor, adapter.statusDefinitions?.() ?? []);
+  return visibleEffectSummaries(actor, adapter, {
+    hiddenEffects: getSetting(SETTINGS.hiddenEffects),
+    statusFilter: getSetting(SETTINGS.statusFilter)
+  });
 }

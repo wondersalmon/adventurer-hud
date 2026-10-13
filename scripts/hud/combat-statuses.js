@@ -1,26 +1,14 @@
-import { activeEffectSummaries } from "./effect-summaries.js";
-
-const statusPriority = kind => {
-  if (kind === "concentrating") return 0;
-  if (kind === "bloodied") return 1;
-  return 2;
-};
+import { visibleEffectSummaries } from "./effect-summaries.js";
 
 export function createCombatStatusRenderer({
   actor,
   adapter,
   escapeHTML,
   hudState,
+  visibility = {},
   t
 }) {
   let previousStatusIds = null;
-
-  const configuredStatuses = () => {
-    return adapter.statusDefinitions?.() ?? [];
-  };
-
-  const activeStatuses = () =>
-    activeEffectSummaries(actor, configuredStatuses());
 
   const combatStatuses = () => {
     const kinds = new Map();
@@ -34,10 +22,7 @@ export function createCombatStatusRenderer({
       }
       return kinds.get(status.id);
     };
-    const statuses = activeStatuses().sort(
-      (left, right) =>
-        statusPriority(statusKind(left)) - statusPriority(statusKind(right))
-    );
+    const statuses = visibleEffectSummaries(actor, adapter, visibility);
     const currentStatusIds = new Set(statuses.map(status => status.id));
     const newStatusIds = new Set(
       previousStatusIds
@@ -52,9 +37,7 @@ export function createCombatStatusRenderer({
     const statusIcon = status =>
       status.img ?? status.icon ?? "icons/svg/aura.svg";
 
-    if (!statuses.length) {
-      return "";
-    }
+    if (!statuses.length && !hudState.hudEditing) return "";
 
     const statusMarkup = status => {
       const label = statusLabel(status);
@@ -84,6 +67,7 @@ export function createCombatStatusRenderer({
             ${statuses.map(statusMarkup).join("")}
             <button type="button" class="ws-status-more ws-button ${newStatusIds.size ? "ws-status-new" : ""}" data-action="toggleconditions" hidden aria-expanded="${expanded}" aria-label="${t(expanded ? "Combat.HideConditions" : "Combat.ShowMoreConditions")}" title="${t(expanded ? "Combat.HideConditions" : "Combat.ShowMoreConditions")}">${expanded ? "−" : `+${statuses.length}`}</button>
           </div>
+          ${hudState.hudEditing ? `<button type="button" class="ws-effect-filter-settings ws-button" data-action="effectsettings" title="${t("Settings.Groups.effects.Name")}" aria-label="${t("Settings.Groups.effects.Name")}"><i class="fa-solid fa-filter" aria-hidden="true"></i></button>` : ""}
           <div class="ws-status-extra" hidden></div>
         </div>
       `;

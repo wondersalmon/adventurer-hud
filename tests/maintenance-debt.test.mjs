@@ -1,3 +1,4 @@
+import { createTroubleshootingController } from "../scripts/settings-applications.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -115,12 +116,12 @@ for (const partial of [false, true]) {
     foundry.applications.api.DialogV2 = {
       prompt: async () => backup({ fontSize: "small", showSearch: false })
     };
-    await f.menus
-      .get("troubleshooting")
-      .type.DEFAULT_OPTIONS.actions.restoresettings.call({
+    await createTroubleshootingController().constructor.DEFAULT_OPTIONS.actions.restoresettings.call(
+      {
         t: key => key,
         render: async () => {}
-      });
+      }
+    );
     assert.deepEqual(f.notifications, [
       [
         "warn",

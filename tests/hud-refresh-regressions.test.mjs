@@ -98,7 +98,9 @@ test("combat categories preserve character and moved search nodes after saving b
   for (const [category, expanded] of [
     ["skills", true],
     ["inventory", true],
-    ["skills", false]
+    ["skills", true],
+    ["skills", false],
+    ["inventory", true]
   ]) {
     await app.hudActions.combatfilter(
       null,
@@ -116,6 +118,15 @@ test("combat categories preserve character and moved search nodes after saving b
         )
         .getAttribute("aria-expanded"),
       String(expanded)
+    );
+    const previousCategory = category === "skills" ? "inventory" : "skills";
+    assert.equal(
+      app.element
+        .querySelector(
+          `[data-action="combatfilter"][data-category="${previousCategory}"]`
+        )
+        .getAttribute("aria-expanded"),
+      "false"
     );
   }
   assert.equal(

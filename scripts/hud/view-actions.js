@@ -1,4 +1,4 @@
-import { setForcedMode, setRegularView } from "./state.js";
+import { setForcedMode, setRegularView, toggleStatDetails } from "./state.js";
 import { moveItemLayout } from "./items/item-layout.js";
 import {
   changeHudLayout,
@@ -49,9 +49,14 @@ export function createViewActions({
       node => node.dataset.layoutKey
     );
     const key = target.dataset.layoutKey;
-    const destination = direction
-      ? keys[keys.indexOf(key) + direction]
-      : target.dataset.layoutTarget;
+    const destination =
+      direction === "top"
+        ? keys[0]
+        : direction === "bottom"
+          ? keys.at(-1)
+          : direction
+            ? keys[keys.indexOf(key) + direction]
+            : target.dataset.layoutTarget;
     const snapshot = layoutSnapshot(target.closest(".ws-rolls-dialog"));
     if (
       !destination ||
@@ -182,6 +187,12 @@ export function createViewActions({
     moveitemdown: function (_event, target) {
       moveItem(target, 1);
     },
+    moveitemtop: function (_event, target) {
+      moveItem(target, "top");
+    },
+    moveitembottom: function (_event, target) {
+      moveItem(target, "bottom");
+    },
     dropitemlayout: function (_event, target) {
       moveItem(target, 0);
     },
@@ -210,16 +221,33 @@ export function createViewActions({
       refreshHud();
     },
     combatfilter: function (_event, target) {
-      if (target.closest?.(".ws-combat-category-section")) {
+      const section = target.closest?.(".ws-combat-category-section");
+      if (section) {
         const expanded = hudState.hudLayouts["combat:expanded"] ?? {
           order: hudState.combatCategory ? [hudState.combatCategory] : [],
           hidden: []
         };
         const key = target.dataset.category;
+        const lane =
+          section.closest("[data-hud-lane]") ?? section.parentElement;
+        const siblings = new Set(
+          [
+            ...(lane?.querySelectorAll(
+              '.ws-combat-category-section > [data-action="combatfilter"]'
+            ) ?? [])
+          ]
+            .filter(
+              button =>
+                (button.closest("[data-hud-lane]") ??
+                  button.closest(".ws-combat-category-section")
+                    .parentElement) === lane
+            )
+            .map(button => button.dataset.category)
+        );
         hudState.hudLayouts["combat:expanded"] = {
           order: expanded.order.includes(key)
             ? expanded.order.filter(value => value !== key)
-            : [...expanded.order, key],
+            : [...expanded.order.filter(value => !siblings.has(value)), key],
           hidden: []
         };
         hudState.combatCategory =
@@ -240,13 +268,37 @@ export function createViewActions({
       savePanelState?.();
       refreshHud();
     },
-    featurefilter: async function () {
-      hudState.showPassiveFeatures = !hudState.showPassiveFeatures;
+    featurefilter: async function (_event, target) {
+      const filter = target?.dataset?.filter;
+      if (
+        filter !== undefined &&
+        !["active", "passive", "all"].includes(filter)
+      )
+        return;
+      hudState.allFeatures = filter === "all";
+      hudState.showPassiveFeatures =
+        filter === undefined
+          ? !hudState.showPassiveFeatures
+          : filter === "passive";
       await savePanelState?.();
       refreshHud("actions");
     },
+    spellsourcefilter: function (_event, target) {
+      const source = target.dataset.source;
+      if (
+        typeof source !== "string" ||
+        source.length > 256 ||
+        /[\u0000-\u001f]/.test(source)
+      )
+        return;
+      hudState.spellSource =
+        !source || hudState.spellSource === source ? null : source;
+      savePanelState?.();
+      refreshHud(currentMode() === "combat" ? "actions" : null);
+    },
     spellfilter: function (_event, target) {
       hudState.preparedSpellsOnly = target.dataset.prepared === "true";
+      hudState.unpreparedSpellsOnly = target.dataset.prepared === "unprepared";
       savePanelState?.();
       refreshHud(currentMode() === "combat" ? "actions" : null);
     },
@@ -256,8 +308,34 @@ export function createViewActions({
       await setSetting(SETTINGS.proficientSkillsOnly, proficientOnly);
       hudState.proficientSkillsOnly = proficientOnly;
     },
+    togglefeaturegroup: function (event, target) {
+      event?.preventDefault?.();
+      const key = JSON.stringify([
+        target.dataset.layoutScope,
+        target.dataset.featureGroup
+      ]);
+      const collapsed = hudState.collapsedFeatureGroups ?? [];
+      hudState.collapsedFeatureGroups = collapsed.includes(key)
+        ? collapsed.filter(value => value !== key)
+        : [...collapsed, key].slice(-1000);
+      savePanelState?.();
+      const body = target
+        .closest?.(".ws-feature-group")
+        ?.querySelector(".ws-combat-item-grid");
+      if (body) {
+        const expanded = !hudState.collapsedFeatureGroups.includes(key);
+        body.hidden = !expanded;
+        target.setAttribute("aria-expanded", String(expanded));
+        const group = target.closest(".ws-feature-group");
+        if (group?.tagName === "DETAILS") group.open = expanded;
+      } else refreshHud("actions");
+    },
     togglespeeds: function () {
-      hudState.gmSpeedsExpanded = !hudState.gmSpeedsExpanded;
+      toggleStatDetails(hudState, "gmSpeedsExpanded");
+      refreshHud();
+    },
+    togglearmorclass: function () {
+      toggleStatDetails(hudState, "armorClassExpanded");
       refreshHud();
     },
     togglefavorites: function () {
@@ -272,6 +350,9 @@ export function createViewActions({
     },
     clearsearch: function () {
       updateSearch("");
+    },
+    effectsettings: async function () {
+      return openSettings("effects");
     },
     settings: async function () {
       return openSettings();

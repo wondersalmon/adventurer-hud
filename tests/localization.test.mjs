@@ -10,6 +10,27 @@ import {
 
 const readManifest = () => readJson("module.json");
 
+test("Foundry can expand both dotted catalogs without replacing a parent string", async () => {
+  for (const language of ["en", "ru"]) {
+    const catalog = await readJson(`lang/${language}.json`);
+    const expanded = {};
+    for (const [key, value] of Object.entries(catalog)) {
+      const parts = key.split(".");
+      let parent = expanded;
+      for (const part of parts.slice(0, -1)) {
+        assert.notEqual(typeof parent[part], "string", `${language}: ${key}`);
+        parent = parent[part] ??= {};
+      }
+      assert.equal(parent[parts.at(-1)], undefined, `${language}: ${key}`);
+      parent[parts.at(-1)] = value;
+    }
+    assert.equal(
+      expanded.ADVENTURER_HUD.Settings.Groups.appearance.Name,
+      catalog["ADVENTURER_HUD.Settings.Groups.appearance.Name"]
+    );
+  }
+});
+
 test("module language choice overrides Foundry only for module strings", async () => {
   const i18n = {
     lang: "en",

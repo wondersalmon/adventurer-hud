@@ -87,6 +87,12 @@ export const dnd5eConfig = {
         return reference ? { ...status, reference } : status;
       });
   },
+  isStandardStatus(status) {
+    return (
+      Object.hasOwn(CONFIG.DND5E?.conditionTypes ?? {}, status.id) ||
+      ["concentrating", "concentration", "bloodied"].includes(status.id)
+    );
+  },
   statusKind(status) {
     if (["concentrating", "concentration"].includes(status.id))
       return "concentrating";

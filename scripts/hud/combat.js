@@ -42,10 +42,21 @@ export function createCombatRenderer(context) {
     shortcutHint,
     showInitiative = false,
     t,
-    visibility
+    visibility = {}
   } = context;
 
   const canAct = () => Boolean(actor?.isOwner ?? canRollActor);
+
+  const initiativeLabel = () => {
+    const bonus = adapter.initiativeBonus?.(actor);
+    return `${t("Labels.Initiative")}${Number.isFinite(bonus) ? ` <small class="ws-initiative-bonus" title="${t("Initiative.Bonus")}">${escapeHTML(formatMod(bonus))}</small>` : ""}`;
+  };
+  const armorClassControl = (id = "ws-gm-armor-class-details") => {
+    if (visibility.armorClass === false) return "";
+    const expanded = Boolean(hudState.armorClassExpanded);
+    const details = expanded ? adapter.armorClassDetails?.(actor) : null;
+    return `<button type="button" class="ws-combat-stat ws-button ws-armor-class" data-action="togglearmorclass" aria-expanded="${expanded}" aria-controls="${id}"><span>${t("Combat.AC")} ▾</span><strong>${escapeHTML(adapter.combatStats(actor).ac)}</strong></button><div class="ws-armor-class-details" id="${id}" ${expanded ? "" : "hidden"}>${details ? `${details.label ? `<b>${escapeHTML(details.label)}</b> ` : ""}<span>${escapeHTML(details.formula)} = ${escapeHTML(details.value)}</span>` : escapeHTML(t("ArmorClass.Unavailable"))}</div>`;
+  };
 
   const { combatStatuses } = createCombatStatusRenderer({
     actor,
@@ -56,10 +67,11 @@ export function createCombatRenderer(context) {
     visibility
   });
 
-  const combatInitiative = () => {
+  const combatInitiative = (always = false) => {
+    if (visibility.initiative === false) return "";
     const { combatant } = getCombatState();
 
-    if (!combatant && !showInitiative) {
+    if (!combatant && !showInitiative && !always) {
       return "";
     }
 
@@ -73,7 +85,7 @@ export function createCombatRenderer(context) {
           title="${!combatant ? t("Initiative.NotCombatant") : rolled ? t("Initiative.Rolled") : t("Initiative.Roll")}"
           ${!combatant || rolled || !canAct() ? "disabled" : ""}
         >
-          <span>${t("Labels.Initiative")}</span>
+          <span>${initiativeLabel()}</span>
           <strong>${rolled ? combatant.initiative : "—"}</strong>
         </button>
       `;
@@ -94,22 +106,28 @@ export function createCombatRenderer(context) {
     </div>
   `;
   const playerStatsHTML = (includeInitiative = true) => {
-    const { ac, speed, speedUnits } = adapter.combatStats(actor);
+    includeInitiative &&= visibility.initiative !== false;
+    const count =
+      Number(visibility.armorClass !== false) +
+      Number(includeInitiative) +
+      Number(visibility.speed !== false);
+    if (!count) return "";
+    const { speed, speedUnits } = adapter.combatStats(actor);
     const movement = adapter.npcMovement?.(actor) ?? {
       primary: `${speed}${speedUnits ? ` ${speedUnits}` : ""}`,
       secondary: ""
     };
-    return `<div class="ws-combat-stats ws-player-stats ${includeInitiative ? "" : "ws-no-initiative"}">
-      <div class="ws-combat-stat"><span>${t("Combat.AC")}</span><strong>${ac}</strong></div>
-      ${includeInitiative ? `<div class="ws-player-initiative-slot">${!getCombatState().combatant ? `<div class="ws-combat-stat"><span>${t("Labels.Initiative")}</span><strong>—</strong></div>` : ""}</div>` : ""}
-      ${movement.secondary ? `<button type="button" class="ws-combat-stat ws-player-speed ws-button" data-action="togglespeeds" aria-expanded="${Boolean(hudState.gmSpeedsExpanded)}" aria-controls="ws-player-secondary-speed"><span>${t("Combat.Speed")} ▾</span><strong>${escapeHTML(movement.primary)}</strong></button>` : `<div class="ws-combat-stat"><span>${t("Combat.Speed")}</span><strong>${escapeHTML(movement.primary)}</strong></div>`}
+    return `<div class="ws-combat-stats ws-player-stats ${includeInitiative ? "" : "ws-no-initiative"}" style="--ws-stat-columns:${count}">
+      ${armorClassControl(`ws-player-armor-class-${includeInitiative ? "combat" : "regular"}`)}
+      ${includeInitiative ? `<div class="ws-player-initiative-slot">${combatInitiative(true)}</div>` : ""}
+      ${visibility.speed === false ? "" : movement.secondary ? `<button type="button" class="ws-combat-stat ws-player-speed ws-button" data-action="togglespeeds" aria-expanded="${Boolean(hudState.gmSpeedsExpanded)}" aria-controls="ws-player-secondary-speed"><span title="${t("Combat.Speed")}"><span class="ws-stat-label-full">${t("Combat.Speed")}</span><span class="ws-stat-label-short">${t("Combat.SpeedShort")}</span> ▾</span><strong>${escapeHTML(movement.primary)}</strong></button>` : `<div class="ws-combat-stat"><span title="${t("Combat.Speed")}"><span class="ws-stat-label-full">${t("Combat.Speed")}</span><span class="ws-stat-label-short">${t("Combat.SpeedShort")}</span></span><strong>${escapeHTML(movement.primary)}</strong></div>`}
 
-      ${movement.secondary ? `<div class="ws-player-secondary-speed" id="ws-player-secondary-speed" ${hudState.gmSpeedsExpanded ? "" : "hidden"}>${escapeHTML(movement.secondary)}</div>` : ""}
+      ${visibility.speed !== false && movement.secondary ? `<div class="ws-player-secondary-speed" id="ws-player-secondary-speed" ${hudState.gmSpeedsExpanded ? "" : "hidden"}>${escapeHTML(movement.secondary)}</div>` : ""}
     </div>`;
   };
   function combatHTML() {
     const { isTurn, canEndTurn } = getCombatState();
-    const { ac, hp } = adapter.combatStats(actor);
+    const { hp } = adapter.combatStats(actor);
     const legendaryResistance = gmHeader
       ? adapter.npcResource(actor, "legres")
       : null;
@@ -126,6 +144,11 @@ export function createCombatRenderer(context) {
       }
       const legendaryActions = adapter.npcResource(actor, "legact");
       const movement = adapter.npcMovement(actor);
+      const initiative = combatInitiative();
+      const statCount =
+        Number(visibility.armorClass !== false) +
+        Number(Boolean(initiative)) +
+        Number(visibility.speed !== false);
       const search = globalSearchPanel?.() ?? "";
       const resistanceUsage = legendaryResistance
         ? adapter.legendaryResistanceUsage?.(actor)
@@ -138,8 +161,8 @@ export function createCombatRenderer(context) {
           <section class="ws-gm-info">
             <div class="ws-gm-identity"><button type="button" class="ws-button ws-gm-selected-image" data-action="gmimage" data-combatant-id="${escapeHTML(gmCombatant?.id)}" title="${t("GM.OpenImage")}" aria-label="${t("GM.OpenImage")}"><img class="ws-gm-selected-portrait" src="${escapeHTML(gmCombatant?.token?.texture?.src || actor.img || "icons/svg/mystery-man.svg")}" alt=""></button><button type="button" class="ws-button ws-gm-name" data-action="gmsheet" title="${t("Actor.OpenSheet")}"><strong>${escapeHTML(actor.name)}</strong></button>${search ? `<details class="ws-gm-search" ${hudState.searchQuery ? "open" : ""}><summary title="${t("Quick.Search")}" aria-label="${t("Quick.Search")}"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></summary>${search}</details>` : ""}</div>
             <div class="ws-gm-identity-actions" role="group" aria-label="${t("GM.CreatureControls")}"><button type="button" class="ws-button" data-action="gmping" title="${t("GM.Ping")}" aria-label="${t("GM.Ping")}"><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i><span>${t("GM.Ping")}</span></button><button type="button" class="ws-button" data-action="gmcenter" title="${t("GM.ToToken")}" aria-label="${t("GM.ToToken")}"><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i><span>${t("GM.ToToken")}</span></button>${renderGmHiddenButton(gmCombatant, t, escapeHTML)}${renderGmDefeatedButton(gmCombatant, t, escapeHTML)}${defeated(gmCombatant) && actor.type === "npc" && !hasPlayerOwner(gmCombatant) ? `<button type="button" class="ws-button ws-gm-remove-selected" data-action="gmremove" title="${t("GM.RemoveCreature")}" aria-label="${t("GM.RemoveCreature")}"><i class="fa-solid fa-trash-can" aria-hidden="true"></i><span>${t("GM.RemoveCreature")}</span></button>` : ""}</div>
-            ${healthPanel(hp)}<div class="ws-combat-stats"><div class="ws-combat-stat"><span>${t("Combat.AC")}</span><strong>${ac}</strong></div>${combatInitiative()}${movement.secondary ? `<button type="button" class="ws-combat-stat ws-gm-speed" data-action="gmspeeds" aria-expanded="${Boolean(hudState.gmSpeedsExpanded)}"><span>${t("Combat.Speed")} ▾</span><strong>${escapeHTML(movement.primary)}</strong></button>` : `<div class="ws-combat-stat"><span>${t("Combat.Speed")}</span><strong>${escapeHTML(movement.primary)}</strong></div>`}
-            ${movement.secondary ? `<div class="ws-gm-secondary-speed" ${hudState.gmSpeedsExpanded ? "" : "hidden"}>${escapeHTML(movement.secondary)}</div>` : ""}</div>
+            ${healthPanel(hp)}<div class="ws-combat-stats" style="--ws-stat-columns:${statCount || 1}" ${statCount ? "" : "hidden"}>${armorClassControl()}${initiative}${visibility.speed === false ? "" : movement.secondary ? `<button type="button" class="ws-combat-stat ws-gm-speed" data-action="gmspeeds" aria-expanded="${Boolean(hudState.gmSpeedsExpanded)}"><span title="${t("Combat.Speed")}"><span class="ws-stat-label-full">${t("Combat.Speed")}</span><span class="ws-stat-label-short">${t("Combat.SpeedShort")}</span> ▾</span><strong>${escapeHTML(movement.primary)}</strong></button>` : `<div class="ws-combat-stat"><span title="${t("Combat.Speed")}"><span class="ws-stat-label-full">${t("Combat.Speed")}</span><span class="ws-stat-label-short">${t("Combat.SpeedShort")}</span></span><strong>${escapeHTML(movement.primary)}</strong></div>`}
+            ${visibility.speed !== false && movement.secondary ? `<div class="ws-gm-secondary-speed" ${hudState.gmSpeedsExpanded ? "" : "hidden"}>${escapeHTML(movement.secondary)}</div>` : ""}</div>
             ${combatStatuses()}
             ${gmSaves?.() ?? ""}
             <div class="ws-gm-resources">${[
@@ -180,7 +203,7 @@ export function createCombatRenderer(context) {
           ${modeNavigation("combat")}
           <section class="ws-player-info">
           ${globalSearchPanel?.() ?? ""}
-          ${actorHeader(`${inspirationControl()}${combatInitiative()}${isTurn ? `<button type="button" class="ws-header-control ws-header-end-turn ws-button ws-active" data-action="endturn" title="${t("Combat.YourTurn")} · ${t("Combat.EndTurn")}" aria-label="${t("Combat.EndTurn")}" ${canEndTurn ? "" : "disabled"}><i class="fa-solid fa-forward-step" aria-hidden="true"></i><span>${t("Combat.EndTurn")}</span></button>` : ""}`)}
+          ${actorHeader(`${inspirationControl()}${isTurn ? `<button type="button" class="ws-header-control ws-header-end-turn ws-button ws-active" data-action="endturn" title="${t("Combat.YourTurn")} · ${t("Combat.EndTurn")}" aria-label="${t("Combat.EndTurn")}" ${canEndTurn ? "" : "disabled"}><i class="fa-solid fa-forward-step" aria-hidden="true"></i><span>${t("Combat.EndTurn")}</span></button>` : ""}`)}
 
           ${companionNavigation?.() ?? ""}
 

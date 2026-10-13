@@ -6,6 +6,7 @@ import {
 import { createModuleTranslator } from "./localization.js";
 import { MODULE_ID } from "./module-id.js";
 import { SETTINGS, getSettingDefinitions } from "./settings-schema.js";
+import { synchronizeHudAccents } from "./hud/theme.js";
 import { SettingsSaveError } from "./settings-access.js";
 import { settingsBackup, restoreSettingsBackup } from "./settings-backup.js";
 import { flushWindowGeometry } from "./window-geometry.js";
@@ -39,17 +40,20 @@ export function createIntegrityApplication({
       position: { width: 520, height: "auto" },
       actions: {
         resetsettings: function () {
-          return openResetSettings?.(false);
+          return openResetSettings?.(false, this);
         },
         resetgm: function () {
-          if (game.user?.isGM) return openResetSettings?.(true);
+          if (game.user?.isGM) return openResetSettings?.(true, this);
         },
         resetpositions: async function () {
           const accepted = await foundry.applications.api.DialogV2.confirm({
             window: { title: this.t("Troubleshooting.ResetPositions") },
             content: `<p>${this.t("Troubleshooting.ResetPositionsHint")}</p>`
           });
-          if (accepted) await resetWindowPositions?.();
+          if (accepted) {
+            await resetWindowPositions?.();
+            await this.settingsChanged?.();
+          }
         },
         resetplayerwindow: async function () {
           if (
@@ -57,8 +61,10 @@ export function createIntegrityApplication({
               window: { title: this.t("Troubleshooting.ResetPlayerWindow") },
               content: `<p>${this.t("Troubleshooting.ResetWindowHint")}</p>`
             })
-          )
+          ) {
             await resetWindowPositions?.("player");
+            await this.settingsChanged?.();
+          }
         },
         resetgmwindow: async function () {
           if (!game.user?.isGM) return;
@@ -67,8 +73,10 @@ export function createIntegrityApplication({
               window: { title: this.t("Troubleshooting.ResetGmWindow") },
               content: `<p>${this.t("Troubleshooting.ResetWindowHint")}</p>`
             })
-          )
+          ) {
             await resetWindowPositions?.("gm");
+            await this.settingsChanged?.();
+          }
         },
         resetall: async function () {
           if (
@@ -91,6 +99,7 @@ export function createIntegrityApplication({
               );
               await resetWindowPositions?.("all");
             });
+            await this.settingsChanged?.();
           }
         },
         backupsettings: async function () {
@@ -143,8 +152,14 @@ export function createIntegrityApplication({
           try {
             await restoreSettingsBackup(text);
             ui.notifications.info(this.t("Troubleshooting.BackupRestored"));
+            await this.settingsChanged?.();
             await this.render({ force: true });
           } catch (error) {
+            if (
+              error instanceof SettingsSaveError &&
+              error.rollbackFailedKeys.length
+            )
+              await this.settingsChanged?.();
             const key =
               error instanceof SettingsSaveError
                 ? error.rollbackFailedKeys.length
@@ -174,10 +189,10 @@ export function createIntegrityApplication({
           await this.render({ force: true });
         },
         cleardiagnostics: async function () {
-          const comment = this.element?.querySelector?.(
+          const comment = this.viewElement?.querySelector?.(
             "[data-diagnostic-comment]"
           );
-          const include = this.element?.querySelector?.(
+          const include = this.viewElement?.querySelector?.(
             "[data-diagnostic-errors]"
           );
           if (comment) comment.value = "";
@@ -218,6 +233,7 @@ export function createIntegrityApplication({
           if (this.busy || !this.report?.issues.some(canRepairIssue)) return;
           this.busy = true;
           this.failure = false;
+          let settingsChanged = false;
           try {
             await this.render({ force: true });
             const repairs = this.report.issues.filter(canRepairIssue);
@@ -237,7 +253,15 @@ export function createIntegrityApplication({
                 .join("")}</ul>`
             });
             if (!accepted) return;
-            this.repaired = await repairSavedData(repairs);
+            this.repaired = await repairSavedData(repairs, {
+              beforeRepair: backup =>
+                foundry.utils.saveDataToFile(
+                  JSON.stringify(backup, null, 2),
+                  "application/json",
+                  "adventurer-hud-before-repair.json"
+                )
+            });
+            settingsChanged = this.repaired > 0;
             this.report = await checkIntegrity();
           } catch (error) {
             if (error?.message === "repair-plan-changed") {
@@ -247,6 +271,7 @@ export function createIntegrityApplication({
             }
             this.failure = true;
             if (error instanceof SettingsSaveError) {
+              settingsChanged = error.rollbackFailedKeys.length > 0;
               ui.notifications.warn(
                 this.t(
                   error.rollbackFailedKeys.length
@@ -258,6 +283,7 @@ export function createIntegrityApplication({
             } else reportFailure("integrity.repair", error, { t: this.t });
           } finally {
             this.busy = false;
+            if (settingsChanged) await this.settingsChanged?.();
             await this.render({ force: true });
           }
         },
@@ -270,20 +296,90 @@ export function createIntegrityApplication({
       report: { template: "modules/adventurer-hud/templates/integrity.hbs" }
     };
 
+    get viewElement() {
+      return this.embeddedElement ?? this.element;
+    }
+
+    async attach(element) {
+      if (this.embeddedElement === element) return this;
+      this.readDiagnosticInput();
+      this.detach();
+      this.embedded = true;
+      this.embeddedElement = element;
+      this.embeddedListener = event => {
+        const target = event.target?.closest?.("button[data-action]");
+        const action =
+          this.constructor.DEFAULT_OPTIONS.actions[target?.dataset.action];
+        if (!action || !element.contains(target)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        void Promise.resolve()
+          .then(() => action.call(this, event, target))
+          .catch(error =>
+            reportFailure("integrity.action", error, { t: this.t })
+          );
+      };
+      element.addEventListener("click", this.embeddedListener);
+      return this.render({ force: true });
+    }
+
+    detach() {
+      this.embeddedRevision = (this.embeddedRevision ?? 0) + 1;
+      this.embeddedElement?.removeEventListener("click", this.embeddedListener);
+      this.embeddedElement = null;
+      this.unwatchDiagnostics?.();
+      this.unwatchDiagnostics = null;
+    }
+
+    async render(...args) {
+      if (this.embedded && !this.embeddedElement) return this;
+      if (!this.embeddedElement) return super.render(...args);
+      const element = this.embeddedElement;
+      const revision = (this.embeddedRevision =
+        (this.embeddedRevision ?? 0) + 1);
+      const context = await this._prepareContext();
+      const html = await foundry.applications.handlebars.renderTemplate(
+        this.constructor.PARTS.report.template,
+        { ...context, embedded: true }
+      );
+      if (
+        revision !== this.embeddedRevision ||
+        this.embeddedElement !== element ||
+        !element.isConnected
+      )
+        return this;
+      element.innerHTML = html;
+      this._onRender(context, {});
+      return this;
+    }
+
     readDiagnosticInput() {
-      const comment = this.element?.querySelector?.(
+      this.expandedSections ??= {};
+      for (const section of this.viewElement?.querySelectorAll?.(
+        "[data-troubleshooting-section]"
+      ) ?? [])
+        this.expandedSections[section.dataset.troubleshootingSection] =
+          section.open;
+      const comment = this.viewElement?.querySelector?.(
         "[data-diagnostic-comment]"
       );
-      const include = this.element?.querySelector?.("[data-diagnostic-errors]");
+      const include = this.viewElement?.querySelector?.(
+        "[data-diagnostic-errors]"
+      );
       if (comment) this.diagnosticComment = comment.value.slice(0, 4000);
       if (include) this.includeErrorText = Boolean(include.checked);
     }
 
     _onRender(context, options) {
       super._onRender?.(context, options);
+      if (!this.embeddedElement && this.element?.style)
+        synchronizeHudAccents(this.element, {
+          preset: game.settings.get(MODULE_ID, SETTINGS.accentPreset),
+          color: game.settings.get(MODULE_ID, SETTINGS.accentColor)
+        });
       if (this.unwatchDiagnostics) return;
       this.unwatchDiagnostics = subscribeDiagnostics(() => {
-        if (this.rendered) {
+        if (this.embeddedElement?.isConnected || this.rendered) {
           this.readDiagnosticInput();
           void this.render({ force: true }).catch(error =>
             reportFailure("diagnostics.ui", error, { notify: false })
@@ -293,6 +389,10 @@ export function createIntegrityApplication({
     }
 
     async close(options) {
+      if (this.embeddedElement) {
+        this.detach();
+        return this;
+      }
       this.unwatchDiagnostics?.();
       this.unwatchDiagnostics = null;
       return super.close(options);
@@ -317,13 +417,6 @@ export function createIntegrityApplication({
     }
 
     async _prepareContext() {
-      this.expandedSections ??= {};
-      for (const section of this.element?.querySelectorAll?.(
-        "[data-troubleshooting-section]"
-      ) ?? [])
-        this.expandedSections[section.dataset.troubleshootingSection] =
-          section.open;
-
       const { t, tf } = await createModuleTranslator({
         language: game.settings.get(MODULE_ID, SETTINGS.language),
         i18n: game.i18n
@@ -332,6 +425,12 @@ export function createIntegrityApplication({
       if (this.options?.window)
         this.options.window.title = t("Settings.Troubleshooting.Name");
       const issues = this.report?.issues ?? [];
+      const severity = entries =>
+        entries.length
+          ? entries.every(canRepairIssue)
+            ? "warning"
+            : "error"
+          : "success";
       this.readDiagnosticInput();
       const diagnostics = diagnosticReport({
         integrity: this.report ?? null,
@@ -342,10 +441,11 @@ export function createIntegrityApplication({
       return {
         expandedSections: this.expandedSections,
         expandedSectionAttributes: Object.fromEntries(
-          Object.entries(this.expandedSections).map(([key, open]) => [
-            key,
-            open ? "open" : ""
-          ])
+          Object.entries({
+            ...this.expandedSections,
+            report:
+              this.expandedSections.report || diagnostics.summary.recording
+          }).map(([key, open]) => [key, open ? "open" : ""])
         ),
         recordingSectionLabel: t("Troubleshooting.Recording"),
         reportSectionLabel: t("Troubleshooting.Report"),
@@ -394,6 +494,7 @@ export function createIntegrityApplication({
         backupHint: t("Troubleshooting.BackupHint"),
         repairBackupLabel: t("Integrity.DownloadRepairBackup"),
         repairBackupHint: t("Integrity.RepairBackupHint"),
+        automaticBackupHint: t("Integrity.AutomaticBackupHint"),
         repairBackupDate:
           game.settings.get(MODULE_ID, SETTINGS.repairBackup)?.createdAt ?? "",
         isGM: Boolean(game.user?.isGM),
@@ -414,8 +515,14 @@ export function createIntegrityApplication({
               ["Preferences", ["SavedData", "Registration"]],
               ["Layouts", ["Layout", SETTINGS.panelStates]],
               ["Files", ["File"]],
-              ["Features", ["Api", "System"]]
+              ["Features", ["Api", "System", "Compatibility"]]
             ].map(([name, codes]) => ({
+              severity: severity(
+                issues.filter(
+                  issue =>
+                    codes.includes(issue.code) || codes.includes(issue.key)
+                )
+              ),
               label: t(`Integrity.Check${name}`),
               status: t(
                 issues.some(
@@ -427,6 +534,14 @@ export function createIntegrityApplication({
               )
             }))
           : [],
+        summarySeverity:
+          this.busy || !this.report
+            ? this.failure
+              ? "error"
+              : "pending"
+            : this.failure
+              ? "error"
+              : severity(issues),
         summary: t(
           this.busy
             ? "Integrity.Checking"
@@ -442,11 +557,14 @@ export function createIntegrityApplication({
           ? tf("Integrity.Repaired", { count: this.repaired })
           : "",
         manualHint: issues.some(issue =>
-          ["File", "Api", "System", "Registration"].includes(issue.code)
+          ["File", "Api", "System", "Compatibility", "Registration"].includes(
+            issue.code
+          )
         )
           ? t("Integrity.ManualHint")
           : "",
         issues: issues.map(issue => ({
+          severity: canRepairIssue(issue) ? "warning" : "error",
           changes:
             issue.changes?.map(change => ({
               path: change.path,

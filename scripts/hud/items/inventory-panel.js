@@ -39,7 +39,7 @@ export function renderInventoryPanel(context) {
                 entries: items.map(item => ({
                   key: itemLayoutKey(item),
                   name: item.name,
-                  html: combatItemButton(item)
+                  html: combatItemButton(item, { inventory: true })
                 })),
                 scope: `inventory:${hudState.inventoryCategory}`,
                 hudState,

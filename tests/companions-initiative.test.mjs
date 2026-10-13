@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import {
+  captureHudDomState,
+  restoreHudDomState
+} from "../scripts/hud/window/dom-state.js";
 import { waitFor } from "./helpers/hud.mjs";
 import { restoreGlobalsAfterEach } from "./helpers/foundry.mjs";
 import { ownedCompanions } from "../scripts/hud/companions/companions.js";
@@ -128,7 +132,10 @@ test("companion initiative placeholders become available on joining combat and r
   await app.hudActions.opencompanion(null, target(base.uuid));
   await select(f.pickers.at(-1), 0);
   assert.equal(__adventurerHud.actor, first.actor);
-  assert.equal(app.element.querySelector('[data-action="initiative"]'), null);
+  assert.equal(
+    app.element.querySelector('[data-action="initiative"]').disabled,
+    true
+  );
   await app.hudActions.companionback();
   await app.hudActions.combatmode();
   await app.hudActions.opencompanion(null, target(base.uuid));
@@ -136,7 +143,9 @@ test("companion initiative placeholders become available on joining combat and r
   assert.ok(app.element.querySelector('[data-action="initiative"]'));
   combat.combatants = [];
   f.hooks.callAll("deleteCombatant", entries[0]);
-  await waitFor(() => !app.element.querySelector('[data-action="initiative"]'));
+  await waitFor(
+    () => app.element.querySelector('[data-action="initiative"]')?.disabled
+  );
   await app.hudActions.companionback();
   await app.hudActions.combatmode();
   assert.equal(rowButton().disabled, true);
@@ -288,4 +297,63 @@ test("rolled companions follow initiative descending and the active exact token 
   } finally {
     await app.close();
   }
+});
+
+test("companion HP colours follow health and effect overflow stays inside the control row", async () => {
+  const f = await fixture();
+  const actor = f.npc("hurt");
+  actor.system.attributes.hp.value = 22;
+  actor.system.attributes.hp.max = 99;
+  actor.effects = Array.from({ length: 5 }, (_, index) => ({
+    id: `effect-${index}`,
+    name: `Effect ${index}`,
+    img: "icons/svg/aura.svg"
+  }));
+  f.token(actor, "hurt", true);
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  assert.equal(f.current.get("lastHudActor"), f.actor.uuid);
+  await app.hudActions.togglecompanions();
+  const row = () => app.element.querySelector(".ws-companion-row");
+  assert.match(
+    row().querySelector(".ws-companion-hp > span").getAttribute("style"),
+    /hsl\(3 65%/
+  );
+  const effects = row().querySelector(
+    ".ws-companion-controls > .ws-companion-effects"
+  );
+  assert.equal(effects.querySelectorAll(":scope > span").length, 3);
+  assert.equal(
+    effects.querySelector(".ws-companion-effects-count").textContent,
+    "+2"
+  );
+  assert.equal(effects.querySelector("details").hasAttribute("open"), false);
+  effects.querySelector("details").open = true;
+  const captured = captureHudDomState(app.element);
+  effects.querySelector("details").open = false;
+  restoreHudDomState(app.element, captured);
+  assert.equal(effects.querySelector("details").open, true);
+  assert.equal(
+    effects.querySelectorAll(".ws-companion-effects-extra > span").length,
+    2
+  );
+  for (const [value, expected] of [
+    [99, "var(--success)"],
+    [60, "var(--warning)"],
+    [0, "var(--muted)"]
+  ]) {
+    actor.system.attributes.hp.value = value;
+    f.hooks.callAll("updateActor", actor, {
+      "system.attributes.hp.value": value
+    });
+    await waitFor(() =>
+      row()
+        .querySelector(".ws-companion-hp > span")
+        .getAttribute("style")
+        .includes(expected)
+    );
+  }
+  await app.hudActions.opencompanion(null, target(actor.uuid));
+  assert.equal(f.current.get("lastHudActor"), f.actor.uuid);
+  await app.close();
 });

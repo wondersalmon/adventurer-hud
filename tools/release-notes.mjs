@@ -1,7 +1,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { extractReleaseNotes, assertReleaseReady } from "./changelog.mjs";
+import {
+  extractReleaseNotes,
+  assertReleaseReady,
+  resolveReleaseNoteLinks
+} from "./changelog.mjs";
 
 const root = process.cwd();
 const packageJson = JSON.parse(
@@ -13,6 +17,10 @@ const notes = extractReleaseNotes(changelog, packageJson.version);
 assertReleaseReady(notes, packageJson.version);
 
 await mkdir(path.dirname(output), { recursive: true });
-await writeFile(output, `${notes}\n`, "utf8");
+await writeFile(
+  output,
+  `${resolveReleaseNoteLinks(notes, packageJson.repository.url, packageJson.version)}\n`,
+  "utf8"
+);
 
 console.log(`Prepared release notes for v${packageJson.version}.`);

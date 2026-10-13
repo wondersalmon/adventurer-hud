@@ -5,6 +5,7 @@ import { reportFailure } from "./diagnostics.js";
 import {
   getSettingDefinitions,
   getSettingDefaults,
+  normalizeHudTheme,
   SETTINGS
 } from "./settings-schema.js";
 export {
@@ -43,8 +44,18 @@ export function saveChangedSettings(entries, { rollbackOnError = false } = {}) {
     pendingSettingKeys = new Set();
     try {
       for (const [key, value] of entries) {
-        if (getSettingDefinitions()[key]?.gmOnly && !game.user?.isGM) continue;
-        if (Object.is(getSetting(key), value)) continue;
+        if (
+          (getSettingDefinitions()[key]?.gmOnly ||
+            key === SETTINGS.gmWindowGeometry) &&
+          !game.user?.isGM
+        )
+          continue;
+        if (
+          getSettingDefinitions()[key]?.type === Array
+            ? equal(getSetting(key), value)
+            : Object.is(getSetting(key), value)
+        )
+          continue;
         pendingSettingKeys.add(key);
         if (rollbackOnError && !attempted.has(key))
           attempted.set(key, {
@@ -125,10 +136,14 @@ export async function resetSettings({ gmOnly = false } = {}) {
 }
 
 /** @param {string} key */
-export const getSetting = key => game.settings.get(MODULE_ID, key);
+export const getSetting = key => {
+  const value = game.settings.get(MODULE_ID, key);
+  return key === SETTINGS.theme ? normalizeHudTheme(value) : value;
+};
 
 /** @param {string} key @param {unknown} value */
 export const setSetting = (key, value) =>
-  getSettingDefinitions()[key]?.gmOnly && !game.user?.isGM
+  (getSettingDefinitions()[key]?.gmOnly || key === SETTINGS.gmWindowGeometry) &&
+  !game.user?.isGM
     ? Promise.resolve()
     : game.settings.set(MODULE_ID, key, value);

@@ -44,6 +44,38 @@ test("money and weight are rendered only inside the open inventory in both modes
   }
 });
 
+test("inventory visibility preference hides only the summary and restores it on settings refresh", async () => {
+  for (const combat of [false, true]) {
+    const f = await hudFixture({
+      combat,
+      values: { showInventorySummary: false }
+    });
+    await f.api.open(f.actor);
+    const app = __adventurerHud.app;
+    if (combat)
+      await app.hudActions.combatfilter(null, {
+        dataset: { category: "inventory" }
+      });
+    else await app.hudActions.view(null, { dataset: { view: "inventory" } });
+    assert.equal(app.element.querySelector(".ws-inventory-summary"), null);
+    assert.ok(app.element.querySelector(".ws-inventory-filters"));
+    await app.hudActions.togglehudedit();
+    assert.equal(app.element.querySelector(".ws-inventory-summary"), null);
+    f.current.set("showInventorySummary", true);
+    app.refreshFromSettings();
+    assert.equal(
+      app.element.querySelectorAll(".ws-inventory-summary").length,
+      1
+    );
+    assert.equal(
+      app.element.querySelector(".ws-inventory-summary > .ws-hud-block-tools"),
+      null
+    );
+    await app.hudActions.togglehudedit();
+    await app.close();
+  }
+});
+
 test("inventory summary delegates to the displayed actor's native inventory tab", async t => {
   const f = await hudFixture({ values: { playerFooter: true } });
   const calls = [];
@@ -55,7 +87,7 @@ test("inventory summary delegates to the displayed actor's native inventory tab"
   await app.hudActions.view(null, { dataset: { view: "inventory" } });
   assert.equal(
     app.element.querySelectorAll(
-      'button.ws-inventory-summary[data-action="actorinventory"]'
+      '.ws-inventory-summary-content[data-action="actorinventory"]'
     ).length,
     1
   );

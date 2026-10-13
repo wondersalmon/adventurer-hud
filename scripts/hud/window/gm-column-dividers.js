@@ -28,20 +28,9 @@ export function bindGmColumnDividers(
     min: column.min,
     max: column.max,
     left: column.left,
-    right:
-      column.key === "info"
-        ? 264
-        : root.getBoundingClientRect?.().width >= 900
-          ? 560
-          : 310
+    right: column.key === "info" ? 264 : 310
   });
   const sync = () => {
-    root
-      .querySelector(".ws-gm-view")
-      ?.classList.toggle(
-        "ws-gm-three-columns",
-        root.getBoundingClientRect?.().width >= 900
-      );
     for (const column of columns) {
       const view = root.querySelector(column.view);
       if (!view) continue;
@@ -70,6 +59,14 @@ export function bindGmColumnDividers(
         column.property,
         `clamp(${bound.left}px, ${ratio * 100}%, calc(100% - ${bound.right}px))`
       );
+      if (column.key === "roster") {
+        const body = root.querySelector(".ws-gm-body");
+        view.classList.toggle(
+          "ws-gm-three-columns",
+          root.getBoundingClientRect?.().width >= 740 &&
+            (body?.clientWidth ?? 0) >= 568
+        );
+      }
       const visible =
         root.ownerDocument.defaultView.getComputedStyle?.(handle)?.display !==
         "none";

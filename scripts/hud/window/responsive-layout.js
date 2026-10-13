@@ -20,7 +20,7 @@ export function applyPlayerLayout(view, columns) {
   if (footer) {
     for (const [selector, targetSelector] of [
       [".ws-combat-statuses", ".ws-footer-effects"],
-      [".ws-header-end-turn", ".ws-footer-controls"],
+      [".ws-header-end-turn", ".ws-footer-turn"],
       ['[data-action="actorcenter"]', ".ws-footer-controls"]
     ]) {
       const control = view.querySelector(selector);
@@ -82,31 +82,79 @@ export function applyPlayerLayout(view, columns) {
   }
 }
 
+const fontMetrics = new WeakMap();
+
+/** Content minima use the selected text scale and installed font metrics. */
+export function playerColumnMinimums(view) {
+  const style = view.ownerDocument.defaultView?.getComputedStyle?.(view);
+  const scale =
+    Number.parseFloat(style?.getPropertyValue?.("--ws-type-scale")) || 1;
+  const font = style?.fontFamily ?? "Arial";
+  // Font measurement is small and document-free, and only happens on layout synchronization.
+  const key = `${style?.fontStyle} ${style?.fontWeight} ${font}`;
+  const cached = fontMetrics.get(view.ownerDocument);
+  if (cached?.key === key)
+    return {
+      left: Math.ceil(270 * scale * cached.factor),
+      right: Math.ceil(Math.max(220, 190 * scale * cached.factor))
+    };
+  const canvas = view.ownerDocument.createElement("canvas");
+  const context = canvas.getContext?.("2d");
+  let factor = 1;
+  if (context) {
+    context.font = `${style?.fontStyle ?? "normal"} ${style?.fontWeight ?? "400"} 14px ${font}`;
+    const width = context.measureText("Strength Initiative Spellcasting").width;
+    context.font = "400 14px Arial";
+    factor = Math.max(
+      1,
+      width / context.measureText("Strength Initiative Spellcasting").width
+    );
+  }
+  fontMetrics.set(view.ownerDocument, { key, factor });
+  return {
+    left: Math.ceil(270 * scale * factor),
+    right: Math.ceil(Math.max(220, 190 * scale * factor))
+  };
+}
+
 export function synchronizePlayerLayout(
   root,
   threshold = 450,
   fallbackWidth = 0,
-  ratio = 0.48
+  ratio = 0.48,
+  mode = "manual"
 ) {
   const shell = root?.querySelector(".ws-shell");
   const panel = shell?.closest(".ws-rolls-dialog");
   const width = panel?.getBoundingClientRect?.().width || fallbackWidth;
   for (const view of shell?.querySelectorAll(".ws-player-layout") ?? []) {
-    const columns =
-      width >= Math.min(1200, Math.max(450, Number(threshold) || 450));
+    const minima =
+      mode === "auto" ? playerColumnMinimums(view) : { left: 210, right: 232 };
+    const switchWidth =
+      mode === "auto"
+        ? minima.left + minima.right + 32
+        : Math.min(1200, Math.max(450, Number(threshold) || 450));
+    view.dataset.columnSwitchWidth = String(switchWidth);
+    const columns = width >= switchWidth;
     applyPlayerLayout(view, columns);
-    view.classList.toggle("ws-player-actions-compact", width <= 700);
-    const safeRatio = Math.min(0.7, Math.max(0.25, Number(ratio) || 0.48));
+    view.style.setProperty("--ws-player-min-info", `${minima.left}px`);
+    view.style.setProperty("--ws-player-min-actions", `${minima.right}px`);
+    const safeRatio = Math.min(0.7, Math.max(0, Number(ratio) || 0.48));
     view.style.setProperty(
       "--ws-player-left-width",
-      safeRatio === 0.52
-        ? "clamp(210px, 52%, min(400px, calc(100% - 232px)))"
-        : `clamp(210px, ${safeRatio * 100}%, calc(100% - 232px))`
+      mode === "auto"
+        ? `clamp(210px, ${safeRatio * 100}%, calc(100% - ${minima.right + 18}px))`
+        : safeRatio === 0.52
+          ? "clamp(210px, 52%, min(400px, calc(100% - 232px)))"
+          : `clamp(210px, ${safeRatio * 100}%, calc(100% - 232px))`
     );
     const divider = view.querySelector(".ws-column-divider");
     const pinned = panel?.classList.contains("ws-pinned");
     divider.setAttribute("aria-valuenow", String(Math.round(safeRatio * 100)));
-    divider.setAttribute("aria-valuemin", "25");
+    divider.setAttribute(
+      "aria-valuemin",
+      String(Math.ceil((210 / (view.clientWidth || width)) * 100))
+    );
     divider.setAttribute("aria-valuemax", "70");
     divider.setAttribute("aria-disabled", String(Boolean(pinned || !columns)));
     divider.tabIndex = columns && !pinned ? 0 : -1;
@@ -133,14 +181,30 @@ export function watchPlayerLayout(app, readThreshold, options = {}) {
       app.element,
       readThreshold(),
       Number(app.position?.width) || 0,
-      options.readRatio?.() ?? 0.48
+      options.readRatio?.() ?? 0.48,
+      options.readMode?.() ?? "manual"
     );
     options.afterSync?.();
   };
   const observer =
     typeof ResizeObserver === "function" ? new ResizeObserver(sync) : null;
   if (app.element) observer?.observe(app.element);
-  const unbind = bindPlayerDivider(app.element, { ...options, sync });
+  const unbind = bindPlayerDivider(app.element, {
+    ...options,
+    sync,
+    limits: view => {
+      const minima =
+        options.readMode?.() === "auto"
+          ? playerColumnMinimums(view)
+          : { left: 210, right: 232 };
+      return {
+        min: 0,
+        max: 0.7,
+        left: 210,
+        right: minima.right + (options.readMode?.() === "auto" ? 18 : 0)
+      };
+    }
+  });
   sync();
   return {
     sync,

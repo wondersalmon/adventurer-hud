@@ -2,10 +2,43 @@ import { synchronizeStatusLayout } from "../scripts/hud/window/status-layout.js"
 import { applyPlayerLayout } from "../scripts/hud/window/responsive-layout.js";
 import { test, expect } from "@playwright/test";
 import { layoutFixture } from "./layout-fixture.mjs";
+import { loadHudModules } from "./module-fixture.mjs";
 import {
   captureHudDomState,
   restoreHudDomState
 } from "../scripts/hud/window/dom-state.js";
+
+test("companion native tooltip exposes its complete effect list at narrow widths", async ({
+  page
+}) => {
+  const { bodies, css, baseline } = await layoutFixture();
+  await page.setContent(
+    `<style>${baseline}${css}</style><section class="ws-rolls-dialog" style="width:270px">${bodies["player-companions-all"]}</section>`
+  );
+  const button = page.locator(".ws-companion-open").first();
+  await button.hover();
+  await expect(button).toHaveAttribute(
+    "data-tooltip-class",
+    "ws-gm-effects-tooltip"
+  );
+  const tooltip = await button.getAttribute("data-tooltip");
+  expect(tooltip).toContain("<strong>");
+  // Foundry owns tooltip activation; render the delegated content for layout checks.
+  await page.evaluate(markup => {
+    const node = document.createElement("div");
+    node.id = "tooltip";
+    node.className = "ws-gm-effects-tooltip";
+    node.style.width = "240px";
+    node.innerHTML = markup;
+    document.body.append(node);
+  }, tooltip);
+  await expect(page.locator("#tooltip strong")).toBeVisible();
+  expect(
+    await page
+      .locator("#tooltip")
+      .evaluate(node => node.scrollWidth <= node.clientWidth + 1)
+  ).toBe(true);
+});
 
 test("companion secondary text stays readable and every row action remains reachable", async ({
   page
@@ -213,11 +246,14 @@ test("companion list and actions fit narrow panels in both themes and large text
               .locator(".ws-companion-open")
               .last()
               .boundingBox();
-            expect(add.x).toBeGreaterThan(name.x + name.width);
-            expect(add.y + add.height / 2).toBeGreaterThanOrEqual(name.y);
-            expect(add.y + add.height / 2).toBeLessThanOrEqual(
-              name.y + name.height
-            );
+            const row = await page
+              .locator(".ws-companion-row")
+              .last()
+              .boundingBox();
+            expect(add.y).toBeGreaterThanOrEqual(name.y + name.height);
+            expect(add.x).toBeGreaterThanOrEqual(row.x);
+            expect(add.x + add.width).toBeLessThanOrEqual(row.x + row.width);
+            expect(add.y + add.height).toBeLessThanOrEqual(row.y + row.height);
           }
           await expect(
             page.locator(
@@ -367,6 +403,8 @@ test("compact companion cards fit beside their tools and sibling switches suppor
           ]);
       });
     });
+    await expect(page.locator(".ws-companion-switch").first()).toBeHidden();
+    await page.locator("#ws-companion-switch-toggle").click();
     await page.locator(".ws-companion-switch").first().focus();
     await page.keyboard.press("Space");
     expect(await page.evaluate(() => window.actions)).toEqual([
@@ -474,5 +512,189 @@ test("shared familiar sight has a green pressed eye and accessible return contro
         .locator(".ws-view")
         .evaluate(node => node.scrollWidth <= node.clientWidth + 1)
     ).toBe(true);
+  }
+});
+
+test("compact companion effects leave actions on one row and reveal overflow inside the frame", async ({
+  page
+}) => {
+  const { bodies, css, baseline } = await layoutFixture("en");
+  for (const width of [270, 450, 600]) {
+    await page.setContent(
+      `<style>${baseline}${css}</style><section class="ws-rolls-dialog ws-theme-dark" style="width:${width}px"><div class="ws-shell">${bodies["player-companions-all"]}</div></section>`
+    );
+    const row = page.locator(".ws-companion-row").first();
+    const effects = row.locator(
+      ".ws-companion-controls > .ws-companion-effects"
+    );
+    await expect(effects.locator(":scope > span")).toHaveCount(3);
+    const overflow = effects.locator("summary");
+    await expect(overflow).toHaveText("+2−");
+    expect(await overflow.innerText()).toBe("+2");
+    await expect(effects.locator(".ws-companion-effects-extra")).toBeHidden();
+    const icon = await effects.locator(":scope > span").first().boundingBox();
+    const ping = await row
+      .locator('[data-action="companionping"]')
+      .boundingBox();
+    expect(icon.width).toBe(20);
+    expect(icon.width).toBeLessThan(ping.width);
+    expect(icon.height).toBe(20);
+    if (width >= 450)
+      expect(
+        Math.abs(icon.y + icon.height / 2 - ping.y - ping.height / 2)
+      ).toBeLessThan(1);
+    await overflow.focus();
+    await page.keyboard.press("Enter");
+    await expect(effects.locator(".ws-companion-effects-extra")).toBeVisible();
+    expect(await overflow.innerText()).toBe("−");
+    const frame = await row.boundingBox();
+    for (const box of await effects
+      .locator("span[role=img]")
+      .evaluateAll(nodes =>
+        nodes.map(node => {
+          const r = node.getBoundingClientRect();
+          return { left: r.left, right: r.right, bottom: r.bottom };
+        })
+      )) {
+      expect(box.left).toBeGreaterThanOrEqual(frame.x);
+      expect(box.right).toBeLessThanOrEqual(frame.x + frame.width);
+      expect(box.bottom).toBeLessThanOrEqual(frame.y + frame.height);
+    }
+    await page.keyboard.press("Enter");
+    await expect(effects.locator(".ws-companion-effects-extra")).toBeHidden();
+    expect(await overflow.innerText()).toBe("+2");
+  }
+});
+
+test("companion effect overflow reserves one row of controls at narrow widths, large text and touch sizes", async ({
+  browser
+}) => {
+  const { bodies, css, baseline } = await layoutFixture("ru");
+  for (const coarse of [false, true]) {
+    const context = await browser.newContext({
+      hasTouch: coarse,
+      viewport: { width: 850, height: 1000 }
+    });
+    const page = await context.newPage();
+    let reducedVisibleEffects = false;
+    try {
+      for (const [width, font] of [270, 320, 420, 600].flatMap(width =>
+        ["medium", "extralarge"].map(font => [width, font])
+      )) {
+        await page.setContent(
+          `<style>${baseline}${css}</style><section class="ws-rolls-dialog ws-theme-light ws-font-${font}" style="width:${width}px"><div class="ws-shell">${bodies["player-companions-combat"]}</div></section>`
+        );
+        await loadHudModules(page, {
+          "hud/window/status-layout.js": ["synchronizeStatusLayout"],
+          "hud/window/dom-state.js": [
+            "captureHudDomState",
+            "restoreHudDomState"
+          ]
+        });
+        const originalEffects = await page
+          .locator(".ws-companion-row")
+          .evaluateAll(rows =>
+            rows.map(row =>
+              [
+                ...row.querySelectorAll(
+                  '.ws-companion-effects span[role="img"]'
+                )
+              ].map(icon => icon.title)
+            )
+          );
+        await page.evaluate(() =>
+          window.synchronizeStatusLayout(
+            document.querySelector(".ws-rolls-dialog")
+          )
+        );
+        for (const [rowIndex, row] of (
+          await page.locator(".ws-companion-row").all()
+        ).entries()) {
+          const controls = row.locator(".ws-companion-controls");
+          const boxes = await controls
+            .locator(":scope > button")
+            .evaluateAll(nodes =>
+              nodes.map(node => {
+                const { x, y, width, height } = node.getBoundingClientRect();
+                return { x, y, width, height };
+              })
+            );
+          const frame = await row.boundingBox();
+          for (const box of boxes) {
+            expect(Math.abs(box.y - boxes[0].y)).toBeLessThan(1);
+            expect(box.x).toBeGreaterThanOrEqual(frame.x);
+            expect(box.x + box.width).toBeLessThanOrEqual(
+              frame.x + frame.width
+            );
+            expect(box.y + box.height).toBeLessThanOrEqual(
+              frame.y + frame.height
+            );
+            if (coarse) {
+              expect(box.width).toBeGreaterThanOrEqual(44);
+              expect(box.height).toBeGreaterThanOrEqual(44);
+            }
+          }
+          const effects = controls.locator(".ws-companion-effects");
+          if (await effects.count()) {
+            const visible = await effects
+              .locator(":scope > span[role=img]")
+              .count();
+            const hidden = await effects
+              .locator(".ws-companion-effects-extra > span[role=img]")
+              .count();
+            expect(visible).toBeLessThanOrEqual(3);
+            if (visible < Math.min(3, originalEffects[rowIndex].length))
+              reducedVisibleEffects = true;
+            expect((await effects.boundingBox()).height).toBeLessThanOrEqual(
+              boxes[0].height
+            );
+            expect(visible + hidden).toBe(originalEffects[rowIndex].length);
+            expect(
+              await effects
+                .locator('span[role="img"]')
+                .evaluateAll(nodes => nodes.map(node => node.title))
+            ).toEqual(originalEffects[rowIndex]);
+            await expect(
+              effects.locator(".ws-companion-effects-count")
+            ).toHaveText(`+${hidden}`);
+          }
+        }
+        const row = page.locator(".ws-companion-row").first();
+        const summary = row.locator(".ws-companion-effects-more summary");
+        await summary.focus();
+        await page.keyboard.press("Enter");
+        await expect(row.locator("details")).toHaveAttribute("open", "");
+        await page.evaluate(() => {
+          const root = document.querySelector(".ws-rolls-dialog");
+          root.style.width = "270px";
+          window.synchronizeStatusLayout(root);
+        });
+        await expect(summary).toBeFocused();
+        await expect(row.locator("details")).toHaveAttribute("open", "");
+        const frame = await row.boundingBox();
+        for (const icon of await row
+          .locator(".ws-companion-effects-extra > span")
+          .all()) {
+          const box = await icon.boundingBox();
+          expect(box.x).toBeGreaterThanOrEqual(frame.x);
+          expect(box.x + box.width).toBeLessThanOrEqual(frame.x + frame.width);
+          expect(box.y + box.height).toBeLessThanOrEqual(
+            frame.y + frame.height
+          );
+        }
+        await page.evaluate(() => {
+          const root = document.querySelector(".ws-rolls-dialog");
+          const state = window.captureHudDomState(root);
+          const shell = root.querySelector(".ws-shell");
+          shell.innerHTML = shell.innerHTML;
+          window.restoreHudDomState(root, state);
+        });
+        await expect(row.locator("details")).toHaveAttribute("open", "");
+        await expect(row.locator("summary")).toBeFocused();
+      }
+      expect(reducedVisibleEffects).toBe(true);
+    } finally {
+      await context.close();
+    }
   }
 });

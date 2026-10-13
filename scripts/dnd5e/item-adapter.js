@@ -9,6 +9,11 @@ import {
   itemUseState,
   spellPreparation
 } from "./items.js";
+const damageActivity = (item, activityId) =>
+  itemActivities(item).find(activity =>
+    activityId ? activity.id === activityId : activity.labels?.damages?.length
+  );
+
 const combatItemCategories = (item, { groupOtherActions = false } = {}) => {
   const categories = new Set();
   if (item.flags?.dnd5e?.cachedFor) return categories;
@@ -36,7 +41,86 @@ const combatItemCategories = (item, { groupOtherActions = false } = {}) => {
   return categories;
 };
 
+const spellSourceId = item =>
+  item.system?.classIdentifier
+    ? `class:${item.system.classIdentifier}`
+    : item.system?.sourceItem
+      ? `item:${item.system.sourceItem}`
+      : "other";
+
 export const dnd5eItems = {
+  spellSourceId,
+  spellSources(actor) {
+    const sources = new Map();
+    for (const item of actor.items?.values?.() ?? []) {
+      if (item.type !== "spell" || item.flags?.dnd5e?.cachedFor) continue;
+      const id = spellSourceId(item);
+      if (sources.has(id)) continue;
+      const source = item.system.classIdentifier
+        ? actor.classes?.[item.system.classIdentifier]
+        : actor.identifiedItems?.get?.(item.system.sourceItem)?.first?.();
+      sources.set(id, {
+        source: id,
+        name:
+          source?.name ??
+          (id === "other"
+            ? null
+            : (item.system.sourceItem ?? item.system.classIdentifier))
+      });
+    }
+    return [...sources.values()];
+  },
+  weaponMastery(actor, item) {
+    const id = item.system?.mastery;
+    if (item.type !== "weapon" || !id) return null;
+    const options = item.system.masteryOptions;
+    const known = actor.system.traits?.weaponProf?.mastery?.value;
+    const available =
+      options !== undefined
+        ? Boolean(options?.some(option => option.value === id))
+        : Boolean(known?.has?.(item.system.type?.baseItem));
+    return {
+      label: game.i18n.localize(
+        globalThis.CONFIG?.DND5E?.weaponMasteries?.[id]?.label ?? id
+      ),
+      available
+    };
+  },
+  featureSource(
+    item,
+    { t = key => game.i18n.localize(`ADVENTURER_HUD.${key}`) } = {}
+  ) {
+    const origin =
+      item.flags?.dnd5e?.advancementRoot ??
+      item.flags?.dnd5e?.advancementOrigin;
+    let source = item.parent?.items?.get(origin?.split(".")[0]);
+    if (source?.type === "subclass") source = source.class ?? source;
+    if (source?.type === "class" || source?.type === "subclass")
+      return {
+        id: `class:${source.id}`,
+        label: `${t("Features.Class")}: ${source.name}`
+      };
+    const type =
+      source?.type === "race" || source?.type === "background"
+        ? source.type
+        : item.system?.type?.value;
+    if (type === "race") {
+      const species =
+        source?.type === "race"
+          ? source
+          : item.parent?.items?.find?.(entry => entry.type === "race");
+      if (species?.name)
+        return {
+          id: "race",
+          label: `${t("Features.Species")}: ${species.name}`
+        };
+    }
+    const label = globalThis.CONFIG?.DND5E?.featureTypes?.[type]?.label;
+    return {
+      id: type || "other",
+      label: label ? game.i18n.localize(label) : null
+    };
+  },
   combatActionTypes(actor) {
     const types = new Set();
     for (const item of actor.items.values()) {
@@ -152,6 +236,17 @@ export const dnd5eItems = {
   hasItemProperty,
   isPreparedSpell,
   inventoryCategory,
+  inventoryInfo(item) {
+    const quantity = item.system?.quantity;
+    const attunement = item.system?.attunement;
+    return {
+      quantity: Number.isFinite(quantity) && quantity >= 0 ? quantity : null,
+      attunement: ["required", "optional"].includes(attunement)
+        ? attunement
+        : null,
+      attuned: item.system?.attuned === true
+    };
+  },
   itemUsesData,
   itemUseState,
   itemRole(item) {
@@ -222,10 +317,73 @@ export const dnd5eItems = {
       : itemActivities(item).find(a => a.type === "save");
     return activity?.save?.dc?.value ?? "";
   },
+  itemDamageTypes(item, activityId = null) {
+    const selected = damageActivity(item, activityId);
+    const activities = selected ? [selected] : [];
+    const types = new Set([
+      ...activities.flatMap(activity =>
+        (activity.labels?.damages ?? [])
+          .map(damage => damage.damageType)
+          .filter(Boolean)
+      ),
+      ...(!activityId && !selected
+        ? (item.labels?.damages ?? [])
+            .map(damage => damage.damageType)
+            .filter(Boolean)
+        : []),
+      ...activities.flatMap(activity =>
+        [...(activity.damage?.parts ?? [])].flatMap(part => [
+          ...(part.types ?? [])
+        ])
+      )
+    ]);
+    return [...types].map(type =>
+      game.i18n.localize(
+        CONFIG.DND5E.damageTypes?.[type]?.label ??
+          CONFIG.DND5E.healingTypes?.[type]?.label ??
+          type
+      )
+    );
+  },
+  spellPreparationLimits(actor, { includeSources = false } = {}) {
+    const items = [...(actor.items?.values?.() ?? [])];
+    const limits = items
+      .filter(item => ["class", "subclass"].includes(item.type))
+      .flatMap(item => {
+        const preparation = item.system.spellcasting?.preparation;
+        return preparation?.formula?.trim() &&
+          Number.isFinite(preparation.max) &&
+          Number.isFinite(preparation.value)
+          ? [
+              {
+                ...(includeSources
+                  ? {
+                      source: `class:${item.type === "subclass" ? (item.system.classIdentifier ?? item.identifier ?? item.id) : (item.identifier ?? item.system.identifier ?? item.id)}`
+                    }
+                  : {}),
+                name: item.name,
+                value: preparation.value,
+                max: preparation.max
+              }
+            ]
+          : [];
+      });
+    return limits;
+  },
+  spellComponents(item) {
+    return ["vocal", "somatic", "material"]
+      .filter(key => hasItemProperty(item, key))
+      .map(key => ({
+        key,
+        label: game.i18n.localize(
+          CONFIG.DND5E.itemProperties[key]?.label ?? key
+        ),
+        abbreviation:
+          CONFIG.DND5E.itemProperties[key]?.abbreviation ?? key[0].toUpperCase()
+      }));
+  },
   itemDamageFormula(_actor, item, activityId = null) {
-    const activity = activityId
-      ? itemActivities(item).find(a => a.id === activityId)
-      : itemActivities(item).find(a => a.labels?.damages?.length);
+    const activity = damageActivity(item, activityId);
     const damages =
       activity?.labels?.damages ?? (!activityId ? item.labels?.damages : null);
     return (damages ?? [])

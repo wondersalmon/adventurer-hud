@@ -58,7 +58,7 @@ test("GM action-only tabs include ordinary spells and keep legendary activities 
   const restored = fragment(f.renderer.combatActions());
   for (const category of ["weapons", "spells", "features"])
     assert.ok(restored.querySelector(`[data-category="${category}"]`));
-  assert.equal(restored.querySelector('[data-item-id="spell"]'), null);
+  assert.ok(restored.querySelector('[data-item-id="spell"]'));
   f.visibility.gm = false;
   f.visibility.actionTypesOnly = true;
   assert.ok(
@@ -637,10 +637,22 @@ test("HP bar turns yellow below 70 percent and red at half health", () => {
       t: key => key
     });
 
-  assert.match(render(70), /background: var\(--success\)/);
-  assert.match(render(69), /background: var\(--warning\)/);
-  assert.match(render(51), /background: var\(--warning\)/);
-  assert.match(render(50), /background: hsl\(3 65%/);
+  assert.match(
+    render(70),
+    /background: var\(--ws-palette-hp-healthy, var\(--success\)\)/
+  );
+  assert.match(
+    render(69),
+    /background: var\(--ws-palette-hp-warning, var\(--warning\)\)/
+  );
+  assert.match(
+    render(51),
+    /background: var\(--ws-palette-hp-warning, var\(--warning\)\)/
+  );
+  assert.match(
+    render(50),
+    /background: var\(--ws-palette-hp-danger, hsl\(3 65% 50%\)\)/
+  );
 });
 
 test("exploration places the shared HP bar below the actor header", () => {

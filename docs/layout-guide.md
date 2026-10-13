@@ -1,15 +1,30 @@
 # HUD layout editor
 
-[Player guide](player-guide.md) · [GM guide](gm-guide.md) · [Version notes](release-2.0.md) · [Русский](layout-guide.ru.md)
+[Player guide](player-guide.md) · [GM guide](gm-guide.md) · [Русский](layout-guide.ru.md)
 
-Click the pen beside the pin to enter or leave **Edit HUD**. Controls edit the layout while this mode is active; ability cards do not perform their usual actions.
+Click the pen beside the pin to enter **Edit HUD**. Cards change their layout instead of using abilities while editing.
 
-- **Order:** drag a block's handle or use its up/down arrows. Tabs and item cards have their own order controls.
-- **Columns:** left/right arrows move a block to the adjacent column. Action categories, defenses and creature controls can move independently. Dragging can also place a block among other blocks.
-- **Extra column:** add one from the editor toolbar, then move blocks into it. Player mode allows two dividers; GM mode allows three. Drag dividers to resize columns when the window is unpinned. Narrow windows stack content instead.
-- **Hide and restore:** use the eye; restore blocks from **Hidden elements**, and tabs/cards from their list's **Hidden** controls. Hiding the open category closes its content.
-- **Reset and undo:** reset a block with its curved arrow or reset the current mode's layout from the editor toolbar. Undo restores the last edit, including a layout reset, during this session. Leaving editing keeps the layout; closing the window while editing asks for confirmation.
+## Arrange the panel
 
-Player layouts belong to each character and mode; hiding search or shortcut hints applies to both player modes. GM block layouts are shared by all creatures, with separate preparation and combat layouts. Native sheet item order and favorites remain unchanged. Saved divider positions and window sizes take priority over defaults.
+- **Move:** drag a block by its handle or use arrows to change its position. Top/bottom buttons move it to either end.
+- **Columns:** left/right arrows move blocks between columns. Add an extra column from the editor toolbar if needed.
+- **Width:** unpin the window and drag the dividers to resize columns. Narrow windows stack content.
+- **Cards and categories:** use their own controls to rearrange them.
 
-![Editing a GM layout](../media/gm-edit-mode.webp)
+Weight and coins stay together inside Inventory. You can hide or show that block, but cannot move it.
+
+## Hide, restore and undo
+
+Use the eye to hide an element. Restore it from **Hidden elements**, or from the hidden-card/category controls in its list.
+
+**Undo** returns the last edit during this editing session. **Reset layout** returns the current mode's layout to its defaults. Leave editing to return to normal use; your layout is kept.
+
+## Shared layouts
+
+Player block layouts are shared across characters by default, with separate layouts for Exploration and Combat. Enable **Separate layout for each character** if you prefer individual layouts.
+
+GM block layouts are shared across creatures, with separate preparation and combat layouts. Editing the HUD does not reorder items or change favorites in the character sheet.
+
+![Player layout editor](../media/player-edit-mode.webp)
+
+![GM layout editor](../media/gm-edit-mode.webp)

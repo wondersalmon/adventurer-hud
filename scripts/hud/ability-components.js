@@ -57,17 +57,71 @@ export function createAbilityComponents(context) {
         ${t("Skills.All")}
       </button>
     </div>`;
-  const spellFilterHTML = () => `
-    <div class="ws-spell-filter" role="group" aria-label="${t("Combat.SpellFilter")}">
+  const spellFilterHTML = () => {
+    if (visibility?.spellPreparation === false) return "";
+    const limits =
+      adapter?.spellPreparationLimits?.(actor, { includeSources: true }) ?? [];
+    const sources = adapter?.spellSources?.(actor) ?? [];
+    const controls = new Map(sources.map(source => [source.source, source]));
+    for (const limit of limits)
+      controls.set(limit.source ?? limit.name, {
+        ...controls.get(limit.source),
+        ...limit
+      });
+    const sourceAvailable = sources.some(
+      source => source.source === hudState.spellSource
+    );
+    const preparationLabel = t(
+      hudState.unpreparedSpellsOnly
+        ? "Combat.Unprepared"
+        : hudState.preparedSpellsOnly
+          ? "Combat.Prepared"
+          : "Combat.AllSpells"
+    );
+    const selectedSource = sourceAvailable
+      ? controls.get(hudState.spellSource)
+      : null;
+    const sourceLabel = selectedSource?.name ?? t("Combat.AllSpellSources");
+    const selectedCount = Number.isFinite(selectedSource?.max)
+      ? ` ${selectedSource.value}/${selectedSource.max}`
+      : "";
+    return `
+    <details class="ws-spell-filters" data-spell-filters="main">
+      <summary data-spell-filters-toggle="main"><i class="fa-solid fa-filter" aria-hidden="true"></i><span>${t("Combat.SpellFilter")}</span><span class="ws-spell-filter-selection">${escapeHTML(`${preparationLabel} · ${sourceLabel}${selectedCount}`)}</span><i class="fa-solid fa-chevron-down ws-spell-filter-chevron" aria-hidden="true"></i></summary>
+      <div class="ws-spell-filter-body">
+    <div class="ws-spell-filter ws-filter-tabs" role="group" aria-label="${t("Combat.SpellFilter")}">
       <button type="button" class="ws-button ${hudState.preparedSpellsOnly ? "ws-active" : ""}"
         data-action="spellfilter" data-prepared="true" aria-pressed="${hudState.preparedSpellsOnly}">
         ${t("Combat.Prepared")}
       </button>
-      <button type="button" class="ws-button ${hudState.preparedSpellsOnly ? "" : "ws-active"}"
-        data-action="spellfilter" data-prepared="false" aria-pressed="${!hudState.preparedSpellsOnly}">
+      <button type="button" class="ws-button ${!hudState.preparedSpellsOnly && !hudState.unpreparedSpellsOnly ? "ws-active" : ""}"
+        data-action="spellfilter" data-prepared="false" aria-pressed="${!hudState.preparedSpellsOnly && !hudState.unpreparedSpellsOnly}">
         ${t("Combat.AllSpells")}
       </button>
-    </div>`;
+      <button type="button" class="ws-button ${hudState.unpreparedSpellsOnly ? "ws-active" : ""}" data-action="spellfilter" data-prepared="unprepared" aria-pressed="${Boolean(hudState.unpreparedSpellsOnly)}">${t("Combat.Unprepared")}</button>
+    </div>
+    ${
+      controls.size
+        ? `<div class="ws-spell-preparation-summary" role="group" aria-label="${t("Combat.SpellSources")}"><button type="button" class="ws-button ws-preparation-limit ${sourceAvailable ? "" : "ws-active"}" data-action="spellsourcefilter" data-source="" aria-pressed="${!sourceAvailable}">${t("Combat.AllSpellSources")}</button>${[
+            ...controls.values()
+          ]
+            .map(source => {
+              const active =
+                sourceAvailable && hudState.spellSource === source.source;
+              const count = Number.isFinite(source.max)
+                ? `<strong>${source.value}/${source.max}</strong>`
+                : "";
+              const name = escapeHTML(
+                source.name ?? t("Combat.OtherSpellSources")
+              );
+              return source.source
+                ? `<button type="button" class="ws-button ws-preparation-limit ${active ? "ws-active" : ""} ${source.value > source.max ? "ws-limit-exceeded" : ""}" data-action="spellsourcefilter" data-source="${escapeHTML(source.source)}" aria-pressed="${active}"><span>${name}</span>${count}</button>`
+                : `<span class="ws-preparation-limit"><span>${name}</span>${count}</span>`;
+            })
+            .join("")}</div>`
+        : ""
+    }</div></details>`;
+  };
   function skillsHTML(mode = "regular", matchingSkills = null) {
     const visibleSkills =
       matchingSkills ??

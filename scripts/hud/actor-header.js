@@ -10,11 +10,13 @@ export function createActorHeader(context) {
     hudState,
     t,
     tf,
-    visibility
+    visibility = {}
   } = context;
   const canAct = () => Boolean(actor?.isOwner ?? canRollActor);
   const classSummary = () => {
     return adapter.classSummary(actor, {
+      showLevels: visibility.actorLevel !== false,
+      showClasses: visibility.actorClasses !== false,
       formatLevel: level => tf("Actor.Level", { level })
     });
   };
@@ -138,6 +140,7 @@ export function createActorHeader(context) {
     return `
       <div
         class="ws-shortcuts"
+        data-hud-hints
         title="${t("Shortcuts.Hint")}"
         aria-label="${t("Shortcuts.Aria")}"
       >

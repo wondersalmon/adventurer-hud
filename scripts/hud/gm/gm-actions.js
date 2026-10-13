@@ -1,4 +1,5 @@
 import { getSetting, setSetting, SETTINGS } from "../../settings-access.js";
+import { toggleStatDetails } from "../state.js";
 import { openGmSettings } from "../../settings-navigation.js";
 import { createGmActionScope } from "./gm-action-scope.js";
 import {
@@ -386,7 +387,7 @@ export function createGmActions({
       });
     },
     gmspeeds() {
-      hudState.gmSpeedsExpanded = !hudState.gmSpeedsExpanded;
+      toggleStatDetails(hudState, "gmSpeedsExpanded");
       refreshHud();
     },
     gmlegendary() {

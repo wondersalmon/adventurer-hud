@@ -53,7 +53,7 @@ test("fixed toolbar follows player settings and mode changes without duplicating
   const app = __adventurerHud.app;
   try {
     assert.ok(
-      app.element.querySelector('.ws-footer-controls [data-action="endturn"]')
+      app.element.querySelector('.ws-footer-turn [data-action="endturn"]')
     );
     assert.ok(
       app.element.querySelector(
@@ -96,6 +96,8 @@ test("player rework preserves native roll events, speed expansion and favorites 
     values: { showModeNavigation: true }
   });
   f.actor.system.attributes.movement.fly = 60;
+  f.actor.system.attributes.ac = { value: 17, base: 15, shield: 2 };
+  f.actor.system.attributes.init = { total: 7 };
   f.actor.system.currency = { gp: 37, sp: 8 };
   f.actor.system.abilities.dex = { save: { value: 7 }, check: { value: 4 } };
   f.actor.items.set("staff", {
@@ -115,6 +117,55 @@ test("player rework preserves native roll events, speed expansion and favorites 
     for (const mode of ["combat", "regular"]) {
       await app.options.actions[mode === "regular" ? "normal" : "combatmode"]();
       const root = app.element;
+      const ac = () =>
+        app.element.querySelector(
+          `${mode === "combat" ? "#ws-combat" : "#ws-main"} [data-action="togglearmorclass"]`
+        );
+      const acButton =
+        ac() ?? app.element.querySelector('[data-action="togglearmorclass"]');
+      assert.equal(acButton.getAttribute("aria-expanded"), "false");
+      await app.options.actions.togglearmorclass(null, acButton);
+      time += ACTION_COOLDOWN_MS;
+      const details = app.element.querySelector(
+        `#${acButton.getAttribute("aria-controls")}`
+      );
+      assert.equal(details.hasAttribute("hidden"), false);
+      assert.match(details.textContent, /15 \+ 2 = 17/);
+      app.refreshFromSettings();
+      assert.equal(
+        app.element
+          .querySelector(`#${acButton.getAttribute("aria-controls")}`)
+          .hasAttribute("hidden"),
+        false
+      );
+      await app.options.actions.togglespeeds();
+      time += ACTION_COOLDOWN_MS;
+      assert.equal(
+        app.element
+          .querySelector('[data-action="togglearmorclass"]')
+          .getAttribute("aria-expanded"),
+        "false"
+      );
+      await app.options.actions.togglearmorclass();
+      time += ACTION_COOLDOWN_MS;
+      assert.equal(
+        app.element
+          .querySelector('[data-action="togglespeeds"]')
+          .getAttribute("aria-expanded"),
+        "false"
+      );
+      await app.options.actions.togglearmorclass(
+        null,
+        app.element.querySelector('[data-action="togglearmorclass"]')
+      );
+      time += ACTION_COOLDOWN_MS;
+      if (mode === "combat")
+        assert.equal(
+          app.element.querySelector(
+            ".ws-header-initiative .ws-initiative-bonus"
+          ).textContent,
+          "+7"
+        );
       assert.equal(
         root.querySelectorAll(
           ".ws-player-initiative-slot .ws-header-initiative"
@@ -217,6 +268,12 @@ test("global search is wired to input events and never filters the open inventor
   );
   assert.equal(app.element.querySelectorAll(".ws-combat-item").length, 2);
   const input = app.element.querySelector('[data-action="searchitems"]');
+  assert.equal(
+    app.element
+      .querySelector('[data-action="clearsearch"]')
+      .hasAttribute("hidden"),
+    true
+  );
   input.value = "Sword";
   input.dispatchEvent(
     new document.defaultView.Event("input", { bubbles: true })
@@ -234,12 +291,24 @@ test("global search is wired to input events and never filters the open inventor
       .itemId,
     "sword"
   );
+  assert.equal(
+    app.element
+      .querySelector('[data-action="clearsearch"]')
+      .hasAttribute("hidden"),
+    false
+  );
   await app.options.actions.clearsearch();
   assert.equal(
     app.element.querySelector('[data-action="searchitems"]').value,
     ""
   );
   assert.equal(app.element.querySelectorAll(".ws-combat-item").length, 2);
+  assert.equal(
+    app.element
+      .querySelector('[data-action="clearsearch"]')
+      .hasAttribute("hidden"),
+    true
+  );
   await app.close();
 });
 
@@ -260,7 +329,8 @@ test("rendered player, companion and GM controls all have application action rou
       for (const button of root.querySelectorAll("[data-action]")) {
         if (button.dataset.action === "searchitems") {
           assert.equal(button.tagName, "INPUT");
-          assert.equal(button.type, "search");
+          assert.equal(button.type, "text");
+          assert.equal(button.getAttribute("role"), "searchbox");
           continue;
         }
         assert.ok(
@@ -423,6 +493,47 @@ test("trained tools follow skills in both filters and HUD modes", async () => {
         );
       }
     }
+  } finally {
+    await app.close();
+  }
+});
+
+test("HP feedback animates damage and healing, remains static on open and clears when disabled", async () => {
+  const f = await hudFixture({ values: { showVisualEffects: true } });
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  try {
+    assert.equal(app.element.classList.contains("ws-hp-feedback"), false);
+    f.actor.system.attributes.hp.value = 8;
+    f.hooks.callAll("updateActor", f.actor, {
+      "system.attributes.hp.value": 8
+    });
+    assert.equal(app.element.dataset.hpFeedback, "damage");
+    assert.equal(
+      app.element.style.getPropertyValue("--ws-hp-new-normal"),
+      "40%"
+    );
+    f.actor.system.attributes.hp.value = 16;
+    f.hooks.callAll("updateActor", f.actor, {
+      "system.attributes.hp.value": 16
+    });
+    assert.equal(app.element.dataset.hpFeedback, "heal");
+    assert.equal(
+      app.element.style.getPropertyValue("--ws-hp-new-normal"),
+      "80%"
+    );
+    await game.settings.set(
+      "adventurer-hud",
+      SETTINGS.showVisualEffects,
+      false
+    );
+    assert.equal(app.element.classList.contains("ws-hp-feedback"), false);
+    assert.equal(app.element.hasAttribute("data-hp-feedback"), false);
+    f.actor.system.attributes.hp.value = 4;
+    f.hooks.callAll("updateActor", f.actor, {
+      "system.attributes.hp.value": 4
+    });
+    assert.equal(app.element.classList.contains("ws-hp-feedback"), false);
   } finally {
     await app.close();
   }

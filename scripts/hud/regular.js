@@ -114,7 +114,7 @@ export function createRegularRenderer(context) {
           <div class="ws-combat-item-list">
             ${
               spellGroups(sortItems(combatItems("spells"))) ||
-              `<div class="ws-empty">${t("Combat.EmptyPrepared")}</div>`
+              `<div class="ws-empty">${t(hudState.unpreparedSpellsOnly ? "Combat.EmptyUnprepared" : "Combat.EmptyPrepared")}</div>`
             }
           </div>
 

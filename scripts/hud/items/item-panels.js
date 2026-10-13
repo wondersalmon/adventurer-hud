@@ -42,8 +42,8 @@ export function createItemPanelRenderer({
   const searchControl = () =>
     visibility.search && !hudElementHidden(hudState, "search")
       ? `<div class="ws-item-search">
-          <input type="search" data-action="searchitems" value="${escapeHTML(hudState.searchQuery)}" placeholder="${t("Quick.Search")}" aria-label="${t("Quick.Search")}">
-          <button type="button" class="ws-button" data-action="clearsearch" title="${t("Quick.ClearSearch")}" aria-label="${t("Quick.ClearSearch")}"><i class="fa-solid fa-xmark"></i></button>
+          <input type="text" name="hudItemSearch" role="searchbox" data-action="searchitems" value="${escapeHTML(hudState.searchQuery)}" placeholder="${t("Quick.Search")}" aria-label="${t("Quick.Search")}">
+          <button type="button" class="ws-button" data-action="clearsearch" title="${t("Quick.ClearSearch")}" aria-label="${t("Quick.ClearSearch")}" ${hudState.searchQuery ? "" : "hidden"}><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
         </div>`
       : "";
   const combatItemButton = createCombatItemCardRenderer({
@@ -61,7 +61,8 @@ export function createItemPanelRenderer({
     hudState,
     t,
     tf,
-    escapeHTML
+    escapeHTML,
+    visibility
   });
 
   const globalSearchPanel = () => {
@@ -168,6 +169,16 @@ export function createItemPanelRenderer({
       entries: entries.map(({ item, activityId, name }) => ({
         key: itemLayoutKey(item, activityId),
         name,
+        group:
+          category === "features"
+            ? (() => {
+                const source = adapter.featureSource?.(item, { t });
+                return {
+                  id: source?.id ?? "other",
+                  label: source?.label ?? t("Features.Other")
+                };
+              })()
+            : null,
         html: combatItemButton(item, { activityId })
       }))
     });
@@ -191,7 +202,26 @@ export function createItemPanelRenderer({
     return `          ${isSkills ? skillFilterHTML() : ""}
 
           ${key === "spells" ? spellFilterHTML() : ""}
-          ${key === "features" ? `<div class="ws-feature-filter"><button type="button" class="ws-button ${hudState.showPassiveFeatures ? "ws-active" : ""}" data-action="featurefilter" aria-pressed="${Boolean(hudState.showPassiveFeatures)}">${t(hudState.showPassiveFeatures ? "Combat.ShowActiveFeatures" : "Combat.ShowPassiveFeatures")}</button></div>` : ""}
+          ${
+            key === "features"
+              ? `<div class="ws-feature-filter ws-filter-tabs" role="group" aria-label="${t("Combat.FeatureFilter")}">${[
+                  ["active", "Combat.ActiveFeatures"],
+                  ["passive", "Combat.PassiveFeatures"],
+                  ["all", "Combat.AllFeatures"]
+                ]
+                  .map(([filter, label]) => {
+                    const selected =
+                      filter ===
+                      (hudState.allFeatures
+                        ? "all"
+                        : hudState.showPassiveFeatures
+                          ? "passive"
+                          : "active");
+                    return `<button type="button" class="ws-button ${selected ? "ws-active" : ""}" data-action="featurefilter" data-filter="${filter}" aria-pressed="${selected}">${t(label)}</button>`;
+                  })
+                  .join("")}</div>`
+              : ""
+          }
 
           ${
             key === "inventory"
@@ -213,14 +243,14 @@ export function createItemPanelRenderer({
                 : items.length
                   ? key === "spells"
                     ? spellGroups(items) ||
-                      `<div class="ws-empty">${t("Combat.EmptyPrepared")}</div>`
+                      `<div class="ws-empty">${t(hudState.unpreparedSpellsOnly ? "Combat.EmptyUnprepared" : "Combat.EmptyPrepared")}</div>`
                     : organizedCards(
                         items,
-                        `combat:${key}${key === "features" ? (hudState.showPassiveFeatures ? ":passive" : ":active") : ""}`,
+                        `combat:${key}${key === "features" ? (hudState.allFeatures ? ":all" : hudState.showPassiveFeatures ? ":passive" : ":active") : ""}`,
                         true,
                         key
                       )
-                  : `<div class="ws-empty">${t(key === "features" ? (hudState.showPassiveFeatures ? "Combat.EmptyPassiveFeatures" : "Combat.EmptyActiveFeatures") : "Combat.Empty")}</div>`
+                  : `<div class="ws-empty">${t(key === "features" ? (hudState.allFeatures ? "Combat.Empty" : hudState.showPassiveFeatures ? "Combat.EmptyPassiveFeatures" : "Combat.EmptyActiveFeatures") : "Combat.Empty")}</div>`
             }
           </div>`
                 : ""

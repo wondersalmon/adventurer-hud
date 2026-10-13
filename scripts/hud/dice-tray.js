@@ -1,24 +1,33 @@
-import { rollDiceTray } from "../dnd5e/dice-tray.js";
+import { diceTrayExpression, rollDiceTray } from "../dnd5e/dice-tray.js";
+import { getSetting, SETTINGS } from "../settings-access.js";
+import {
+  effectiveAnimationSettings,
+  watchReducedMotion
+} from "./animation-settings.js";
 import { reportFailure } from "../diagnostics.js";
 
 export const TRAY_DICE = Object.freeze([2, 4, 6, 8, 10, 12, 20, 100]);
 
 const DIE_FACES = {
-  2: "M10 20a10 13 0 1 0 20 0a10 13 0 1 0-20 0 M15 9v22 M25 9v22",
-  4: "M20 5 36 33H4Z M20 5v28 M4 33l16-9 16 9",
-  6: "M20 4 35 12v17L20 37 5 29V12Z M5 12l15 8 15-8 M20 20v17",
-  8: "M20 3 35 20 20 37 5 20Z M5 20h30 M20 3l7 17-7 17-7-17Z",
-  10: "M20 3 36 16 28 33 20 38 12 33 4 16Z M20 3v35 M4 16l16 8 16-8 M12 33l8-9 8 9",
-  12: "M20 3 35 14 30 32H10L5 14Z M20 11l10 8-4 11H14l-4-11Z M20 3v8 M35 14l-5 5 M30 32l-4-2 M10 32l4-2 M5 14l5 5",
-  20: "M20 3 35 11v18L20 37 5 29V11Z M20 3 11 26h18Z M5 11l24 15 6-15 M5 29l6-3 9 11 9-11 6 3",
-  100: "M20 3 35 11v18L20 37 5 29V11Z M20 3v34 M5 11l15 10 15-10 M5 29l15-8 15 8"
+  2: "M7 20a13 16 0 1 0 26 0a13 16 0 1 0-26 0 M11 20a9 12 0 1 0 18 0a9 12 0 1 0-18 0",
+  4: "M20 4 37 34H3Z M20 4 12 29 37 34 M3 34l9-5 8 5",
+  6: "M20 3 36 11v18L20 37 4 29V11Z M4 11l16 9 16-9 M20 20v17",
+  8: "M20 2 36 20 20 38 4 20Z M20 2 12 20l8 18 8-18-8-18 M4 20h32",
+  10: "M20 3 36 16 30 31 20 37 10 31 4 16Z M20 3 10 22l10 15 10-15L20 3 M4 16l6 6 M30 22l6-6",
+  12: "M13 3h14l10 12-4 16-13 7-13-7-4-16Z M20 11 30 18 26 30H14l-4-12Z M13 3l7 8 7-8 M37 15l-7 3 3 13 M20 38l6-8 M14 30l-7 1 M3 15l7 3",
+  20: "M20 2 36 11v18L20 38 4 29V11Z M20 2 10 29h20L20 2 M4 11l11 4h10l11-4 M4 29l6-13 M30 29l6-13 M10 29l10 9 10-9"
+};
+
+const dieIcon = die => {
+  const [outline, ...facets] = DIE_FACES[die === 100 ? 10 : die].split(" M");
+  return `<svg class="ws-die-face" viewBox="0 0 40 40" aria-hidden="true"><path class="ws-die-outline" d="${outline}"/><path class="ws-die-facets" d="${facets.map(part => `M${part}`).join(" ")}"/><text class="ws-die-label" x="20" y="25" text-anchor="middle">${die === 100 ? "00" : die === 10 ? "0" : die}</text></svg>`;
 };
 
 export function diceTrayFormula(counts, extra = "") {
   const dice = TRAY_DICE.filter(die => counts[die] > 0)
     .map(die => `${counts[die]}d${die}`)
     .join(" + ");
-  const text = extra.trim();
+  const text = diceTrayExpression(extra);
   return dice && text ? `${dice} + (${text})` : dice || text;
 }
 
@@ -117,6 +126,14 @@ export function bindDiceTray({ app, actor, t, isActive }) {
   if (!messageModes.includes(messageMode)) messageMode = "public";
   const canRoll = () => Boolean(globalThis.game?.user?.isGM || actor?.isOwner);
   let busy = false;
+  let reducedMotion = false;
+  const animationMode = () =>
+    effectiveAnimationSettings(
+      {
+        showVisualEffects: getSetting(SETTINGS.showVisualEffects)
+      },
+      reducedMotion
+    ).diceTray;
   let effectTimer = null;
   let stopSound = () => {};
   let mimicClicks = 0;
@@ -129,17 +146,35 @@ export function bindDiceTray({ app, actor, t, isActive }) {
     tray?.classList.remove("ws-tray-mimic", "ws-tray-nat20", "ws-tray-nat1");
   };
   const showEffect = (...effects) => {
+    const mode = animationMode();
     if (!tray || !isActive()) return;
+    if (mode === "off") {
+      // Reduced motion suppresses visuals while retaining the sound preferences.
+      if (
+        reducedMotion &&
+        effectiveAnimationSettings({
+          showVisualEffects: getSetting(SETTINGS.showVisualEffects)
+        }).diceTray !== "off"
+      ) {
+        clearEffect();
+        stopSound = playDiceTraySound(effects[0]);
+      }
+      return;
+    }
     clearEffect();
     // Restart a consecutive identical effect without forcing a layout read.
     const target = tray;
     effectTimer = setTimeout(() => {
-      if (tray !== target || !isActive()) return;
+      if (tray !== target || !isActive() || animationMode() !== mode) return;
       target.classList.add(...effects);
       stopSound = playDiceTraySound(effects[0]);
       effectTimer = setTimeout(clearEffect, 1600);
     }, 0);
   };
+  const unwatchMotion = watchReducedMotion(viewport, value => {
+    reducedMotion = value;
+    clearEffect();
+  });
   const close = (focus = false) => {
     clearEffect();
     mimicClicks = 0;
@@ -151,6 +186,7 @@ export function bindDiceTray({ app, actor, t, isActive }) {
     anchor = null;
   };
   app.closeDiceTray = close;
+  app.clearDiceTrayEffect = clearEffect;
   const position = () => {
     if (!tray) return;
     if (!isActive() || !anchor?.isConnected) return close();
@@ -162,13 +198,13 @@ export function bindDiceTray({ app, actor, t, isActive }) {
     const right = Math.min(viewport.innerWidth - 4, windowRect.right);
     const top = Math.max(4, windowRect.top);
     const bottom = Math.min(viewport.innerHeight - 4, windowRect.bottom);
-    tray.style.width = `${Math.min(300, Math.max(1, (right - left) / scale))}px`;
+    tray.style.width = `${Math.min(284, Math.max(1, (right - left) / scale))}px`;
     tray.style.maxHeight = `${Math.max(1, (bottom - top) / scale)}px`;
     const size = tray.getBoundingClientRect();
     tray.style.left = `${(Math.max(left, Math.min(rect.right - size.width, right - size.width)) - windowRect.left) / scale}px`;
     tray.style.top = `${(Math.max(top, Math.min(rect.top - size.height - 6, bottom - size.height)) - windowRect.top) / scale}px`;
   };
-  const sync = () => {
+  const sync = (writeFormula = true) => {
     if (!tray) return;
     for (const button of tray.querySelectorAll("[data-die]")) {
       const count = counts[button.dataset.die] ?? 0;
@@ -180,7 +216,10 @@ export function bindDiceTray({ app, actor, t, isActive }) {
       );
     }
     const formula = diceTrayFormula(counts, extra);
-    tray.querySelector("output").textContent = formula;
+    const formulaInput = tray.querySelector("[data-dice-formula]");
+    if (writeFormula && formulaInput.value !== formula)
+      formulaInput.value = formula;
+    tray.querySelector('[data-dice-tray="clear"]').hidden = !formulaInput.value;
     const rollButton = tray.querySelector('[data-dice-tray="roll"]');
     rollButton.disabled = busy || !formula;
     if (!formula) {
@@ -257,7 +296,7 @@ export function bindDiceTray({ app, actor, t, isActive }) {
     tray.setAttribute("role", "dialog");
     tray.setAttribute("aria-label", t("DiceTray.Title"));
     tray.innerHTML = `<div class="ws-tray-fortune" aria-hidden="true"><span class="ws-tray-rune">✦</span><span class="ws-tray-sparks"></span></div><div class="ws-tray-face" aria-hidden="true"><span class="ws-tray-eyes"></span><span class="ws-tray-teeth"></span></div><header><strong data-dice-tray="mimic" role="button" tabindex="0"><i class="fa-solid fa-dice" aria-hidden="true"></i>${t("DiceTray.Title")}</strong><button type="button" class="ws-button" data-dice-tray="close" aria-label="${t("DiceTray.Close")}">×</button></header>
-      <div class="ws-dice-grid">${TRAY_DICE.map(die => `<button type="button" class="ws-button" data-die="${die}"><svg class="ws-die-face" viewBox="0 0 40 40" aria-hidden="true"><path d="${DIE_FACES[die]}"/></svg><span>d${die}</span><small>0</small></button>`).join("")}</div>
+      <div class="ws-dice-grid">${TRAY_DICE.map(die => `<button type="button" class="ws-button" data-die="${die}">${dieIcon(die)}<span>d${die}</span><small>0</small></button>`).join("")}</div>
       <div class="ws-dice-shortcuts" aria-label="${t("DiceTray.Gestures")}"><div class="ws-shortcuts">
         <span><kbd>${t("Shortcuts.LeftClick")}</kbd> +1</span>
         <span><kbd>${t("Shortcuts.RightClick")}</kbd> −1</span>
@@ -266,9 +305,9 @@ export function bindDiceTray({ app, actor, t, isActive }) {
         <span><kbd>Alt</kbd> ${t("Shortcuts.Advantage")}</span>
         <span><kbd>Ctrl</kbd> ${t("Shortcuts.Disadvantage")}</span>
       </div></div>
-      <div class="ws-dice-formula"><label for="ws-dice-formula">${t("DiceTray.Formula")}</label><div class="ws-dice-formula-row"><span class="ws-dice-formula-symbol" aria-hidden="true">Σ</span><input id="ws-dice-formula" type="text" maxlength="256" data-dice-formula placeholder="+5 / 1d6"><button type="button" class="ws-button" data-dice-tray="clear" title="${t("DiceTray.Clear")}" aria-label="${t("DiceTray.Clear")}"><i class="fa-solid fa-eraser" aria-hidden="true"></i></button></div></div>
-      <label class="ws-dice-visibility">${t("DiceTray.Visibility")}<select data-dice-visibility aria-label="${t("DiceTray.Visibility")}">${messageModes.map(mode => `<option value="${mode}" ${mode === messageMode ? "selected" : ""}>${t(`DiceTray.Mode.${mode}`)}</option>`).join("")}</select></label>
-      <output aria-live="polite"></output><div class="ws-dice-commands"><button type="button" class="ws-button" data-dice-tray="roll"><i class="fa-solid fa-dice-d20" aria-hidden="true"></i>${t("DiceTray.Roll")}</button></div><div data-dice-result role="status"></div>`;
+      <div class="ws-dice-formula"><label for="ws-dice-formula">${t("DiceTray.Formula")}</label><div class="ws-dice-formula-row"><span class="ws-dice-formula-symbol" aria-hidden="true">Σ</span><input id="ws-dice-formula" type="text" maxlength="256" data-dice-formula placeholder="+5 / 1d6"><button type="button" class="ws-button" data-dice-tray="clear" title="${t("DiceTray.Clear")}" aria-label="${t("DiceTray.Clear")}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div></div>
+      <label class="ws-dice-visibility">${t("DiceTray.Visibility")}<select name="diceVisibility" data-dice-visibility aria-label="${t("DiceTray.Visibility")}">${messageModes.map(mode => `<option value="${mode}" ${mode === messageMode ? "selected" : ""}>${t(`DiceTray.Mode.${mode}`)}</option>`).join("")}</select></label>
+      <div class="ws-dice-commands"><button type="button" class="ws-button" data-dice-tray="roll"><i class="fa-solid fa-dice-d20" aria-hidden="true"></i>${t("DiceTray.Roll")}</button></div><div data-dice-result role="status"></div>`;
     root.append(tray);
     tray.querySelector("input").value = extra;
     anchor.setAttribute("aria-expanded", "true");
@@ -343,8 +382,22 @@ export function bindDiceTray({ app, actor, t, isActive }) {
       return;
     }
     if (!event.target.matches?.("[data-dice-formula]")) return;
-    extra = event.target.value;
-    sync();
+    const value = diceTrayExpression(event.target.value);
+    if (value !== diceTrayFormula(counts, extra)) {
+      const selected = diceTrayFormula(counts);
+      const suffix =
+        selected && value.startsWith(selected)
+          ? value.slice(selected.length).trim()
+          : null;
+      if (suffix === "" || (suffix?.startsWith("+") && suffix.slice(1).trim()))
+        extra = suffix.replace(/^\+\s*/, "");
+      else {
+        counts = {};
+        extra = value;
+      }
+    }
+    // Preserve the caret, unfinished expressions and IME composition while typing.
+    sync(false);
   };
   const outside = event => {
     if (tray && !tray.contains(event.target) && !anchor?.contains(event.target))
@@ -412,10 +465,12 @@ export function bindDiceTray({ app, actor, t, isActive }) {
     attributeFilter: ["style"]
   });
   return () => {
+    unwatchMotion();
     close();
     observer?.disconnect();
     changes?.disconnect();
     if (app.closeDiceTray === close) app.closeDiceTray = null;
+    if (app.clearDiceTrayEffect === clearEffect) app.clearDiceTrayEffect = null;
     root.removeEventListener("click", click, true);
     root.removeEventListener("contextmenu", context, true);
     root.removeEventListener("input", input);

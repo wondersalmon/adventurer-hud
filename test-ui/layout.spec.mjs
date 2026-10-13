@@ -65,11 +65,11 @@ test("recent actions fit the footer without displaying money outside inventory",
   }
 });
 
-test("favorites use two compact columns earlier and retain readable names and side controls", async ({
+test("favorites scale their minimum width with text and retain readable names and side controls", async ({
   page
 }) => {
   for (const language of ["en", "ru"]) {
-    for (const width of [320, 800]) {
+    for (const width of [320, 800, 1100]) {
       await showPanel(page, "player-combat", {
         width,
         height: 640,
@@ -81,7 +81,7 @@ test("favorites use two compact columns earlier and retain readable names and si
       const columns = await grid.evaluate(
         node => getComputedStyle(node).gridTemplateColumns.split(" ").length
       );
-      expect(columns).toBe(width === 320 ? 1 : 2);
+      expect(columns).toBe(width < 1100 ? 1 : 2);
       const clipped = await grid
         .locator(".ws-combat-item-card")
         .evaluateAll(cards =>
@@ -97,8 +97,9 @@ test("favorites use two compact columns earlier and retain readable names and si
       await expect(
         grid.locator('[data-action="togglespellprepared"]')
       ).toHaveCount(0);
+      await expect(grid.locator('[data-action="openitem"]')).toHaveCount(0);
       expect(
-        await grid.locator('[data-action="openitem"]').count()
+        await grid.locator(".ws-combat-item-card > .ws-item-favorite").count()
       ).toBeGreaterThan(0);
     }
   }
@@ -157,8 +158,8 @@ test("spell level headings toggle independently and retain state after refresh",
   expect(
     await first
       .locator("summary")
-      .evaluate(node => getComputedStyle(node, "::before").content)
-  ).toContain("›");
+      .evaluate(node => getComputedStyle(node, "::before").transform)
+  ).toBe("matrix(0.707107, -0.707107, 0.707107, 0.707107, 0, 0)");
   await page.evaluate(() => {
     const root = document.querySelector(".ws-shell");
     const state = captureHudDomState(root);
@@ -175,8 +176,8 @@ test("spell level headings toggle independently and retain state after refresh",
   expect(
     await first
       .locator("summary")
-      .evaluate(node => getComputedStyle(node, "::before").content)
-  ).toContain("⌄");
+      .evaluate(node => getComputedStyle(node, "::before").transform)
+  ).toBe("matrix(0.707107, 0.707107, -0.707107, 0.707107, 0, 0)");
 });
 
 test("default player size keeps class and PB on one line and limits action columns through 700px", async ({
@@ -414,7 +415,7 @@ test("fixed player toolbar keeps effects and native controls visible while conte
         page.locator('.ws-footer-controls [data-action="actorping"]')
       ).toBeVisible();
       await expect(
-        page.locator('.ws-footer-controls [data-action="endturn"]')
+        page.locator('.ws-footer-turn [data-action="endturn"]')
       ).toHaveCount(scenario.includes("combat") ? 1 : 0);
       const visibleEffects = await page
         .locator(".ws-footer-effects .ws-active-conditions > .ws-status")
@@ -1525,7 +1526,7 @@ test("defeated creature stays usable with red removal beneath its name and no fo
     page.locator('.ws-gm-saves [data-action="ability"]').first()
   ).toBeEnabled();
   await expect(
-    page.locator('.ws-gm-action-column [data-action="openitem"]').first()
+    page.locator('.ws-gm-action-column [data-action="useitem"]').first()
   ).toBeEnabled();
   const removal = await page
     .locator('.ws-gm-identity-actions [data-action="gmremove"]')
@@ -1783,7 +1784,7 @@ test("explicit light HUD keeps native header controls, menu labels and panel bor
   );
 });
 
-test("companion cards leave room for names with two columns of actions", async ({
+test("companion cards leave room for names with actions below the information", async ({
   page
 }) => {
   for (const width of [600, 660, 740, 1100]) {
@@ -1805,23 +1806,42 @@ test("companion cards leave room for names with two columns of actions", async (
             button.getBoundingClientRect()
           );
           const name = card.querySelector("strong");
+          const cardBox = card.getBoundingClientRect();
+          const rowBox = row.getBoundingClientRect();
           return {
-            cardWidth: card.getBoundingClientRect().width,
-            controlsWidth: controls.getBoundingClientRect().width,
+            cardWidth: cardBox.width,
+            rowWidth: rowBox.width,
             fits:
               row.scrollWidth <= row.clientWidth + 1 &&
               name.scrollWidth <= name.clientWidth + 1,
-            twoColumns:
-              buttons.length < 3 ||
-              (buttons[0].y === buttons[1].y && buttons[2].y > buttons[0].y)
+            actionsBelow: buttons.every(button => button.top >= cardBox.bottom),
+            controlsBounded: buttons.every(
+              button =>
+                button.left >= rowBox.left &&
+                button.right <= rowBox.right &&
+                button.bottom <= rowBox.bottom
+            ),
+            disjoint: buttons.every((button, index) =>
+              buttons
+                .slice(index + 1)
+                .every(
+                  other =>
+                    button.right <= other.left ||
+                    other.right <= button.left ||
+                    button.bottom <= other.top ||
+                    other.bottom <= button.top
+                )
+            )
           };
         })
       );
       expect(rows.length).toBeGreaterThan(0);
       for (const row of rows) {
         expect(row.fits).toBe(true);
-        expect(row.twoColumns).toBe(true);
-        expect(row.cardWidth).toBeGreaterThan(row.controlsWidth * 1.8);
+        expect(row.actionsBelow).toBe(true);
+        expect(row.controlsBounded).toBe(true);
+        expect(row.disjoint).toBe(true);
+        expect(row.cardWidth).toBeGreaterThan(row.rowWidth - 10);
       }
       const favorites = page.locator(".ws-player-actions .ws-favorites");
       await expect(favorites).toHaveCount(1);
@@ -1942,7 +1962,7 @@ test("default skills retain the column scroll when freshly rendered hidden marku
   expect(scroll.after).toBe(scroll.before);
 });
 
-test("multi-activity primary cards keep the same width and always expose native favorite stars", async ({
+test("multi-activity cards keep equal width with embedded favorite stars", async ({
   page
 }) => {
   for (const width of [600, 900, 1400]) {
@@ -1959,12 +1979,7 @@ test("multi-activity primary cards keep the same width and always expose native 
       const single = page.locator(
         '.ws-player-actions [data-description-item-id="i20"]'
       );
-      const star = multi.locator(".ws-item-side-actions > .ws-item-favorite");
-      {
-        await expect(star).toHaveAttribute("data-action", "togglefavorite");
-        await expect(star).toHaveAttribute("data-item-id", "i21");
-        expect(await star.getAttribute("data-activity-id")).toBeNull();
-      }
+      await expect(multi.locator(":scope > .ws-item-favorite")).toHaveCount(1);
       const multiBox = await multi.locator(".ws-combat-item").boundingBox(),
         singleBox = await single.locator(".ws-combat-item").boundingBox();
       expect(multiBox.width).toBeCloseTo(singleBox.width, 0);

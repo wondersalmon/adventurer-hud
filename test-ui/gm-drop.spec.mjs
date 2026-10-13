@@ -106,7 +106,7 @@ for (const lang of ["en", "ru"]) {
           }
         };
         window.ui = { notifications: { warn() {}, error() {} } };
-        window.binding = bindGmActorDrop({
+        window.binding = window.bindGmActorDrop({
           root: document.querySelector(".ws-rolls-dialog"),
           controller: { isGM: () => true, getCombat: () => selected },
           isCurrent: () => true,
@@ -242,7 +242,7 @@ for (const lang of ["en", "ru"]) {
         node.innerHTML = body;
       }, fixture.bodies["gm-empty"]);
       await page.evaluate(lang => {
-        window.binding = bindGmActorDrop({
+        window.binding = window.bindGmActorDrop({
           root: document.querySelector(".ws-rolls-dialog"),
           controller: { isGM: () => true },
           isCurrent: () => true,

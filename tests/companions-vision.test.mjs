@@ -3,7 +3,7 @@ import test from "node:test";
 import { waitFor } from "./helpers/hud.mjs";
 import { restoreGlobalsAfterEach } from "./helpers/foundry.mjs";
 import { itemCollection } from "./helpers/rendering.mjs";
-import { SETTINGS } from "../scripts/settings.js";
+import { SETTINGS, getSetting } from "../scripts/settings.js";
 import { diagnosticReport } from "../scripts/diagnostics.js";
 import {
   familiarFixture,
@@ -424,5 +424,53 @@ test("shared senses can keep the camera still while retaining caster control and
   f.current.set(SETTINGS.companionVisionPan, false);
   await f.app.hudActions.companionvisionstop();
   assert.equal(f.calls.filter(call => call[0] === "pan").length, 1);
+  await f.app.close();
+});
+
+test("optional any-turn shared sight starts outside the caster turn while retaining native safety and duration", async () => {
+  const f = await familiarFixture();
+  assert.equal(getSetting(SETTINGS.companionVisionAnyTurn), false);
+  const { combat, entries } = combatFor(f, [f.hero, f.familiar]);
+  Object.assign(combat, {
+    round: 1,
+    turn: 1,
+    combatant: entries[1],
+    turns: entries
+  });
+  await f.app.hudActions.companionvision(null, target(f.familiar.uuid));
+  assert.equal(f.eye().getAttribute("aria-pressed"), "false");
+  await game.settings.set(
+    "adventurer-hud",
+    SETTINGS.companionVisionAnyTurn,
+    true
+  );
+  await f.app.hudActions.companionvision(null, target(f.familiar.uuid));
+  assert.equal(
+    f.eye().getAttribute("aria-pressed"),
+    "true",
+    JSON.stringify(f.notifications)
+  );
+  f.hooks.callAll("updateCombat", combat, { turn: 1 });
+  await waitFor(() => f.eye().getAttribute("aria-pressed") === "true");
+  Object.assign(combat, { turn: 0, combatant: entries[0] });
+  f.hooks.callAll("updateCombat", combat, { turn: 0 });
+  await waitFor(() => f.eye().getAttribute("aria-pressed") === "false");
+  combat.combatants = [entries[1]];
+  combat.turns = [entries[1]];
+  combat.combatant = entries[1];
+  await f.app.hudActions.companionvision(null, target(f.familiar.uuid));
+  assert.equal(f.eye().getAttribute("aria-pressed"), "true");
+  f.hooks.callAll("updateCombat", combat, { turn: 0 });
+  assert.equal(f.eye().getAttribute("aria-pressed"), "true");
+  game.time.worldTime += 6;
+  f.hooks.callAll("updateWorldTime", game.time.worldTime);
+  await waitFor(() => f.eye().getAttribute("aria-pressed") === "false");
+  f.familiar.sight.enabled = false;
+  await f.app.hudActions.companionvision(null, target(f.familiar.uuid));
+  assert.equal(f.eye().getAttribute("aria-pressed"), "false");
+  f.familiar.sight.enabled = true;
+  f.familiar.actor.isOwner = false;
+  await f.app.hudActions.companionvision(null, target(f.familiar.uuid));
+  assert.equal(f.eye().getAttribute("aria-pressed"), "false");
   await f.app.close();
 });

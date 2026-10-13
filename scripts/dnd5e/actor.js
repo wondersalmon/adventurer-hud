@@ -31,6 +31,40 @@ export async function encounterActors(actor) {
 
 export const dnd5eActor = {
   encounterActors,
+  armorClassAttribution: actor => actor.getAttributionData?.("attributes.ac"),
+  initiativeBonus: actor => {
+    const total = actor.system.attributes?.init?.total;
+    return Number.isFinite(total) ? total : null;
+  },
+  armorClassDetails(actor) {
+    const ac = actor.system.attributes?.ac ?? {};
+    let formula;
+    if (Number.isFinite(ac.override)) formula = String(ac.override);
+    else {
+      const base = ac.formula?.trim();
+      if (base) {
+        const data =
+          actor.getRollData?.({ deterministic: true }) ?? actor.system;
+        formula =
+          globalThis.Roll?.replaceFormulaData?.(base, data, { missing: "?" }) ??
+          base;
+      } else if (Number.isFinite(ac.base ?? ac.flat))
+        formula = String(ac.base ?? ac.flat);
+      else return null;
+      for (const key of ["shield", "bonus", "cover"]) {
+        const value = ac[key];
+        if (Number.isFinite(value) && value !== 0)
+          formula += value < 0 ? ` - ${Math.abs(value)}` : ` + ${value}`;
+      }
+      if (Number.isFinite(ac.min) && ac.min > 0)
+        formula = `max(${ac.min}, (${formula}))`;
+    }
+    return {
+      label: ac.label ? game.i18n.localize(ac.label) : "",
+      formula,
+      value: ac.value ?? "—"
+    };
+  },
   openInventorySheet: actor =>
     actor.sheet?.render({ force: true, tab: "inventory" }),
   removeStatus(actor, id) {
@@ -65,16 +99,21 @@ export const dnd5eActor = {
   isActorSupported: (actor, { gm = false } = {}) =>
     actor?.type === "character" || (gm && actor?.type === "npc"),
   deathData: actorDeathData,
-  classSummary(actor, { formatLevel }) {
-    const classes = actor.items
-      .filter(item => item.type === "class")
-      .map(item => {
-        const level = Number(item.system?.levels ?? 0);
-        return `${item.name}${level > 0 ? ` ${level}` : ""}`;
-      });
-    if (classes.length) return classes.join(" / ");
+  classSummary(actor, { formatLevel, showLevels = true, showClasses = true }) {
+    const classItems = actor.items.filter(item => item.type === "class");
+    const classes = classItems.map(item => {
+      const level = Number(item.system?.levels ?? 0);
+      return `${item.name}${showLevels && level > 0 ? ` ${level}` : ""}`;
+    });
+    if (showClasses && classes.length) return classes.join(" / ");
+    if (!showLevels) return "";
 
-    const level = Number(actor.system.details?.level ?? 0);
+    const level =
+      Number(actor.system.details?.level ?? 0) ||
+      classItems.reduce(
+        (total, item) => total + Number(item.system?.levels ?? 0),
+        0
+      );
     return level > 0 ? formatLevel(level) : "";
   },
   inspiration: actor => Boolean(actor.system.attributes?.inspiration),

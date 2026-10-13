@@ -1,75 +1,562 @@
-<div class="ws-settings-form">
-  {{#each groups}}
-    <fieldset class="ws-settings-group">
-      <legend>{{label}}</legend>
-      {{#each settings}}
-        <div class="form-group">
-          <label for="adventurer-hud-{{key}}">{{name}}</label>
-          <div class="form-fields">
-            {{#if choices}}
-              <select
-                id="adventurer-hud-{{key}}"
-                name="{{key}}"
-                data-parent-key="{{parentKey}}"
-                {{disabledAttribute}}
-              >
-                {{#each choices}}{{#if selected}}<option
-                      value="{{value}}"
-                      selected
-                    >{{label}}</option>{{else}}<option
-                      value="{{value}}"
-                    >{{label}}</option>{{/if}}{{/each}}
-              </select>
-            {{else}}
-              {{#if numeric}}
-                <div class="ws-settings-range">
-                  <div class="ws-settings-range-main">
+<div class="ws-settings-form" data-settings-theme="{{theme}}">
+  <nav class="ws-settings-nav" aria-label="{{navigationLabel}}">
+    <div
+      class="ws-settings-tabs"
+      role="tablist"
+      aria-label="{{navigationLabel}}"
+      aria-orientation="vertical"
+    >
+      {{#each groups}}
+        <button
+          type="button"
+          role="tab"
+          id="{{idPrefix}}-tab-{{id}}"
+          data-settings-tab="{{id}}"
+          data-settings-parent="{{parentId}}"
+          data-settings-default-child="{{defaultChild}}"
+          data-settings-children="{{hasChildren}}"
+          {{childHidden}}
+          aria-controls="{{idPrefix}}-panel-{{id}}"
+          aria-selected="{{selectedAttribute}}"
+          tabindex="{{tabIndex}}"
+        ><i class="fa-solid {{icon}}" aria-hidden="true"></i><span
+          >{{label}}</span></button>
+      {{/each}}
+      <hr class="ws-settings-nav-divider" aria-hidden="true" />
+      <button
+        type="button"
+        role="tab"
+        id="{{idPrefix}}-tab-help"
+        data-settings-tab="help"
+        aria-controls="{{idPrefix}}-panel-help"
+        aria-selected="false"
+        tabindex="-1"
+      ><i class="fa-solid fa-book-open" aria-hidden="true"></i><span
+        >{{helpLabel}}</span></button>
+      <button
+        type="button"
+        role="tab"
+        class="{{changelogNoticeClass}}"
+        id="{{idPrefix}}-tab-changelog"
+        data-settings-tab="changelog"
+        aria-controls="{{idPrefix}}-panel-changelog"
+        aria-selected="false"
+        tabindex="-1"
+        title="{{changelogNewLabel}}"
+      ><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i><span
+        >{{changelogLabel}}</span></button>
+      <button
+        type="button"
+        role="tab"
+        id="{{idPrefix}}-tab-troubleshooting"
+        data-settings-tab="troubleshooting"
+        aria-controls="{{idPrefix}}-panel-troubleshooting"
+        aria-selected="false"
+        tabindex="-1"
+      ><i class="fa-solid fa-wrench" aria-hidden="true"></i><span
+        >{{troubleshootingLabel}}</span></button>
+    </div>
+  </nav>
+  <main class="ws-settings-content">
+    {{#each groups}}
+      <section
+        class="ws-settings-group"
+        role="tabpanel"
+        id="{{idPrefix}}-panel-{{id}}"
+        data-settings-panel="{{id}}"
+        aria-labelledby="{{idPrefix}}-tab-{{id}}"
+        tabindex="0"
+        {{hiddenAttribute}}
+      >
+        <header class="ws-settings-group-header">
+          <h2>{{label}}</h2>
+          <p class="ws-settings-scope">{{scopeLabel}}</p>
+        </header>
+        <p class="ws-settings-group-description">{{description}}</p>
+        {{#if behaviorSummary}}<p
+            class="ws-settings-summary"
+            data-opening-summary
+          ></p>{{/if}}
+        {{#if editorHint}}<p class="hint">{{editorHint}}
+            <a
+              href="{{editorGuideUrl}}"
+              data-guide-file="layout-guide"
+              target="_blank"
+              rel="noopener noreferrer"
+            >{{editorGuideLabel}}</a></p>{{/if}}
+        {{#each settings}}
+          {{#unless merged}}
+            {{#if sectionHeading}}<h3
+                class="ws-settings-section-heading"
+              >{{sectionHeading}}</h3>{{/if}}
+            <div
+              class="form-group"
+              data-setting-key="{{key}}"
+              data-animation-detail="{{animationDetail}}"
+              {{appearanceHidden}}
+            >
+              {{#if detailGroups}}<span
+                  class="ws-settings-field-label"
+                  id="{{idPrefix}}-{{key}}-label"
+                  data-setting-name
+                >{{name}}</span>{{else if effectList}}<span
+                  class="ws-settings-field-label"
+                  id="{{idPrefix}}-{{key}}-label"
+                  data-setting-name
+                >{{name}}</span>{{else}}<label
+                  for="{{idPrefix}}-{{key}}"
+                >{{name}}</label>{{/if}}
+              <div class="form-fields">
+                {{#if detailGroups}}
+                  <p data-card-fields-summary>{{fieldsSummary}}</p>
+                  <div
+                    class="ws-settings-card-details"
+                    role="group"
+                    aria-labelledby="{{idPrefix}}-{{key}}-label"
+                  >
+                    {{#each detailGroups}}<fieldset><legend><i
+                            class="fa-solid {{icon}}"
+                            aria-hidden="true"
+                          ></i>
+                          {{label}}</legend>
+                        {{#each fields}}<label><input
+                              type="checkbox"
+                              name="{{key}}"
+                              value="{{value}}"
+                              {{checked selected}}
+                            /><span>{{label}}</span></label>{{/each}}
+                      </fieldset>{{/each}}
+                  </div>
+                {{else}}
+                  {{#if effectList}}
                     <input
-                      id="adventurer-hud-{{key}}"
-                      type="range"
-                      name="{{key}}"
-                      value="{{value}}"
-                      min="{{range.min}}"
-                      max="{{range.max}}"
-                      step="{{range.step}}"
-                      aria-label="{{name}}"
+                      id="{{idPrefix}}-{{key}}-search"
+                      type="search"
+                      data-effect-search
+                      aria-label="{{searchLabel}}"
+                      placeholder="{{searchLabel}}"
                     />
-                    <output
-                      for="adventurer-hud-{{key}}"
-                      aria-live="polite"
-                    >{{value}}</output>
+                    <p data-effect-selected-count role="status"></p>
+                    <p data-effect-count role="status">{{loadingLabel}}</p>
+                    <div
+                      class="ws-settings-effect-list"
+                      id="{{idPrefix}}-{{key}}"
+                      data-hidden-effects-list
+                      role="group"
+                      aria-labelledby="{{idPrefix}}-{{key}}-label"
+                    >
+                      {{#each choices}}
+                        <label class="ws-settings-effect-choice"><input
+                            type="checkbox"
+                            name="hiddenEffects"
+                            value="{{value}}"
+                            data-standard-status="{{standard}}"
+                            {{checked selected}}
+                          />{{#if img}}<img
+                              src="{{img}}"
+                              alt=""
+                              aria-hidden="true"
+                              width="24"
+                              height="24"
+                              loading="lazy"
+                              draggable="false"
+                            />{{else}}<i
+                              class="fa-solid fa-wand-magic-sparkles"
+                              aria-hidden="true"
+                            ></i>{{/if}}<span>{{label}}</span></label>
+                      {{else}}<p>{{emptyLabel}}</p>{{/each}}
+                    </div>
+                    <button
+                      type="button"
+                      data-action="showalleffects"
+                    >{{clearLabel}}</button>
+                  {{else}}
+                    {{#if isSelect}}
+                      <select
+                        id="{{idPrefix}}-{{key}}"
+                        name="{{key}}"
+                        data-parent-key="{{parentKey}}"
+                        {{disabledAttribute}}
+                      >
+                        {{#each choices}}{{#if selected}}<option
+                              value="{{value}}"
+                              selected
+                            >{{label}}</option>{{else}}<option
+                              value="{{value}}"
+                            >{{label}}</option>{{/if}}{{/each}}
+                      </select>
+                    {{else}}
+                      {{#if color}}
+                        <div class="ws-settings-color">
+                          <input
+                            type="color"
+                            id="{{idPrefix}}-{{key}}"
+                            name="{{key}}"
+                            value="{{value}}"
+                            aria-label="{{name}}"
+                            data-parent-key="{{parentKey}}"
+                            {{disabledAttribute}}
+                          />
+                          <output
+                            for="{{idPrefix}}-{{key}}"
+                            aria-live="polite"
+                          >{{value}}</output>
+                        </div>
+                      {{else}}
+                        {{#if numeric}}
+                          <div class="ws-settings-range">
+                            <div class="ws-settings-range-main">
+                              <input
+                                id="{{idPrefix}}-{{key}}"
+                                type="range"
+                                name="{{key}}"
+                                value="{{value}}"
+                                min="{{range.min}}"
+                                max="{{range.max}}"
+                                step="{{range.step}}"
+                                aria-label="{{name}}"
+                                data-parent-key="{{parentKey}}"
+                                {{disabledAttribute}}
+                              />
+                              <output
+                                for="{{idPrefix}}-{{key}}"
+                                aria-live="polite"
+                              >{{value}}</output>
+                            </div>
+                            <div
+                              class="ws-settings-range-limits"
+                              aria-hidden="true"
+                            >
+                              <span>{{range.min}}</span><span
+                              >{{range.max}}</span>
+                            </div>
+                          </div>
+                        {{else}}
+                          {{#if disabled}}<input
+                              id="{{idPrefix}}-{{key}}"
+                              type="checkbox"
+                              name="{{key}}"
+                              {{checked value}}
+                              disabled
+                              data-parent-key="{{parentKey}}"
+                            />{{else}}<input
+                              id="{{idPrefix}}-{{key}}"
+                              type="checkbox"
+                              name="{{key}}"
+                              {{checked value}}
+                              data-parent-key="{{parentKey}}"
+                            />{{/if}}
+                        {{/if}}
+                      {{/if}}
+                    {{/if}}
+                  {{/if}}
+                {{/if}}
+              </div>
+              <p class="hint">{{hint}}</p>
+              {{#if animationDetail}}<p
+                  class="hint"
+                  data-animation-disabled-hint
+                  {{animationHintHidden}}
+                >{{animationDisabledHint}}</p>{{/if}}
+              {{#if sizeControl}}{{#with sizeControl}}<div
+                    class="ws-settings-size-control"
+                    data-setting-key="{{key}}"
+                  ><label for="{{idPrefix}}-{{key}}">{{name}}</label><div
+                      class="ws-settings-range"
+                    ><div class="ws-settings-range-main"><input
+                          id="{{idPrefix}}-{{key}}"
+                          type="range"
+                          name="{{key}}"
+                          value="{{value}}"
+                          min="{{range.min}}"
+                          max="{{range.max}}"
+                          step="{{range.step}}"
+                          aria-label="{{name}}"
+                        /><input
+                          id="{{idPrefix}}-{{key}}-number"
+                          type="number"
+                          data-font-size-number
+                          value="{{value}}"
+                          min="{{range.min}}"
+                          max="{{range.max}}"
+                          step="{{range.step}}"
+                          aria-label="{{name}}"
+                        /></div></div></div>{{/with}}{{/if}}
+            </div>
+            {{#if mechanicsPreview}}<section
+                class="ws-settings-card-preview ws-settings-mechanics-preview"
+                aria-label="{{mechanicsPreviewLabel}}"
+              >
+                <strong>{{mechanicsPreviewLabel}}</strong>
+                <p class="hint">{{mechanicsPreviewHint}}</p>
+                <div data-mechanics-preview="{{key}}" aria-live="polite"></div>
+              </section>{{/if}}
+            {{#if cardPreview}}<section
+                class="ws-settings-card-preview"
+                aria-label="{{cardPreviewLabel}}"
+              >
+                <strong>{{cardPreviewLabel}}</strong>
+                <p class="hint">{{cardPreviewHint}}</p>
+                <div class="ws-rolls-dialog" data-card-preview="{{key}}"><div
+                    class="ws-shell"
+                  ></div></div>
+              </section>{{/if}}
+            {{#if customColorAnchor}}{{#with customPalette}}
+                <fieldset data-theme-colors {{customHidden}}>
+                  <legend>{{themeColorsLabel}}</legend>
+                  <input
+                    type="checkbox"
+                    name="customThemeInitialized"
+                    {{checked customInitialized}}
+                    hidden
+                  />
+                  <div class="ws-settings-theme-colors">
+                    {{#each themeColors}}
+                      <label
+                        for="{{idPrefix}}-{{key}}"
+                        data-setting-key="{{key}}"
+                      ><span data-setting-name>{{name}}</span><span
+                          class="ws-settings-color"
+                        >
+                          <input
+                            type="color"
+                            id="{{idPrefix}}-{{key}}"
+                            name="{{key}}"
+                            value="{{value}}"
+                          />
+                          <output for="{{idPrefix}}-{{key}}">{{value}}</output>
+                        </span></label>
+                    {{/each}}
                   </div>
-                  <div class="ws-settings-range-limits" aria-hidden="true">
-                    <span>{{range.min}}</span><span>{{range.max}}</span>
-                  </div>
+                  <div class="ws-settings-theme-copy"><label
+                      for="{{idPrefix}}-theme-source"
+                    >{{copyThemeSourceLabel}}</label><select
+                      id="{{idPrefix}}-theme-source"
+                      data-custom-theme-source
+                    >
+                      {{#each builtInThemes}}<option
+                          value="{{value}}"
+                        >{{label}}</option>{{/each}}
+                    </select><button
+                      type="button"
+                      data-copy-custom-theme
+                    >{{copyThemeLabel}}</button></div>
+                </fieldset>{{/with}}{{/if}}
+          {{/unless}}
+        {{/each}}
+        {{#if appearance}}
+
+          <section
+            class="ws-settings-theme-preview"
+            aria-label="{{themePreviewLabel}}"
+          >
+            <strong>{{themePreviewLabel}}</strong><p
+              class="hint"
+              data-accent-source
+            >{{accentSourceLabel}}</p>
+            <div class="ws-rolls-dialog" data-theme-preview inert><div
+                class="ws-shell ws-view ws-theme-sample"
+              >
+                <div class="ws-theme-sample-info">
+                  <div class="ws-theme-sample-identity"><img
+                      src="icons/svg/mystery-man.svg"
+                      alt=""
+                    /><div><strong>{{previewName}}</strong><small
+                      >{{previewLevel}}
+                        ·
+                        {{previewProficiency}}
+                        +3</small></div></div>
+                  <div class="ws-theme-sample-health"><span>{{previewHP}}
+                      <b>30/52</b></span><div
+                      class="ws-appearance-hp-track"
+                    ><div style="width:58%"></div></div></div>
+                  <div class="ws-theme-sample-stats"><div><span
+                      >{{previewAC}}</span><strong>16</strong></div><div><span
+                      >{{previewSpeed}}</span><strong>30
+                        {{previewFeet}}</strong></div></div>
                 </div>
-              {{else}}
-                {{#if disabled}}<input
-                    id="adventurer-hud-{{key}}"
-                    type="checkbox"
-                    name="{{key}}"
-                    {{checked value}}
-                    disabled
-                    data-parent-key="{{parentKey}}"
-                  />{{else}}<input
-                    id="adventurer-hud-{{key}}"
-                    type="checkbox"
-                    name="{{key}}"
-                    {{checked value}}
-                    data-parent-key="{{parentKey}}"
-                  />{{/if}}
-              {{/if}}
-            {{/if}}
-          </div>
-          <p class="hint">{{hint}}</p>
+                <div class="ws-theme-sample-items">
+                  <div class="ws-section-toggle ws-button"><span><i
+                        class="fa-solid fa-star"
+                        aria-hidden="true"
+                      ></i>
+                      {{previewFavorites}}
+                      · 2</span><i
+                      class="fa-solid fa-chevron-up"
+                      aria-hidden="true"
+                    ></i></div>
+                  <div class="ws-combat-item-card ws-has-favorite-control"><div
+                      class="ws-combat-item ws-button"
+                    ><img src="icons/svg/sword.svg" alt="" /><span
+                        class="ws-combat-item-content"
+                      ><strong>{{previewWeapon}}</strong><small>+7 · 1d8 + 4 ·
+                          {{previewSlashing}}</small></span></div><span
+                      class="ws-item-favorite ws-button ws-active ws-theme-sample-favorite"
+                      aria-hidden="true"
+                    ><i class="fa-solid fa-star"></i></span></div>
+                  <div class="ws-combat-item-card ws-has-favorite-control"><div
+                      class="ws-combat-item ws-button"
+                    ><img src="icons/svg/fire.svg" alt="" /><span
+                        class="ws-combat-item-content"
+                      ><strong>{{previewSpell}}</strong><small>2d6 ·
+                          {{previewFire}}
+                          · 60
+                          {{previewFeet}}</small></span></div><span
+                      class="ws-item-favorite ws-button ws-active ws-theme-sample-favorite"
+                      aria-hidden="true"
+                    ><i class="fa-solid fa-star"></i></span></div>
+                  <div class="ws-combat-filter ws-button"><i
+                      class="fa-solid fa-wand-magic-sparkles"
+                      aria-hidden="true"
+                    ></i><span>{{previewSpells}}</span><small>12</small></div>
+                </div>
+              </div></div>
+          </section>
+        {{/if}}
+        {{#if animationPreview}}
+          <section
+            class="ws-settings-appearance-preview"
+            aria-label="{{previewLabel}}"
+          >
+            <strong>{{previewLabel}}</strong><p class="hint">{{previewHint}}</p>
+            <div class="ws-rolls-dialog" data-appearance-preview>
+              <div class="ws-shell"><article class="ws-appearance-card"><strong
+                  >{{previewName}}</strong>
+                  <div class="ws-hp-header"><span>HP</span><span
+                      class="ws-hp-value"
+                      data-preview-hp
+                    >32 / 40</span></div>
+                  <div class="ws-appearance-hp-track"><div
+                      data-preview-hp-bar
+                    ></div></div>
+                </article></div>
+            </div>
+            <div class="ws-settings-preview-actions">
+              <button
+                type="button"
+                data-appearance-demo="damage"
+              >{{previewDamage}}</button>
+              <button
+                type="button"
+                data-appearance-demo="heal"
+              >{{previewHeal}}</button>
+              <button
+                type="button"
+                data-appearance-demo="turn"
+              >{{previewTurn}}</button>
+            </div>
+          </section>
+        {{/if}}
+      </section>
+    {{/each}}
+    <section
+      class="ws-settings-group ws-settings-help"
+      role="tabpanel"
+      id="{{idPrefix}}-panel-help"
+      data-settings-panel="help"
+      aria-labelledby="{{idPrefix}}-tab-help"
+      tabindex="0"
+      hidden
+    >
+      <h2>{{helpLabel}}</h2>
+      <p class="hint">{{helpHint}}</p>
+      {{#each helpSections}}
+        <h3 class="ws-settings-section-heading">{{label}}</h3>
+        <div class="ws-settings-help-links">
+          {{#each links}}<a
+              href="{{url}}"
+              data-guide-file="{{guideFile}}"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <i class="fa-solid {{icon}}" aria-hidden="true"></i>
+              <span><strong>{{label}}</strong><small>{{hint}}</small></span>
+              <i
+                class="fa-solid fa-arrow-up-right-from-square"
+                aria-hidden="true"
+              ></i>
+            </a>{{/each}}
         </div>
       {{/each}}
-    </fieldset>
-  {{/each}}
+
+    </section>
+    <section
+      class="ws-settings-group ws-settings-changelog"
+      role="tabpanel"
+      id="{{idPrefix}}-panel-changelog"
+      data-settings-panel="changelog"
+      aria-labelledby="{{idPrefix}}-tab-changelog"
+      tabindex="0"
+      hidden
+    >
+      <div class="ws-settings-changelog-header">
+        <h2>{{changelogLabel}}</h2>
+        <select
+          id="{{idPrefix}}-changelog-language"
+          data-changelog-language
+          aria-label="{{changelogLanguageLabel}}"
+        ><option value="en">English</option><option
+            value="ru"
+          >Русский</option></select>
+      </div>
+      <div data-changelog-list aria-live="polite">{{changelogLoading}}</div>
+    </section>
+    <section
+      class="ws-settings-group ws-settings-troubleshooting"
+      role="tabpanel"
+      id="{{idPrefix}}-panel-troubleshooting"
+      data-settings-panel="troubleshooting"
+      aria-labelledby="{{idPrefix}}-tab-troubleshooting"
+      tabindex="0"
+      hidden
+    >
+      <h2>{{troubleshootingLabel}}</h2>
+      <div data-integrity-host></div>
+    </section>
+  </main>
   <footer class="form-footer">
-    <button type="submit">
-      <i class="fa-solid fa-floppy-disk"></i>
-      {{saveLabel}}
-    </button>
+    <div class="ws-settings-footer-start">
+      <span
+        data-settings-save-status
+        data-state="saved"
+        role="status"
+        aria-live="polite"
+      >{{savedLabel}}</span>
+      <div class="ws-settings-search" role="search">
+        <div class="ws-settings-search-controls"><input
+            id="{{idPrefix}}-settings-search"
+            type="text"
+            role="searchbox"
+            data-settings-search
+            autocomplete="off"
+            placeholder="{{searchLabel}}"
+            aria-label="{{searchLabel}}"
+          /><button
+            type="button"
+            data-settings-search-clear
+            aria-label="{{searchClear}}"
+          ><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>
+        <p
+          data-settings-search-status
+          role="status"
+          aria-live="polite"
+          hidden
+        ></p>
+        <div data-settings-search-results hidden></div>
+      </div>
+
+    </div>
+    <button type="button" data-action="cancel"><i
+        class="fa-solid fa-xmark"
+        aria-hidden="true"
+      ></i>{{closeLabel}}</button>
+    <button type="submit" data-settings-apply><i
+        class="fa-solid fa-check"
+        aria-hidden="true"
+      ></i>{{applyLabel}}</button>
+    <button type="submit" data-settings-save-close><i
+        class="fa-solid fa-floppy-disk"
+        aria-hidden="true"
+      ></i>{{saveCloseLabel}}</button>
   </footer>
 </div>

@@ -12,7 +12,15 @@ import {
 } from "../../diagnostics.js";
 import { bindItemDescriptionInteractions } from "../items/item-interactions.js";
 import { bindItemLayoutInteractions } from "../items/item-layout-interactions.js";
-import { synchronizeHudTheme, watchHudTheme } from "../theme.js";
+import {
+  synchronizeHudPalette,
+  synchronizeHudTypography,
+  watchHudTheme
+} from "../theme.js";
+import {
+  effectiveAnimationSettings,
+  watchReducedMotion
+} from "../animation-settings.js";
 import { createItemPreview } from "../items/item-preview.js";
 import { watchPlayerLayout } from "./responsive-layout.js";
 import { bindGmColumnDividers } from "./gm-column-dividers.js";
@@ -64,22 +72,37 @@ export async function activateHudWindow({
   let disposed = false;
   let itemPreview = null;
   let actorDrop = null;
-  let effectsEnabled = Boolean(visualEffectsEnabled);
+  let effectsMaster = Boolean(visualEffectsEnabled);
+  let reducedMotion = false;
+  const animationPreferences = {
+    hpAnimation: getSetting(SETTINGS.hpAnimation),
+    turnAnimation: getSetting(SETTINGS.turnAnimation)
+  };
+  let animations = effectiveAnimationSettings({
+    ...animationPreferences,
+    showVisualEffects: effectsMaster
+  });
+  let effectsEnabled = animations.enabled;
+  let effectsElement = app.element;
   let hpFeedbackTimer = null;
   let flashTimer = null;
   let initiativeFeedbackTimer = null;
+  let initiativeFrame = null;
   let turnGlowTimer = null;
 
   const clearEffects = () => {
     clearTimeout(hpFeedbackTimer);
     clearTimeout(flashTimer);
     clearTimeout(initiativeFeedbackTimer);
+    if (initiativeFrame != null) cancelAnimationFrame(initiativeFrame);
+    initiativeFrame = null;
     clearTimeout(turnGlowTimer);
     hpFeedbackTimer = null;
+    effectsElement?.removeAttribute("data-hp-feedback");
     flashTimer = null;
     initiativeFeedbackTimer = null;
     turnGlowTimer = null;
-    app.element?.classList.remove(
+    effectsElement?.classList.remove(
       "ws-heal-flash",
       "ws-damage-flash",
       "ws-initiative-flash",
@@ -90,18 +113,41 @@ export async function activateHudWindow({
   };
 
   const syncEffects = () => {
+    animations = effectiveAnimationSettings(
+      { ...animationPreferences, showVisualEffects: effectsMaster },
+      reducedMotion
+    );
+    effectsEnabled = animations.enabled;
+    clearEffects();
+    app.clearDiceTrayEffect?.();
+    app.element.dataset.hpAnimation = animations.hp;
+    app.element.dataset.turnAnimation = animations.turn;
     if (effectsEnabled) {
       app.element.classList.remove("ws-effects-disabled");
     } else {
       app.element.classList.add("ws-effects-disabled");
       clearEffects();
+      app.clearDiceTrayEffect?.();
     }
   };
 
-  const syncTheme = value => {
-    synchronizeHudTheme(app.element, value);
-  };
+  const syncPalette = (theme = getSetting(SETTINGS.theme)) =>
+    synchronizeHudPalette(app.element, {
+      theme,
+      preset: getSetting(SETTINGS.accentPreset),
+      color: getSetting(SETTINGS.accentColor),
+      customAccent: getSetting(SETTINGS.customThemeAccent),
+      customBackground: getSetting(SETTINGS.customThemeBackground),
+      customText: getSetting(SETTINGS.customThemeText)
+    });
 
+  const syncTypography = () =>
+    synchronizeHudTypography(app.element, {
+      size: getSetting(SETTINGS.fontSize),
+      pixels: getSetting(SETTINGS.fontSizePx),
+      family: getSetting(SETTINGS.fontFamily),
+      style: getSetting(SETTINGS.fontStyle)
+    });
   const updateWindowSize = () => {
     const header = app.element?.querySelector(".window-header");
     let badge = header?.querySelector(".ws-window-size");
@@ -124,6 +170,7 @@ export async function activateHudWindow({
   app.applySetting = (key, value) => {
     if (
       [
+        SETTINGS.twoColumnMode,
         SETTINGS.twoColumnWidth,
         SETTINGS.playerColumnRatio,
         SETTINGS.gmRosterColumnRatio,
@@ -137,14 +184,39 @@ export async function activateHudWindow({
     if (key === SETTINGS.debugWindowSize) updateWindowSize();
     if (key === SETTINGS.showItemDescriptions && !value) itemPreview?.close();
     if (key === SETTINGS.closeOnEscape) setCloseOnEscape?.(Boolean(value));
-    if (key === SETTINGS.theme) syncTheme(value);
+    if (key === SETTINGS.theme) syncPalette(value);
+    if (
+      [
+        SETTINGS.fontFamily,
+        SETTINGS.fontStyle,
+        SETTINGS.fontSize,
+        SETTINGS.fontSizePx
+      ].includes(key)
+    ) {
+      syncTypography();
+      app.syncHudLayout?.();
+    }
+    if (
+      [
+        SETTINGS.accentPreset,
+        SETTINGS.accentColor,
+        SETTINGS.customThemeAccent,
+        SETTINGS.customThemeBackground,
+        SETTINGS.customThemeText
+      ].includes(key)
+    )
+      syncPalette();
     if (key === pinSetting) {
       setPinned(Boolean(value));
       app.updatePinControl();
       app.syncHudLayout?.();
     }
     if (key === SETTINGS.showVisualEffects) {
-      effectsEnabled = Boolean(value);
+      effectsMaster = Boolean(value);
+      syncEffects();
+    }
+    if ([SETTINGS.hpAnimation, SETTINGS.turnAnimation].includes(key)) {
+      animationPreferences[key] = value;
       syncEffects();
     }
   };
@@ -163,6 +235,7 @@ export async function activateHudWindow({
     restoreHudDomState(app.element, domState);
   } else await app.render({ force: true });
   await app.revealHud?.();
+  effectsElement = app.element;
   for (const name of Array.from(app.element.classList)) {
     if (name.startsWith("ws-font-")) app.element.classList.remove(name);
   }
@@ -173,7 +246,8 @@ export async function activateHudWindow({
   app.element.classList.toggle("ws-player-mode", !gmActive);
   setPinned?.(pinned);
   app.updatePinControl();
-  syncTheme(theme);
+  syncPalette(theme);
+  syncTypography();
   updateWindowSize();
   const gmLayout = bindGmColumnDividers(app.element, {
     readRatio: key =>
@@ -209,6 +283,7 @@ export async function activateHudWindow({
     app,
     () => getSetting(SETTINGS.twoColumnWidth),
     {
+      readMode: () => getSetting(SETTINGS.twoColumnMode),
       readRatio: () => getSetting(SETTINGS.playerColumnRatio),
       saveRatio: value => {
         void setSetting(SETTINGS.playerColumnRatio, value).catch(error =>
@@ -227,7 +302,13 @@ export async function activateHudWindow({
   const unwatchTheme = watchHudTheme(app.element, () =>
     getSetting(SETTINGS.theme)
   );
-  syncEffects();
+  const unwatchMotion = watchReducedMotion(
+    app.element.ownerDocument?.defaultView ?? globalThis.window,
+    value => {
+      reducedMotion = value;
+      syncEffects();
+    }
+  );
 
   const sessionElement = app.element;
   const unbindDiceTray = bindHudDiceTray({
@@ -344,7 +425,12 @@ export async function activateHudWindow({
   app.storeHudPosition = storePosition;
 
   const flash = className => {
-    if (!effectsEnabled || turnGlowTimer) return;
+    if (
+      !effectsEnabled ||
+      disposed ||
+      (turnGlowTimer && className === "ws-initiative-flash")
+    )
+      return;
     clearTimeout(flashTimer);
     app.element.classList.remove(
       "ws-heal-flash",
@@ -360,7 +446,7 @@ export async function activateHudWindow({
   };
 
   const showHpFeedback = change => {
-    if (!effectsEnabled) return;
+    if (animations.hp === "off" || disposed) return;
     const style = app.element.style;
     style.setProperty(
       "--ws-hp-delta",
@@ -373,27 +459,25 @@ export async function activateHudWindow({
       style.setProperty(`--ws-hp-${name}-normal`, `${widths.normal}%`);
       style.setProperty(`--ws-hp-${name}-temp`, `${widths.temp}%`);
     }
+    app.element.dataset.hpFeedback = change.kind;
     app.element.classList.remove("ws-hp-feedback");
     void app.element.offsetWidth;
     app.element.classList.add("ws-hp-feedback");
     clearTimeout(hpFeedbackTimer);
     hpFeedbackTimer = setTimeout(() => {
       app.element.classList.remove("ws-hp-feedback");
+      app.element.removeAttribute("data-hp-feedback");
+      hpFeedbackTimer = null;
     }, 1200);
   };
 
   const showTurnGlow = () => {
-    if (!effectsEnabled || !app.element) return;
-    clearTimeout(flashTimer);
-    flashTimer = null;
-    app.element.classList.remove(
-      "ws-heal-flash",
-      "ws-damage-flash",
-      "ws-initiative-flash",
-      "ws-hp-feedback"
-    );
-    clearTimeout(hpFeedbackTimer);
-    hpFeedbackTimer = null;
+    if (animations.turn === "off" || disposed || !app.element) return;
+    if (app.element.classList.contains("ws-initiative-flash")) {
+      clearTimeout(flashTimer);
+      flashTimer = null;
+      app.element.classList.remove("ws-initiative-flash");
+    }
     app.element.classList.remove("ws-turn-arrival");
     void app.element.offsetWidth;
     app.element.classList.add("ws-turn-arrival");
@@ -417,20 +501,24 @@ export async function activateHudWindow({
     onInitiativeRequest: () => flash("ws-initiative-flash"),
     onInitiativeRolled: () => {
       if (!effectsEnabled) return;
-      requestAnimationFrame(() => {
-        if (!app.rendered || !effectsEnabled) return;
+      if (initiativeFrame != null) cancelAnimationFrame(initiativeFrame);
+      initiativeFrame = requestAnimationFrame(() => {
+        initiativeFrame = null;
+        if (disposed || !app.rendered || !effectsEnabled) return;
         app.element.classList.remove("ws-initiative-rolled");
         void app.element.offsetWidth;
         app.element.classList.add("ws-initiative-rolled");
         clearTimeout(initiativeFeedbackTimer);
         initiativeFeedbackTimer = setTimeout(() => {
           app.element.classList.remove("ws-initiative-rolled");
+          initiativeFeedbackTimer = null;
         }, 1500);
       });
     },
     onHpChange: change => {
-      if (!effectsEnabled || turnGlowTimer) return;
-      flash(change.kind === "heal" ? "ws-heal-flash" : "ws-damage-flash");
+      if (animations.hp === "off") return;
+      if (animations.hp === "full")
+        flash(change.kind === "heal" ? "ws-heal-flash" : "ws-damage-flash");
       showHpFeedback(change);
     },
     onToolsChange,
@@ -450,6 +538,7 @@ export async function activateHudWindow({
     app.updateHudWindowSize = null;
     sessionElement.querySelector(".ws-window-size")?.remove();
     unwatchTheme();
+    unwatchMotion();
     unwatchDiagnostics();
     sessionElement.querySelector("[data-diagnostic-recording]")?.remove();
     recordDiagnostic(

@@ -9,20 +9,12 @@
     grid-template-columns: 1fr;
   }
 
-  .ws-rolls-dialog .ws-combat-filters {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .ws-rolls-dialog .ws-combat-item-grid {
     grid-template-columns: 1fr;
   }
 
   .ws-rolls-dialog .ws-shortcuts {
     gap: 5px 8px;
-  }
-
-  .ws-rolls-dialog .ws-combat-view:not(.ws-gm-view) .ws-combat-stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .ws-rolls-dialog .ws-health-stack {
@@ -69,8 +61,9 @@
 }
 
 .ws-rolls-dialog .ws-player-columns .ws-actor-identity strong {
-  white-space: normal;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ws-rolls-dialog .ws-player-columns.ws-player-detail .ws-player-info {
@@ -123,18 +116,6 @@
   color: var(--accent) !important;
 }
 
-@container ws-rolls (min-width: 500px) {
-  .ws-rolls-dialog .ws-view {
-    --ws-type-scale: calc(var(--ws-user-type-scale) + 0.08);
-  }
-}
-
-@container ws-rolls (min-width: 680px) {
-  .ws-rolls-dialog .ws-view {
-    --ws-type-scale: calc(var(--ws-user-type-scale) + 0.16);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .ws-rolls-dialog .ws-status-new {
     animation: none;
@@ -153,7 +134,16 @@
   .ws-player-columns.ws-combat-view
   .ws-combat-actions
   > .ws-combat-filters {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 105px), 1fr));
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(
+      min(
+        100%,
+        max(calc(110px * var(--ws-type-scale)), calc((100% - 8px) / 3))
+      ),
+      1fr
+    )
+  );
   gap: 4px;
 }
 
@@ -163,10 +153,9 @@
   letter-spacing: 0.02em;
 }
 
-.ws-rolls-dialog
-  .ws-player-columns.ws-combat-view.ws-player-actions-compact
-  .ws-combat-filters {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.ws-rolls-dialog .ws-player-actions {
+  container-type: inline-size;
+  container-name: ws-actions;
 }
 
 .ws-rolls-dialog .ws-player-columns .ws-player-actions {
@@ -176,12 +165,16 @@
 .ws-rolls-dialog .ws-player-columns .ws-combat-item-grid {
   grid-template-columns: repeat(
     auto-fill,
-    minmax(min(100%, calc(190px * var(--ws-type-scale, 1.15))), 1fr)
+    minmax(min(100%, calc(170px * var(--ws-type-scale, 1.15))), 1fr)
   );
 }
 
-.ws-rolls-dialog .ws-favorites .ws-combat-item-grid {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr));
+.ws-rolls-dialog .ws-favorites .ws-combat-item-grid,
+.ws-rolls-dialog .ws-player-columns .ws-favorites .ws-combat-item-grid {
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(min(100%, calc(170px * var(--ws-type-scale))), 1fr)
+  );
 }
 
 .ws-rolls-dialog .ws-player-columns .ws-entry-grid {
@@ -298,8 +291,12 @@
   font-size: calc(12px * var(--ws-type-scale));
 }
 
-.ws-rolls-dialog .ws-player-stats.ws-no-initiative {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.ws-rolls-dialog .ws-player-stats .ws-header-initiative > span,
+.ws-rolls-dialog .ws-gm-info .ws-combat-stats .ws-combat-stat > span,
+.ws-rolls-dialog .ws-gm-info .ws-combat-stats .ws-header-initiative > span {
+  font-size: clamp(9.5px, 4.5cqw, calc(10px * var(--ws-type-scale)));
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .ws-rolls-dialog .ws-exploration-rests .ws-rest-controls {
@@ -361,6 +358,7 @@
 .ws-rolls-dialog .ws-player-columns > .ws-player-actions {
   grid-column: 3;
   grid-row: 1;
+  align-items: stretch;
 }
 
 .ws-rolls-dialog .ws-player-columns > .ws-column-divider,
@@ -464,21 +462,24 @@
 }
 
 @container ws-rolls (min-width: 900px) {
-  .ws-rolls-dialog .ws-gm-body > [data-gm-divider="info"] {
+  .ws-rolls-dialog .ws-gm-three-columns .ws-gm-body > [data-gm-divider="info"] {
     display: block;
   }
 
-  .ws-rolls-dialog .ws-gm-body > .ws-gm-info {
+  .ws-rolls-dialog .ws-gm-three-columns .ws-gm-body > .ws-gm-info {
     grid-column: 1;
     grid-row: 1;
   }
 
-  .ws-rolls-dialog .ws-gm-body > .ws-gm-action-column {
+  .ws-rolls-dialog .ws-gm-three-columns .ws-gm-body > .ws-gm-action-column {
     grid-column: 3;
     grid-row: 1;
   }
 
-  .ws-rolls-dialog .ws-gm-body > .ws-hud-secondary-columns {
+  .ws-rolls-dialog
+    .ws-gm-three-columns
+    .ws-gm-body
+    > .ws-hud-secondary-columns {
     grid-column: 3;
     grid-row: 1;
     overflow: hidden auto;
@@ -548,7 +549,8 @@
 
 .ws-rolls-dialog .ws-player-footer {
   position: relative;
-  display: grid;
+  display: flex;
+  flex-wrap: nowrap;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
@@ -643,7 +645,8 @@
   gap: 4px;
 }
 
-.ws-rolls-dialog .ws-footer-controls > button {
+.ws-rolls-dialog .ws-footer-controls > button,
+.ws-rolls-dialog .ws-footer-turn > button {
   flex-direction: row;
   width: auto;
   min-width: 30px;
@@ -652,7 +655,7 @@
   padding: 3px 6px;
 }
 
-.ws-rolls-dialog .ws-footer-controls .ws-header-end-turn {
+.ws-rolls-dialog .ws-footer-turn .ws-header-end-turn {
   gap: 5px;
 }
 
@@ -680,6 +683,32 @@
   padding: 4px;
 }
 
+.ws-rolls-dialog .ws-actor-header {
+  align-items: stretch;
+}
+
+.ws-rolls-dialog
+  .ws-actor-header
+  > .ws-actor-sheet-button:not(.ws-actor-identity) {
+  position: relative;
+  min-height: 40px;
+}
+
+.ws-rolls-dialog
+  .ws-actor-header
+  > .ws-actor-sheet-button
+  > .ws-actor-portrait {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+}
+
+.ws-rolls-dialog .ws-actor-header > .ws-actor-identity {
+  justify-content: center;
+}
+
 @container ws-rolls (max-width: 449px) {
   .ws-rolls-dialog .ws-recent-action:nth-child(n + 3) {
     display: none;
@@ -697,11 +726,11 @@
     padding-inline: 3px;
   }
 
-  .ws-rolls-dialog .ws-footer-controls .ws-header-end-turn > span {
+  .ws-rolls-dialog .ws-footer-turn .ws-header-end-turn > span {
     display: none;
   }
 
-  .ws-rolls-dialog .ws-footer-controls .ws-header-end-turn > i {
+  .ws-rolls-dialog .ws-footer-turn .ws-header-end-turn > i {
     display: inline;
   }
 }
@@ -724,6 +753,7 @@
 
 .ws-rolls-dialog .ws-actor-inspiration-slot > .ws-inspiration {
   flex: 0 0 40px;
+  height: 100%;
 }
 
 .ws-rolls-dialog .ws-actor-inspiration-slot .ws-rest-controls {
@@ -754,4 +784,87 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.ws-rolls-dialog .ws-player-footer[data-hud-lane="footer"] {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.ws-rolls-dialog .ws-player-footer .ws-footer-recent {
+  flex: 1 1 0;
+}
+
+.ws-rolls-dialog .ws-hud-editing .ws-player-footer,
+.ws-rolls-dialog.ws-hud-editing .ws-player-footer {
+  min-height: 44px;
+  flex-wrap: wrap;
+}
+
+.ws-rolls-dialog .ws-player-footer > [data-hud-block] {
+  min-width: 0;
+}
+
+.ws-rolls-dialog .ws-player-footer > [data-hud-block] > .ws-hud-block-tools {
+  flex-basis: 100%;
+}
+
+.ws-rolls-dialog .ws-footer-recent[data-hud-block],
+.ws-rolls-dialog .ws-footer-controls[data-hud-block] {
+  flex-wrap: wrap;
+}
+
+.ws-rolls-dialog .ws-footer-recent[data-hud-block]:has(> .ws-hud-block-tools),
+.ws-rolls-dialog
+  .ws-footer-controls[data-hud-block]:has(> .ws-hud-block-tools) {
+  min-width: min(100%, calc(170px * var(--ws-type-scale)));
+}
+
+.ws-rolls-dialog .ws-player-footer > .ws-footer-effects {
+  flex: 1 1 0;
+}
+
+.ws-rolls-dialog .ws-player-footer > .ws-footer-controls {
+  flex: 0 0 auto;
+}
+
+.ws-rolls-dialog .ws-player-footer[hidden] {
+  display: none;
+}
+
+.ws-rolls-dialog .ws-footer-turn {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  align-items: center;
+}
+
+.ws-rolls-dialog .ws-footer-turn:empty {
+  display: none;
+}
+
+.ws-rolls-dialog.ws-hud-editing .ws-player-footer > [data-hud-block] {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(30px, 1fr));
+  align-content: start;
+  flex: 1 1 240px;
+  padding: 6px !important;
+  gap: 6px;
+}
+
+.ws-rolls-dialog.ws-hud-editing
+  .ws-player-footer
+  > [data-hud-block]
+  > .ws-hud-block-tools {
+  position: static;
+  inset: auto;
+  grid-column: 1 / -1;
+  flex-basis: auto;
+}
+
+.ws-rolls-dialog.ws-hud-editing
+  .ws-player-footer
+  :is(.ws-combat-statuses, .ws-recent-empty, .ws-header-end-turn) {
+  grid-column: 1 / -1;
 }

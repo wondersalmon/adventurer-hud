@@ -26,15 +26,35 @@
 
 .ws-rolls-dialog .ws-companions-list {
   display: grid;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(
+      min(
+        100%,
+        max(calc(170px * var(--ws-type-scale)), calc((100% - 4px) / 2))
+      ),
+      1fr
+    )
+  );
   gap: 4px;
 }
 
+.ws-rolls-dialog .ws-companions-list > .ws-companion-toolbar,
+.ws-rolls-dialog .ws-companions-list > .ws-empty {
+  grid-column: 1 / -1;
+}
+
 .ws-rolls-dialog .ws-companion-row {
+  container-type: inline-size;
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
 }
 
 .ws-rolls-dialog .ws-companion-open {
@@ -47,6 +67,8 @@
   align-items: center;
   gap: 2px 5px;
   text-align: left;
+  border-color: transparent;
+  background: transparent;
 }
 
 .ws-rolls-dialog .ws-companion-open.ws-no-portrait {
@@ -104,17 +126,21 @@
 .ws-rolls-dialog .ws-companion-hp > span {
   display: block;
   height: 100%;
-  background: #78a665;
+  background: var(--success);
 }
 
 .ws-rolls-dialog .ws-companion-controls {
-  display: grid;
-  grid-template-columns: repeat(2, 28px);
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  align-items: center;
   gap: 3px;
 }
 
 .ws-rolls-dialog .ws-companion-controls button {
-  width: 100%;
+  flex: 0 0 28px;
+  width: 28px;
+  min-width: 28px;
   height: 28px;
   padding: 0;
   font-size: calc(9px * var(--ws-type-scale));
@@ -201,17 +227,20 @@
 
 .ws-rolls-dialog .ws-companion-effects {
   display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 4px;
-  padding-inline: 7px;
+  gap: 3px;
+  margin-inline-end: auto;
 }
 
 .ws-rolls-dialog .ws-companion-effects span,
 .ws-rolls-dialog .ws-companion-effects img {
   display: block;
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
 }
 
 .ws-rolls-dialog .ws-companion-effects span {
@@ -239,9 +268,52 @@
 
 .ws-rolls-dialog .ws-companion-switches {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 100px), 1fr));
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, max(80px, calc((100% - 4px) / 2))), 1fr)
+  );
   gap: 4px;
   min-width: 0;
+}
+
+.ws-rolls-dialog .ws-companion-switch-list > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: calc(9.5px * var(--ws-type-scale));
+  cursor: pointer;
+  list-style: none;
+}
+
+.ws-rolls-dialog .ws-companion-switch-list > summary > span {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.ws-rolls-dialog .ws-companion-switch-list > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ws-rolls-dialog .ws-companion-switch-list[open] > summary {
+  margin-bottom: 4px;
+}
+
+.ws-rolls-dialog .ws-companion-switch-list[open] > summary > .fa-chevron-right {
+  transform: rotate(90deg);
+}
+
+.ws-rolls-dialog
+  .ws-companion-switch-list
+  > summary:is(:hover, :focus-visible) {
+  border-color: var(--accent);
+  background: var(--accent-bg);
 }
 
 .ws-rolls-dialog .ws-companion-switch {
@@ -257,8 +329,8 @@
 }
 
 .ws-rolls-dialog .ws-companion-switch img {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   flex: 0 0 22px;
   border-radius: 4px;
   object-fit: cover;
@@ -325,8 +397,15 @@
 }
 
 @media (pointer: coarse) {
+  .ws-rolls-dialog .ws-companions-list {
+    grid-template-columns: repeat(
+      auto-fill,
+      minmax(min(100%, max(240px, calc((100% - 4px) / 2))), 1fr)
+    );
+  }
   .ws-rolls-dialog .ws-companions-toggle.ws-section-toggle,
   .ws-rolls-dialog .ws-companion-back,
+  .ws-rolls-dialog .ws-companion-switch-list > summary,
   .ws-rolls-dialog .ws-companion-switch,
   .ws-rolls-dialog .ws-companion-toolbar button {
     min-height: 44px;
@@ -335,22 +414,20 @@
 
   .ws-rolls-dialog .ws-companion-controls .ws-companion-initiative {
     min-height: 44px;
-    grid-column: 1 / -1;
-    width: 100%;
   }
 
   .ws-rolls-dialog .ws-companion-row {
-    grid-template-columns: minmax(0, 1fr) 92px;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .ws-rolls-dialog .ws-companion-controls,
   .ws-rolls-dialog .ws-companion-controls:has(> button:nth-child(4)) {
-    grid-auto-flow: row;
-    grid-auto-columns: auto;
-    grid-template-columns: repeat(2, 44px);
+    gap: 4px;
   }
 
   .ws-rolls-dialog .ws-companion-controls button {
+    flex-basis: 44px;
+    min-width: 44px;
     width: 44px;
     height: 44px;
   }
@@ -369,6 +446,7 @@
 }
 
 .ws-rolls-dialog .ws-companion-filters button {
+  text-align: left;
   flex: 1;
   min-width: 0;
 }
@@ -377,4 +455,59 @@
   color: var(--accent) !important;
   border-color: var(--accent) !important;
   background: var(--accent-bg) !important;
+}
+
+.ws-rolls-dialog .ws-companion-effects-more summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 20px;
+  height: 20px;
+  min-height: 0;
+  padding: 0 2px;
+  font-size: 11px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.ws-rolls-dialog .ws-companion-effects-more summary::-webkit-details-marker {
+  display: none;
+}
+
+.ws-rolls-dialog .ws-companion-effects-more[open] {
+  flex-basis: 100%;
+  min-width: 0;
+}
+
+.ws-rolls-dialog
+  .ws-companion-controls:has(.ws-companion-effects-more[open]:not([hidden])) {
+  align-items: flex-start;
+}
+
+.ws-rolls-dialog .ws-companion-effects-extra {
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-block-start: 4px;
+}
+
+@container (max-width: 220px) {
+  .ws-rolls-dialog .ws-companion-controls,
+  .ws-rolls-dialog .ws-companion-effects {
+    gap: 1px;
+  }
+}
+
+.ws-rolls-dialog .ws-companion-effects-collapse,
+.ws-rolls-dialog .ws-companion-effects-more[open] .ws-companion-effects-count {
+  display: none;
+}
+
+.ws-rolls-dialog
+  .ws-companion-effects-more[open]
+  .ws-companion-effects-collapse {
+  display: inline;
 }

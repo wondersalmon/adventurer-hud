@@ -20,12 +20,57 @@ export function createActorActions({
   performAndRefresh,
   performSceneAction = performAndRefresh,
   isSessionCurrent = () => true,
+  validateActorAction = null,
   performRoll,
   t
 }) {
   const canAct = () => Boolean(actor?.isOwner ?? canRollActor);
   let changingStatus = false;
   return {
+    editspellslots: async function (event, target) {
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      if (!canAct() || !isSessionCurrent()) return;
+      const pool = target?.dataset.spellPool;
+      if (!/^(spell[1-9]|pact)$/.test(pool)) return;
+      const slots = adapter.spellSlotPoolData?.(actor, pool);
+      const max = Number(slots?.max);
+      if (!Number.isFinite(max) || max <= 0) return;
+      const choice = await foundry.applications.api.DialogV2.wait({
+        window: {
+          title: t(pool === "pact" ? "Combat.PactSlots" : "Combat.SpellSlots")
+        },
+        content:
+          "<label>" +
+          foundry.utils.escapeHTML(t("Combat.EditSlots")) +
+          '<input type="number" name="slots" min="0" max="' +
+          max +
+          '" step="1" value="' +
+          Number(slots.value ?? 0) +
+          '"></label>',
+        buttons: [
+          {
+            action: "save",
+            label: t("Settings.Save"),
+            default: true,
+            callback: (_event, button) => {
+              const input = button.form.elements.slots;
+              if (!input.value.trim() || !input.checkValidity()) return null;
+              return Number(input.value);
+            }
+          },
+          { action: "cancel", label: t("Actor.Cancel"), callback: () => null }
+        ],
+        rejectClose: false
+      });
+      if (choice == null || !canAct() || !isSessionCurrent()) return;
+      if (validateActorAction && !(await validateActorAction())) return;
+      if (!canAct() || !isSessionCurrent()) return;
+      return performAndRefresh(() => {
+        if (!canAct() || !isSessionCurrent()) return;
+        return adapter.setSpellSlotValue?.(actor, pool, choice);
+      });
+    },
     actorinventory: () => {
       if (!canAct()) return ui.notifications.warn(t("Warnings.NoPermission"));
       return adapter.openInventorySheet(actor);

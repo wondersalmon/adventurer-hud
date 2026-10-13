@@ -67,13 +67,6 @@ function companionIndex(owner) {
   return { references, tokensByActor };
 }
 
-/** One entry per world actor; token-only ownership retains its exact identity.
- * @param {any} owner
- */
-export function ownedCompanionReferences(owner) {
-  return [...companionIndex(owner).references.values()];
-}
-
 export function sceneTokensForActor(actor, { owned = true } = {}) {
   return [...(canvas.scene?.tokens?.values?.() ?? [])].filter(
     token =>

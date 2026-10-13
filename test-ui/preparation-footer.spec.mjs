@@ -21,7 +21,7 @@ for (const language of ["en", "ru"]) {
           "hud/state.js": ["createHudState"]
         });
         await page.evaluate(() => {
-          window.state = createHudState();
+          window.state = window.createHudState();
           const roster = document.querySelector(
             ".ws-gm-preparation-creatures .ws-gm-roster"
           );
@@ -41,7 +41,7 @@ for (const language of ["en", "ru"]) {
                 root.querySelector(".window-content").style.height =
                   height + "px";
                 window.state.hudEditing = editing;
-                synchronizeHudLayout(root, window.state, key => key);
+                window.synchronizeHudLayout(root, window.state, key => key);
                 root.querySelector(".ws-gm-preparation").scrollTop = 0;
               },
               { width, height, editing }

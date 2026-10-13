@@ -1,18 +1,7 @@
-import { bindHudDiceTray } from "../scripts/hud/window/window-session.js";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { layoutFixture } from "./layout-fixture.mjs";
-
-const controller = (
-  await readFile(
-    new URL("../scripts/hud/dice-tray.js", import.meta.url),
-    "utf8"
-  )
-).replace(/^import .*;\r?\n/gm, "");
-const native = await readFile(
-  new URL("../scripts/dnd5e/dice-tray.js", import.meta.url),
-  "utf8"
-);
+import { loadHudModules } from "./module-fixture.mjs";
 
 for (const language of ["en", "ru"]) {
   test(`${language} dice popover stays inside narrow/wide light/dark windows and supports keyboard/native gestures`, async ({
@@ -29,10 +18,13 @@ for (const language of ["en", "ru"]) {
     await page.setContent(
       `<style>${f.baseline}\n${f.css}</style><section class="ws-rolls-dialog ws-theme-dark" style="position:absolute;left:20px;top:20px;width:650px;height:500px"><header class="window-header">HUD</header><div class="window-content" style="height:470px"><div class="ws-shell">${f.bodies["player-combat-footer"]}</div></div></section>`
     );
+    await loadHudModules(page, {
+      "hud/dice-tray.js": ["bindDiceTray"],
+      "hud/window/window-session.js": ["bindHudDiceTray"]
+    });
     await page.addScriptTag({
       type: "module",
-      content: `${native}\n${controller}
-${bindHudDiceTray.toString()}
+      content: `const {bindDiceTray, bindHudDiceTray}=window;
       const strings=${JSON.stringify(strings)}, root=document.querySelector('.ws-rolls-dialog');
       window.trayCalls=[]; window.foundry={dice:{Roll:class {constructor(formula){this.total=9;this.dice=window.trayDice||[];window.trayCalls.push(formula);}async evaluate(){}async toMessage(data,options){window.trayChat={data,options};}}}};
       window.CONFIG={ChatMessage:{documentClass:{getSpeaker:()=>({actor:'hero'})}}};window.game={audio:{interface:new AudioContext(),locked:false,globalMute:false},settings:{get:(_module,key)=>key==='globalInterfaceVolume'?0.3:'gm'}};
@@ -106,7 +98,9 @@ ${bindHudDiceTray.toString()}
             ];
           }, result);
           await tray.locator('[data-die="20"]').click({ modifiers: ["Shift"] });
-          await expect(tray).toHaveClass(new RegExp(`ws-tray-nat${result}`));
+          await expect(tray).not.toHaveClass(
+            /ws-tray-nat20|ws-tray-nat1|ws-tray-mimic/
+          );
           await expect
             .poll(() => page.evaluate(() => window.trayAudioStarted))
             .toBe(soundCount + (result === 20 ? 4 : 2));
@@ -159,7 +153,9 @@ ${bindHudDiceTray.toString()}
           .poll(() => page.evaluate(() => window.trayCalls.at(-1)))
           .toBe("2d20kl");
         await die.click();
-        await tray.locator("input").fill("-2");
+        await expect(tray.locator("input")).toHaveValue("1d20");
+        await expect(tray.locator("output")).toHaveCount(0);
+        await tray.locator("input").fill("1d20 + -2");
         await tray.locator("input").press("Enter");
         await expect
           .poll(() => page.evaluate(() => window.trayCalls.at(-1)))
@@ -170,6 +166,19 @@ ${bindHudDiceTray.toString()}
           await page.evaluate(() => window.trayChat.options.messageMode)
         ).toBe("gm");
         await tray.locator('[data-dice-tray="clear"]').click();
+        for (const formula of ["4d6kh3", "/r 4d6kh3", "/roll 4d6kh3"]) {
+          await tray.locator("input").fill(formula);
+          await expect(tray.locator("input")).toHaveValue(formula);
+          const before = await page.evaluate(() => window.trayCalls.length);
+          await tray.locator("input").press("Enter");
+          await expect
+            .poll(() => page.evaluate(() => window.trayCalls.length))
+            .toBeGreaterThan(before);
+          expect(await page.evaluate(() => window.trayCalls.at(-1))).toBe(
+            "4d6kh3"
+          );
+          await tray.locator('[data-dice-tray="clear"]').click();
+        }
         await expect(die.locator("small")).toHaveText("0");
         await die.click({ button: "right" });
         await expect(die.locator("small")).toHaveText("0");

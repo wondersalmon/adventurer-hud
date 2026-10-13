@@ -33,6 +33,7 @@ async function setupEditor(page, scenario) {
     "hud/refresh.js": ["refreshHudView", "refreshHudShell"],
     "hud/window/dom-state.js": ["captureHudDomState", "restoreHudDomState"],
     "hud/window/responsive-layout.js": ["applyPlayerLayout"],
+    "hud/window/gm-column-dividers.js": ["bindGmColumnDividers"],
     "hud/items/item-layout.js": ["renderItemLayout", "moveItemLayout"],
     "hud/items/item-layout-interactions.js": ["bindItemLayoutInteractions"]
   });
@@ -41,7 +42,8 @@ async function setupEditor(page, scenario) {
     content: `
     const state=${JSON.stringify(createHudState())};const strings=${JSON.stringify(strings)};
     const root=document.querySelector('.ws-rolls-dialog');
-    const sync=()=>{const view=root.querySelector('.ws-player-layout');if(view)applyPlayerLayout(view,root.getBoundingClientRect().width>=600);synchronizeHudLayout(root,state,key=>strings['ADVENTURER_HUD.'+key]||key);};
+    const gm=window.bindGmColumnDividers(root,{readRatio:()=>0,saveRatio:()=>{},isPinned:()=>false,t:key=>key});
+    const sync=()=>{gm.sync();const view=root.querySelector('.ws-player-layout');if(view)applyPlayerLayout(view,root.getBoundingClientRect().width>=600);synchronizeHudLayout(root,state,key=>strings['ADVENTURER_HUD.'+key]||key);};
     const render=()=>window.refreshWholePanel ? window.refreshWholePanel() : sync();window.syncEditorLayout=sync;
     const app={element:root};const actions=createViewActions({actor:{isOwner:true},hudState:state,refreshHud:render,savePanelState:()=>{},visibility:{}});
     root.addEventListener('click',event=>{const target=event.target.closest('[data-action]');if(target)actions[target.dataset.action]?.call(app,event,target);});
@@ -58,6 +60,123 @@ async function useFullRefresh(page, scenario) {
     window.editorState.currentView='skills';window.refreshWholePanel=()=>refreshHudView({app:{rendered:true,element:document.querySelector('.ws-rolls-dialog')},availableViews:()=>({skills:true}),hudState:window.editorState,mode:'regular',renderers:{regular:()=>${JSON.stringify(fixture.bodies[scenario])}},setView:()=>{},title:'HUD',syncLayout:window.syncEditorLayout});`
   });
 }
+
+for (const scenario of ["player-skills", "gm-actions"]) {
+  test(`${scenario} editor moves a block to both ends and undoes the last move`, async ({
+    page
+  }) => {
+    await setupEditor(page, scenario);
+    const target = page
+      .locator('[data-hud-direction="top"]:not(:disabled)')
+      .first();
+    const key = await target.getAttribute("data-hud-key");
+    const block = page.locator(`[data-hud-block="${key}"]`);
+    const order = () =>
+      block.evaluate(node =>
+        [...node.parentElement.children]
+          .filter(
+            peer =>
+              peer.hasAttribute("data-hud-block") &&
+              !peer.classList.contains("ws-hud-block-hidden")
+          )
+          .map(peer => peer.dataset.hudBlock)
+      );
+    await block
+      .locator(':scope > .ws-hud-block-tools [data-hud-direction="bottom"]')
+      .click();
+    expect((await order()).at(-1)).toBe(key);
+    await expect(
+      block.locator(
+        ':scope > .ws-hud-block-tools [data-hud-direction="bottom"]'
+      )
+    ).toBeDisabled();
+    await block
+      .locator(':scope > .ws-hud-block-tools [data-hud-direction="top"]')
+      .focus();
+    await page.keyboard.press("Enter");
+    expect((await order())[0]).toBe(key);
+    await expect(
+      block.locator(':scope > .ws-hud-block-tools [data-hud-direction="top"]')
+    ).toBeDisabled();
+    await page.locator('[data-action="hudlayoutundo"]').click();
+    expect((await order()).at(-1)).toBe(key);
+  });
+}
+
+test("Inventory summary stays compact at its real home and supports hiding without movement", async ({
+  page
+}) => {
+  await setupEditor(page, "player-inventory");
+  const inventory = page.locator('[data-hud-block="tab:inventory"]');
+  await inventory
+    .locator(':scope > .ws-hud-block-tools [data-hud-direction="top"]')
+    .click();
+  const placed = await page.evaluate(() =>
+    Object.values(window.editorState.hudLayouts).flatMap(layout => layout.order)
+  );
+  expect(placed).not.toContain("weight");
+  expect(placed).not.toContain("currency");
+  await page.locator('[data-action="togglehudedit"]').click();
+  await expect(
+    inventory.locator('.ws-inventory-summary[data-hud-block="weight"]')
+  ).toHaveCount(1);
+  await expect(page.locator('[data-hud-block="currency"]')).toHaveCount(0);
+  await page.locator('[data-action="togglehudedit"]').click();
+  await expect(
+    page.locator('[data-hud-block="weight"] .ws-hud-block-tools')
+  ).toHaveCount(0);
+  await page.evaluate(() => {
+    window.editorState.hudLayouts["regular:info"] = {
+      order: ["currency", "weight"],
+      hidden: []
+    };
+    window.syncEditorLayout();
+  });
+  await expect(inventory.locator(".ws-inventory-summary")).toBeVisible();
+  await expect(
+    page.locator('.ws-player-info > [data-hud-block="weight"]')
+  ).toHaveCount(0);
+  const toggle = page.locator(
+    '[data-action="hudblockhide"][data-hud-key="weight"]'
+  );
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await toggle.click();
+  await expect(inventory.locator(".ws-inventory-summary")).toBeHidden();
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await page.locator('[data-action="hudlayoutundo"]').click();
+  await expect(inventory.locator(".ws-inventory-summary")).toBeVisible();
+  await toggle.click();
+  await toggle.click();
+  await expect(inventory.locator(".ws-inventory-summary")).toBeVisible();
+  for (const width of [360, 800]) {
+    await page.evaluate(width => window.resizeEditor(width), width);
+    expect(
+      await inventory
+        .locator(".ws-inventory-summary")
+        .evaluate(node => node.getBoundingClientRect().height)
+    ).toBeLessThan(80);
+  }
+  const saved = await page.evaluate(
+    () => window.editorState.hudLayouts["regular:info"].order
+  );
+  expect(saved).toEqual(["currency", "weight"]);
+  await expect(page.locator('[data-hud-block="currency"]')).toHaveCount(0);
+});
+
+test("editor can hide and restore the Inventory summary while Inventory is closed", async ({
+  page
+}) => {
+  await setupEditor(page, "player-skills");
+  await expect(page.locator(".ws-inventory-summary")).toHaveCount(0);
+  const toggle = page.locator(
+    '[data-action="hudblockhide"][data-hud-key="weight"]'
+  );
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".ws-inventory-summary")).toHaveCount(0);
+});
 
 test("full refresh restores moved exploration section scroll after saved layout", async ({
   page
@@ -102,6 +221,43 @@ test("keyboard block moves preserve the exact editor control across full refresh
   await up.focus();
   await page.keyboard.press("Enter");
   await expect(up).toBeFocused();
+});
+
+test("editor controls retain identity and keyboard focus through layout synchronization and resize", async ({
+  page
+}) => {
+  await setupEditor(page, "player-skills");
+  const down = page.locator(
+    '[data-hud-block="hp"] [data-hud-direction="down"]'
+  );
+  await down.focus();
+  await page.evaluate(() => {
+    window.originalEditorButton = document.activeElement;
+    window.originalEditorTools = document.activeElement.parentElement;
+    window.originalLayoutControls = document.querySelector(
+      ".ws-hud-layout-controls"
+    );
+  });
+  for (const width of [900, 320, 640]) {
+    await page.evaluate(width => window.resizeEditor(width), width);
+    await expect(down).toBeFocused();
+    expect(
+      await page.evaluate(
+        () =>
+          window.originalEditorButton === document.activeElement &&
+          window.originalEditorTools.isConnected &&
+          window.originalLayoutControls.isConnected
+      )
+    ).toBe(true);
+  }
+  const reset = page.locator('[data-action="hudlayoutreset"]');
+  await reset.focus();
+  await page.evaluate(() => {
+    window.editorState.hudLayoutUndo = { mode: "regular" };
+    window.syncEditorLayout();
+  });
+  await expect(reset).toBeFocused();
+  await expect(page.locator('[data-action="hudlayoutundo"]')).toBeEnabled();
 });
 
 test("block reset and undo remain keyboard accessible at narrow widths and leave compact rests beside inspiration", async ({
@@ -263,7 +419,15 @@ for (const scenario of [
       scenario === "player-combat"
     ) {
       // Expanded content can exceed the viewport; arrow controls move the whole section.
-      for (let step = 0; step < (scenario === "player-combat" ? 6 : 2); step++)
+      for (
+        let step = 0;
+        step < 12 &&
+        (await tab.evaluate(
+          (node, key) => node.previousElementSibling?.dataset.hudBlock !== key,
+          movingKey
+        ));
+        step++
+      )
         await moving
           .locator(':scope > .ws-hud-block-tools [data-hud-direction="up"]')
           .click();
@@ -327,5 +491,198 @@ for (const scenario of [
     await page.locator('[data-action="togglehudedit"]').click();
     await expect(page.locator(".ws-hud-block-tools")).toHaveCount(0);
     await expect(page.locator(".ws-hud-edit-badge")).toHaveCount(0);
+  });
+}
+
+test("footer blocks support keyboard placement, hiding, undo and empty-footer restoration", async ({
+  page
+}) => {
+  await setupEditor(page, "player-main-footer");
+  for (const width of [320, 1000]) {
+    await page.evaluate(width => window.resizeEditor(width), width);
+    for (const key of ["recent-actions", "footer-controls"]) {
+      const block = page.locator('[data-hud-block="' + key + '"]');
+      while (
+        (await block.evaluate(node => node.parentElement.dataset.hudLane)) !==
+        "info"
+      ) {
+        const left = block.locator(
+          ':scope > .ws-hud-block-tools [data-hud-direction="left"]'
+        );
+        await left.focus();
+        await page.keyboard.press("Enter");
+      }
+      await expect(block).toBeVisible();
+    }
+    await expect(page.locator('[data-action="actorcenter"]')).toHaveCount(1);
+    await page
+      .locator(
+        '[data-hud-block="effects"] > .ws-hud-block-tools [data-action="hudblockhide"]'
+      )
+      .click();
+    await page.locator('[data-action="togglehudedit"]').click();
+    await expect(page.locator(".ws-player-footer")).toBeHidden();
+    await expect(
+      page.locator('[data-hud-block="footer-controls"]')
+    ).toBeVisible();
+    await page.locator('[data-action="togglehudedit"]').click();
+    const controls = page.locator('[data-hud-block="footer-controls"]');
+    for (let i = 0; i < 2; i++)
+      await controls
+        .locator(':scope > .ws-hud-block-tools [data-hud-direction="right"]')
+        .click();
+    await expect(
+      page.locator('.ws-player-footer [data-action="actorcenter"]')
+    ).toBeVisible();
+    await page.locator('[data-action="hudlayoutundo"]').click();
+    expect(
+      await controls.evaluate(node => node.parentElement.dataset.hudLane)
+    ).toBe("actions");
+    await page.locator('[data-action="hudlayoutreset"]').click();
+  }
+});
+
+test("reordering footer blocks keeps default End turn beside footer controls", async ({
+  page
+}) => {
+  await setupEditor(page, "player-main-footer");
+  await page.locator(".ws-footer-turn").evaluate(node => {
+    node.insertAdjacentHTML(
+      "beforeend",
+      '<button type="button" data-action="endturn">End turn</button>'
+    );
+  });
+  const recent = page.locator('[data-hud-block="recent-actions"]');
+  await recent
+    .locator(':scope > .ws-hud-block-tools [data-hud-direction="top"]')
+    .click();
+  await page.locator('[data-action="togglehudedit"]').click();
+  expect(
+    await page
+      .locator(".ws-footer-turn")
+      .evaluate(node =>
+        node.nextElementSibling.classList.contains("ws-footer-controls")
+      )
+  ).toBe(true);
+  const order = await page
+    .locator(".ws-player-footer")
+    .evaluate(node =>
+      [...node.children]
+        .filter(child => !child.hasAttribute("hidden"))
+        .map(child => child.className)
+    );
+  expect(order.indexOf("ws-footer-turn")).toBeGreaterThan(0);
+});
+
+test("End turn moves to the top of another lane, hides, restores and resets", async ({
+  page
+}) => {
+  await setupEditor(page, "player-main-footer");
+  const turn = page.locator('[data-hud-block="end-turn"]');
+  await turn.evaluate(node =>
+    node.insertAdjacentHTML(
+      "beforeend",
+      '<button type="button" data-action="endturn">End turn</button>'
+    )
+  );
+  await turn
+    .locator(':scope > .ws-hud-block-tools [data-hud-direction="left"]')
+    .click();
+  expect(await turn.evaluate(node => node.parentElement.dataset.hudLane)).toBe(
+    "actions"
+  );
+  expect(
+    await turn.evaluate(
+      node =>
+        [...node.parentElement.children].find(peer =>
+          peer.hasAttribute("data-hud-block")
+        ) === node
+    )
+  ).toBe(true);
+  await page.evaluate(() => window.resizeEditor(450));
+  expect(await turn.evaluate(node => node.parentElement.dataset.hudLane)).toBe(
+    "actions"
+  );
+  await turn
+    .locator(':scope > .ws-hud-block-tools [data-action="hudblockhide"]')
+    .click();
+  await page.locator('[data-action="hudlayoutundo"]').click();
+  await expect(page.locator('[data-action="endturn"]')).toBeVisible();
+  await turn
+    .locator(':scope > .ws-hud-block-tools [data-action="hudblockhide"]')
+    .click();
+  await page.locator('[data-action="togglehudedit"]').click();
+  await expect(page.locator('[data-action="endturn"]')).toBeHidden();
+  await page.locator('[data-action="togglehudedit"]').click();
+  await page.locator(".ws-hud-layout-menu summary").click();
+  await page
+    .locator(
+      '.ws-hud-layout-restore [data-hud-key="end-turn"][data-action="hudblockhide"]'
+    )
+    .click();
+  await expect(page.locator('[data-action="endturn"]')).toBeVisible();
+  await turn
+    .locator(':scope > .ws-hud-block-tools [data-action="hudblockreset"]')
+    .click();
+  expect(await turn.evaluate(node => node.parentElement.dataset.hudLane)).toBe(
+    "footer"
+  );
+});
+
+for (const scenario of ["player-main", "player-combat-footer"]) {
+  test(`${scenario} shortcut hints default to the bottom of the left lane while saved placement survives refresh`, async ({
+    page
+  }) => {
+    await setupEditor(page, scenario);
+    // Keep this layout check independent of the global show-hints preference.
+    await page.evaluate(() => {
+      const info = document.querySelector(".ws-player-info");
+      if (!document.querySelector(".ws-shortcuts"))
+        info.insertAdjacentHTML(
+          "afterbegin",
+          '<div class="ws-shortcuts" data-hud-hints>Shift · Alt · Ctrl</div>'
+        );
+      document
+        .querySelector(".ws-rolls-dialog")
+        .insertAdjacentHTML(
+          "beforeend",
+          '<section class="ws-dice-tray"><div class="ws-shortcuts">Dice gestures</div></section>'
+        );
+      window.renderEditor();
+    });
+    const hints = page.locator('[data-hud-block="hints"]');
+    for (const width of [450, 900]) {
+      await page.evaluate(width => window.resizeEditor(width), width);
+      expect(
+        await hints.evaluate(node => node.parentElement.dataset.hudLane)
+      ).toBe("info");
+      expect(
+        await hints.evaluate(
+          node => node.parentElement.lastElementChild === node
+        )
+      ).toBe(true);
+      await expect(page.locator(".ws-dice-tray > .ws-shortcuts")).toHaveCount(
+        1
+      );
+      await expect(page.locator(".ws-dice-tray [data-hud-block]")).toHaveCount(
+        0
+      );
+    }
+    await hints
+      .locator(':scope > .ws-hud-block-tools [data-hud-direction="right"]')
+      .click();
+    expect(
+      await hints.evaluate(
+        node =>
+          [...node.parentElement.children].find(peer =>
+            peer.hasAttribute("data-hud-block")
+          ) === node
+      )
+    ).toBe(true);
+    await page.locator('[data-action="togglehudedit"]').click();
+    await page.evaluate(() => window.resizeEditor(450));
+    expect(
+      await hints.evaluate(node => node.parentElement.dataset.hudLane)
+    ).toBe("actions");
   });
 }

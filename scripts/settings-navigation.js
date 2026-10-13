@@ -1,18 +1,7 @@
-import { MODULE_ID } from "./module-id.js";
-
-export async function openSettings() {
-  const sheet = game.settings.sheet;
-  await sheet.render({ force: true });
-
-  const category = sheet.element?.querySelector(
-    `[data-category="${MODULE_ID}"], [data-tab="${MODULE_ID}"]`
+export function openSettings(tab) {
+  return import("./settings-applications.js").then(settings =>
+    settings.openConfigureSettings(tab)
   );
-  if (category) {
-    category.click();
-  } else {
-    sheet.search?.(game.i18n.localize("ADVENTURER_HUD.Title"));
-  }
-  return sheet;
 }
 
 export function openGmSettings() {

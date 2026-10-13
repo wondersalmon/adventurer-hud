@@ -128,7 +128,8 @@ export function createHudPresentation({
       formatNumber: value => inventoryNumberFormat.format(value)
     });
   const itemPanels = createItemPanelRenderer({
-    inventorySummary: () => inventorySummary(!gmActive),
+    inventorySummary: () =>
+      visibility.inventorySummary === false ? "" : inventorySummary(!gmActive),
     skills,
     actor,
     adapter,
@@ -200,10 +201,11 @@ export function createHudPresentation({
   });
 
   const { availableViews } = regularRenderer;
-  const frame = body =>
-    !gmActive && visibility.playerFooter
-      ? `<div class="ws-player-frame">${body}<footer class="ws-player-footer"><div class="ws-footer-effects"></div>${renderRecentActions({ actor, adapter, toolState, t, escapeHTML })}<div class="ws-footer-controls">${diceTrayButton(t)}<button type="button" class="ws-button" data-action="actorping" title="${t("GM.Ping")}" aria-label="${t("GM.Ping")}" ${actor.isOwner && hudSceneTokens(actorContext).length ? "" : "disabled"}><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i></button></div></footer></div>`
+  const frame = body => {
+    return !gmActive && visibility.playerFooter
+      ? `<div class="ws-player-frame">${body}<footer class="ws-player-footer"><div class="ws-footer-effects" data-hud-block="effects"></div>${renderRecentActions({ actor, adapter, toolState, t, escapeHTML })}<div class="ws-footer-turn"></div><div class="ws-footer-controls">${diceTrayButton(t)}<button type="button" class="ws-button" data-action="actorping" title="${t("GM.Ping")}" aria-label="${t("GM.Ping")}" ${actor.isOwner && hudSceneTokens(actorContext).length ? "" : "disabled"}><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i></button></div></footer></div>`
       : body;
+  };
   const combatHTML = () =>
     itemPanels.withUsageTargets(() => frame(combatRenderer.combatHTML()));
   const combatActions = () =>

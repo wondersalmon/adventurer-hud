@@ -78,17 +78,20 @@ test("Ctrl-click removes displayed actor conditions while ordinary click, denied
 });
 
 for (const isGM of [false, true]) {
-  test(`header Troubleshooting shortcut opens diagnostics without actor selection in ${isGM ? "GM" : "player"} mode`, async () => {
+  test(`header Settings opens Configure without actor selection and omits redundant shortcuts in ${isGM ? "GM" : "player"} mode`, async () => {
     const f = await hudFixture({ isGM });
     if (isGM) game.combat = null;
     await f.api.open(isGM ? undefined : f.actor);
     const app = __adventurerHud.app;
     assert.ok(
-      app.options.window.controls.some(
-        control => control.action === "troubleshooting"
+      app.options.window.controls.some(control => control.action === "settings")
+    );
+    assert.ok(
+      app.options.window.controls.every(
+        control => !["gmsettings", "troubleshooting"].includes(control.action)
       )
     );
-    const diagnostics = await app.hudActions.troubleshooting();
+    const diagnostics = await app.hudActions.settings();
     assert.equal(diagnostics.rendered, true);
     assert.equal(diagnostics.context.debugWindowSize, undefined);
     await app.close();
@@ -224,7 +227,12 @@ test("item previews use the displayed Actor and respond to live settings without
     return node;
   });
   const card = app.element.querySelector('[data-description-item-id="trait"]');
-  card.getBoundingClientRect = () => ({ left: 20, right: 80, top: 40 });
+  card.getBoundingClientRect = () => ({
+    left: 20,
+    right: 80,
+    top: 40,
+    bottom: 80
+  });
   const show = () => {
     const event = new document.defaultView.Event("mouseover", {
       bubbles: true,
@@ -248,7 +256,11 @@ test("item previews use the displayed Actor and respond to live settings without
   assert.equal(app.hudActions, originalActions);
   show();
   await new Promise(resolve => setTimeout(resolve, 450));
-  assert.equal(app.element.querySelector(".ws-item-preview"), null);
+  assert.equal(
+    Boolean(app.element.querySelector(".ws-item-preview-shortcuts")),
+    true
+  );
+  assert.equal(app.element.querySelector(".ws-item-preview-body"), null);
   await game.settings.set(
     "adventurer-hud",
     SETTINGS.showItemDescriptions,
@@ -297,6 +309,10 @@ test("item context gestures route descriptions and clean up when the session clo
   assert.equal(
     gesture("contextmenu", { button: 2, shiftKey: true }).defaultPrevented,
     true
+  );
+  assert.equal(
+    gesture("click", { button: 0, shiftKey: true }).defaultPrevented,
+    false
   );
   await Promise.resolve();
   assert.deepEqual(calls, ["sheet", "chat"]);
@@ -670,7 +686,10 @@ test("a missing player character keeps the GM window and saved preset consistent
 });
 
 test("canceling the player picker keeps GM mode; choosing commits the player preset", async () => {
-  const f = await hudFixture({ isGM: true });
+  const f = await hudFixture({
+    isGM: true,
+    values: { hudActorSelection: "prompt" }
+  });
   const second = {
     ...f.actor,
     id: "second",
@@ -761,9 +780,11 @@ test("typing in the middle of search preserves focus and the selection direction
 });
 
 test("stale GM selection blocks actor commands while window commands remain available", async () => {
-  installSettings({ isGM: true });
-  let settingsOpened = 0;
-  game.settings.sheet = { rendered: true, render: () => settingsOpened++ };
+  const f = installSettings({ isGM: true });
+  const settingsOpened = [];
+  game.settings.sheet = {
+    render: () => assert.fail("HUD settings must open Configure directly")
+  };
   const calls = [];
   const actor = {
     uuid: "Actor.old",
@@ -785,11 +806,15 @@ test("stale GM selection blocks actor commands while window commands remain avai
     await actions.gmsheet();
     await actions.togglepin();
     await actions.resetwindow();
-    await actions.settings();
+    settingsOpened.push(await actions.settings());
     await actions.togglemodes();
   }
   assert.deepEqual(calls, ["pin", "reset", "pin", "reset"]);
-  assert.equal(settingsOpened, 2);
+  assert.equal(settingsOpened.length, 2);
+  for (const app of settingsOpened) {
+    assert.ok(app instanceof f.menus.get("configure").type);
+    assert.equal(app.renderCount, 1);
+  }
   selected = { id: "old", actor };
   await actions.ability({}, { dataset: { type: "check", key: "str" } });
   assert.equal(calls.at(-1), "roll");

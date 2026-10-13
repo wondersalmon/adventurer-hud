@@ -31,7 +31,7 @@ for (const theme of ["dark", "light"]) {
         effects: []
       };
       const root = document.querySelector("#statuses");
-      const renderer = createCombatStatusRenderer({
+      const renderer = window.createCombatStatusRenderer({
         actor,
         adapter: {
           statusDefinitions: () => [{ id: "poisoned", name: "Poisoned" }]
@@ -42,7 +42,7 @@ for (const theme of ["dark", "light"]) {
       });
       root.innerHTML = renderer.combatStatuses();
       window.statusCalls = 0;
-      const actions = createHudActions({
+      const actions = window.createHudActions({
         actor,
         t: key => key,
         adapter: {
@@ -52,7 +52,7 @@ for (const theme of ["dark", "light"]) {
         },
         performAndRefresh: callback => callback()
       });
-      window.disposeStatuses = bindStatusInteractions({
+      window.disposeStatuses = window.bindStatusInteractions({
         element: root,
         isActive: () => true,
         remove: (event, target) => actions.removestatus(event, target)
@@ -74,3 +74,50 @@ for (const theme of ["dark", "light"]) {
     expect(errors).toEqual([]);
   });
 }
+
+test("concentration stays left and visible when the player effect row overflows", async ({
+  page
+}) => {
+  const fixture = await layoutFixture("en");
+  await page.setContent(
+    `<style>${fixture.baseline}${fixture.css}</style><section class="ws-rolls-dialog"><div id="statuses" style="width:65px"></div></section>`
+  );
+  await loadHudModules(page, {
+    "hud/combat-statuses.js": ["createCombatStatusRenderer"],
+    "hud/window/status-layout.js": ["synchronizeStatusLayout"]
+  });
+  await page.evaluate(() => {
+    window.game = { i18n: { localize: key => key } };
+    const ids = [
+      ...Array.from({ length: 30 }, (_, index) => `status-${index}`),
+      "concentrating"
+    ];
+    const renderer = window.createCombatStatusRenderer({
+      actor: { statuses: new Set(ids), effects: [] },
+      adapter: {
+        statusKind: effect =>
+          effect.id === "concentrating" ? "concentrating" : null
+      },
+      hudState: {},
+      escapeHTML: key => key,
+      t: key => key
+    });
+    document.querySelector("#statuses").innerHTML = renderer.combatStatuses();
+  });
+  for (const width of [65, 180, 45, 300]) {
+    await page.locator("#statuses").evaluate((node, width) => {
+      node.style.width = `${width}px`;
+      window.synchronizeStatusLayout(node);
+    }, width);
+    const concentration = page.locator(
+      '.ws-active-conditions > [data-status-id="concentrating"]'
+    );
+    await expect(concentration).toBeVisible();
+    await expect(
+      page.locator(".ws-active-conditions > .ws-status").first()
+    ).toHaveAttribute("data-status-id", "concentrating");
+    await expect(
+      page.locator('.ws-status-extra > [data-status-id="concentrating"]')
+    ).toHaveCount(0);
+  }
+});

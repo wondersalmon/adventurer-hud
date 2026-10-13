@@ -8,6 +8,21 @@ const settle = async () => {
   await Promise.resolve();
   await Promise.resolve();
 };
+
+test("unprepared status remains visible when hover descriptions are disabled", async t => {
+  const f = fixture(t, { enabled: () => false });
+  f.element.querySelector('[data-description-item-id="a"]').dataset.unprepared =
+    "true";
+  f.event("a", "mouseover");
+  t.mock.timers.tick(400);
+  await settle();
+  assert.equal(
+    f.element.querySelector(".ws-item-preview-status").textContent,
+    "Combat.UnpreparedSpell"
+  );
+  assert.equal(f.element.querySelector(".ws-item-preview-body"), null);
+  assert.equal(f.calls.length, 0);
+});
 function fixture(t, options = {}) {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const { document, window: view } = installDom();
@@ -20,6 +35,7 @@ function fixture(t, options = {}) {
       left: 20,
       right: 60,
       top: 30,
+      bottom: 130,
       height: 100
     });
     return node;
@@ -29,7 +45,12 @@ function fixture(t, options = {}) {
     '<div data-description-item-id="a"><button>A</button></div><div data-description-item-id="b"><button>B</button></div>';
   document.body.append(element);
   for (const card of element.children)
-    card.getBoundingClientRect = () => ({ left: 20, right: 60, top: 30 });
+    card.getBoundingClientRect = () => ({
+      left: 20,
+      right: 60,
+      top: 30,
+      bottom: 70
+    });
   const items = new Map([
     ["a", { name: "A <img src=x>", id: "a" }],
     ["b", { name: "B", id: "b" }]
@@ -184,14 +205,23 @@ test("the preview stays reachable across side controls and can be pinned", async
   assert.equal(f.element.querySelector(".ws-item-preview"), popup);
 });
 
-test("disabled hover and F2 do not open or pin a preview", async t => {
+test("disabled descriptions still show distinct keyboard hints without enrichment", async t => {
   const f = fixture(t, { enabled: () => false });
   f.event("a", "focusin");
-  assert.equal(f.event("a", "keydown", { key: "F2" }).defaultPrevented, false);
   t.mock.timers.tick(500);
   await settle();
   assert.equal(f.calls.length, 0);
-  assert.equal(f.element.querySelector(".ws-item-preview"), null);
+  const popup = f.element.querySelector(".ws-item-preview");
+  assert.ok(popup);
+  assert.equal(popup.querySelector(".ws-item-preview-body"), null);
+  assert.deepEqual(
+    [...popup.querySelectorAll("footer kbd")].map(k => k.textContent),
+    ["Shift", "Combat.RightClick", "Combat.RightClick"]
+  );
+  assert.match(
+    popup.querySelector("footer").textContent,
+    /Combat.ShortcutChat/
+  );
 });
 
 for (const change of ["dispose", "replace", "remove", "ownership"]) {

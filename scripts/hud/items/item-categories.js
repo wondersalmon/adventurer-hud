@@ -19,7 +19,10 @@ export function createItemCategories({
       const active = adapter
         .itemActivities(item)
         .some(activity => Boolean(activity.activation?.type));
-      return hudState.showPassiveFeatures ? !active : active;
+      return (
+        hudState.allFeatures ||
+        (hudState.showPassiveFeatures ? !active : active)
+      );
     });
 
   const combatItems = category =>
@@ -96,8 +99,7 @@ export function createItemCategories({
             !visibility.gm ||
             category === "features" ||
             category === "spells" ||
-            ((item.type !== "spell" || actionTypesOnly) &&
-              !isOnlyGmSpecial(item))
+            !isOnlyGmSpecial(item)
         )
       ])
       .filter(([, , , items]) => items.length > 0);

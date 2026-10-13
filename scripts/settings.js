@@ -23,12 +23,27 @@ export function registerSettings() {
     game.settings.register(MODULE_ID, key, {
       name: `ADVENTURER_HUD.Settings.${key}.Name`,
       hint: `ADVENTURER_HUD.Settings.${key}.Hint`,
-      scope: "user",
-      config: definition.placement === "basic",
+      scope: definition.scope,
+      config: false,
       type: definition.type,
       ...(definition.choices ? { choices: definition.choices } : {}),
       ...(definition.range ? { range: definition.range } : {}),
-      default: definition.default,
+      default:
+        key === SETTINGS.twoColumnMode
+          ? game.settings.get(MODULE_ID, SETTINGS.twoColumnWidth) === 450
+            ? "auto"
+            : "manual"
+          : key === SETTINGS.cardDetails
+            ? game.settings.get(MODULE_ID, SETTINGS.showItemDetails)
+              ? "all"
+              : "basic"
+            : key === SETTINGS.gmCardDetails
+              ? game.settings.get(MODULE_ID, SETTINGS.gmShowItemDetails)
+                ? "all"
+                : game.settings.get(MODULE_ID, SETTINGS.gmShowAttackDetails)
+                  ? "basic"
+                  : "off"
+              : definition.default,
       onChange: notifyChange(key)
     });
   }

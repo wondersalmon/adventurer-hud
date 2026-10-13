@@ -65,6 +65,10 @@ export async function publishFoundryRelease({
 }) {
   if (!/^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(tag))
     throw new Error("Release tag must look like v1.2.0.");
+  if (tag.includes("-"))
+    throw new Error(
+      "Prereleases are GitHub-only and must not be published to Foundry Packages."
+    );
   if (!token?.startsWith("fvttp_"))
     throw new Error(
       "FOUNDRY_RELEASE_TOKEN GitHub Secret is missing or invalid."

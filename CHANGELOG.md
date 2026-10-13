@@ -1,5 +1,33 @@
 # Changelog
 
+## 2.2.0
+
+### New
+
+- **Settings menu:** A new section-based menu brings together search, appearance previews, guides and troubleshooting. Apply changes without closing and see whether they are saved.
+- **Card details:** Choose which details appear on item and action cards, with separate settings for players and the GM.
+- **Effect filter:** Show all effects, conditions only or your own selection.
+- **Appearance:** Customize theme colours and preview HP and turn animations before saving.
+- **Character and spells:** The HUD uses your assigned character by default; choose another opening policy or edit remaining spell slots directly on the panel.
+- **Companion status:** Hover over a companion to see its effects and conditions.
+
+### Changes and improvements
+
+- **Cards and inventory:** More compact cards, built-in favorite stars, clearer shortcut hints and a combined weight and coins block.
+- **Panel layout:** More control over layout and visibility, with filters, collapsible groups and better use of wide windows.
+- **Companions:** More compact controls, healing to full HP and separate camera and shared-senses options.
+- **Troubleshooting:** Record problems from the diagnostic report; repair automatically backs up settings and checks more of the module.
+
+### Fixes
+
+- **Settings:** Applying a language change updates the open menu; restored settings are retained when saving.
+- **Cards:** Shift + right click sends an item to chat, preserving quick rolls with Shift + left click. Unprepared favorites are grey, cannot be cast by clicking and are labelled in their preview.
+- **Compatibility:** Fixed translation loading and GM column resizing, including the extra column.
+- **GM actions:** Spells also appear under their action type when using both action and item categories.
+- **Appearance:** Improved theme previews, control alignment and readability across themes and window sizes.
+
+Documentation: [Player guide](docs/player-guide.md) · [Companions](docs/companions-guide.md) · [Layout editor](docs/layout-guide.md).
+
 ## 2.1.0
 
 - Shared GM layout editing, movable action categories and defenses, one extra column, reset/undo and responsive roster/action grids. New GM windows start at 1000 × 450, bottom-left.

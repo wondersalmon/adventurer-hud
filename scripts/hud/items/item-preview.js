@@ -75,10 +75,23 @@ export function createItemPreview({
     const width = Math.max(0, Math.min(360, view.innerWidth - 16));
     entry.popup.style.width = `${width}px`;
     const right = box.right + 8;
+    const hasSideRoom =
+      right + width <= view.innerWidth - 8 || box.left - width - 8 >= 8;
     const left =
       entry.left ??
-      (right + width <= view.innerWidth - 8 ? right : box.left - width - 8);
-    const top = entry.top ?? box.top;
+      (right + width <= view.innerWidth - 8
+        ? right
+        : box.left - width - 8 >= 8
+          ? box.left - width - 8
+          : box.left);
+    const popupHeight = entry.popup.getBoundingClientRect().height;
+    const top =
+      entry.top ??
+      (hasSideRoom
+        ? box.top
+        : box.bottom + 8 + popupHeight <= view.innerHeight - 8
+          ? box.bottom + 8
+          : box.top - popupHeight - 8);
     const boundedLeft = Math.max(
       8,
       Math.min(left, view.innerWidth - width - 8)
@@ -115,7 +128,8 @@ export function createItemPreview({
     };
     active = entry;
     try {
-      const html = await enrich(item);
+      const showDescription = enabled();
+      const html = showDescription ? await enrich(item) : "";
       if (active !== entry) return;
       if (!valid(entry)) return remove(entry);
       const popup = doc.createElement("section");
@@ -175,12 +189,43 @@ export function createItemPreview({
         remove(entry);
         restoreFocus(card);
       });
+      const shortcuts = doc.createElement("footer");
+      shortcuts.className = "ws-item-preview-shortcuts";
+      const shortcutTitle = doc.createElement("strong");
+      shortcutTitle.className = "ws-item-shortcuts-title";
+      shortcutTitle.textContent = t("Combat.ShortcutsTitle");
+      shortcuts.append(shortcutTitle);
+      for (const [keys, label] of [
+        [["Shift", t("Combat.RightClick")], t("Combat.ShortcutChat")],
+        [[t("Combat.RightClick")], t("Combat.ShortcutSheet")]
+      ]) {
+        const row = doc.createElement("div");
+        const gesture = doc.createElement("span");
+        for (const [index, key] of keys.entries()) {
+          if (index) gesture.append(" + ");
+          const keyboard = doc.createElement("kbd");
+          keyboard.textContent = key;
+          gesture.append(keyboard);
+        }
+        const action = doc.createElement("span");
+        action.textContent = label;
+        row.append(gesture, action);
+        shortcuts.append(row);
+      }
       const body = doc.createElement("div");
       body.className = "ws-item-preview-body";
       // Native TextEditor enrichment preserves document-relative links.
       if (html?.trim()) body.innerHTML = html;
       else body.textContent = t("Combat.NoDescription");
-      popup.append(header, body);
+      popup.append(header);
+      if (card.dataset.unprepared === "true") {
+        const status = doc.createElement("p");
+        status.className = "ws-item-preview-status";
+        status.textContent = t("Combat.UnpreparedSpell");
+        popup.append(status);
+      }
+      if (showDescription && enabled()) popup.append(body);
+      popup.append(shortcuts);
       (card.closest(".ws-view") ?? card.closest(".ws-shell") ?? element).append(
         popup
       );
@@ -198,19 +243,21 @@ export function createItemPreview({
     }
   };
   const excluded = target =>
-    target?.closest?.(".ws-item-side-actions, .ws-item-open");
+    target?.closest?.(
+      ".ws-item-side-actions, .ws-item-favorite, .ws-item-prepare"
+    );
   const cardFor = target =>
     excluded(target) ? null : target?.closest?.("[data-description-item-id]");
   const previewFor = target =>
     entries().find(entry => entry.popup?.contains(target));
   const schedule = card => {
     if (card && card === active?.anchor) return clearTimer();
-    if (!enabled() || !isActive() || !card) return;
+    if (!isActive() || !card) return;
     closeActive();
     if ([...locked].some(entry => entry.anchor === card)) return;
     timer = setTimeout(() => {
       timer = null;
-      if (enabled()) void show(card);
+      void show(card);
     }, delay);
   };
   const enter = event => {

@@ -22,6 +22,7 @@ export function createCompanionActions(
   { vision, placement, resolved, navigateTo, refresh, getEntries, picker }
 ) {
   let rolling = false;
+  let healing = false;
   const focus = selector =>
     document
       .querySelector(".ws-rolls-dialog")
@@ -139,6 +140,41 @@ export function createCompanionActions(
       const entry = await resolved(target.dataset.companionUuid);
       if (!isCurrent() || !entry?.actor)
         return ui.notifications.warn(t("Companions.Unavailable"));
+      if (_event?.shiftKey) {
+        if (healing) return;
+        healing = true;
+        try {
+          return await picker.withToken(entry, async tokenUuid => {
+            const selected = await resolved(entry.uuid, tokenUuid);
+            if (!isCurrent() || !selected?.actor?.isOwner) return;
+            const accepted = await foundry.applications.api.DialogV2.confirm({
+              window: { title: t("Companions.HealTitle") },
+              content: `<p>${foundry.utils.escapeHTML(selected.token?.name ?? selected.actor.name)}: ${foundry.utils.escapeHTML(t("Companions.HealConfirm"))}</p>`
+            });
+            if (!accepted || !isCurrent()) return;
+            const current = await resolved(entry.uuid, tokenUuid);
+            if (
+              !isCurrent() ||
+              !current?.actor?.isOwner ||
+              current.actor !== selected.actor ||
+              current.token !== selected.token
+            )
+              return;
+            const hp = adapter.combatStats(current.actor).hp;
+            if (hp.max <= 0 || hp.value >= hp.max) return;
+            await adapter.updateHp(current.actor, {
+              value: hp.max,
+              damage: hp.value - hp.max,
+              temp: hp.temp
+            });
+            if (isCurrent()) await refresh();
+          });
+        } catch (error) {
+          reportFailure("hud.companions.heal", error, { t });
+        } finally {
+          healing = false;
+        }
+      }
       return picker.withToken(entry, tokenUuid =>
         navigateTo(entry.uuid, tokenUuid)
       );

@@ -1,3 +1,4 @@
+import { playerColumnMinimums } from "./responsive-layout.js";
 import { bindPlayerDivider } from "./column-divider.js";
 
 /** @param {HTMLElement} view @param {import('../../../types/hud.js').HudState} state @param {string} mode @param {(key:string)=>string} t */
@@ -56,12 +57,13 @@ export function bindExtraColumn(root, { readRatio, saveRatio, isPinned }) {
       observed.delete(wrapper);
     }
     for (const wrapper of root.querySelectorAll(".ws-hud-secondary-columns")) {
-      const wide = wrapper.clientWidth >= 420;
+      const minimum = playerColumnMinimums(wrapper).right;
+      const wide = wrapper.clientWidth >= minimum * 2 + 32;
       wrapper.classList.toggle("ws-hud-secondary-wide", wide);
       const ratio = Math.max(0.25, Math.min(0.7, Number(readRatio()) || 0.5));
       wrapper.style.setProperty(
         "--ws-hud-main-width",
-        `clamp(180px, ${ratio * 100}%, calc(100% - 196px))`
+        `clamp(${minimum}px, ${ratio * 100}%, calc(100% - ${minimum + 16}px))`
       );
       const divider = wrapper.querySelector(".ws-extra-column-divider");
       divider.setAttribute("aria-disabled", String(isPinned() || !wide));
@@ -86,7 +88,10 @@ export function bindExtraColumn(root, { readRatio, saveRatio, isPinned }) {
     viewSelector: ".ws-hud-secondary-columns",
     infoSelector: ".ws-player-actions, .ws-gm-action-column",
     widthProperty: "--ws-hud-main-width",
-    limits: () => ({ min: 0.25, max: 0.7, left: 180, right: 196 })
+    limits: view => {
+      const minimum = playerColumnMinimums(view).right;
+      return { min: 0.25, max: 0.7, left: minimum, right: minimum + 16 };
+    }
   });
   return {
     sync,

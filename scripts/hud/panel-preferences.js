@@ -40,16 +40,22 @@ export function createPanelPreferences({
   writeSetting = setSetting
 }) {
   const key = gmActive ? `gm:${tokenUuid ?? "preparation"}` : actorUuid;
+  const sharedKey = gmActive
+    ? "gm:layout"
+    : readSetting(SETTINGS.perCharacterLayout) === true
+      ? null
+      : "player:layout";
   const readState = () => {
     const stored = readSetting(SETTINGS.panelStates);
     const initial = panelStateForActor(stored, key);
-    return gmActive && stored?.["gm:layout"]
+    return sharedKey && stored?.[sharedKey]
       ? {
           ...initial,
-          hudLayouts: panelStateForActor(stored, "gm:layout").hudLayouts ?? {}
+          hudLayouts: panelStateForActor(stored, sharedKey).hudLayouts ?? {}
         }
       : initial;
   };
+  let savedLayout = JSON.stringify(readState().hudLayouts ?? {});
   const preferences = {
     subscribe(hudState, refresh) {
       const reload = () => {
@@ -58,6 +64,7 @@ export function createPanelPreferences({
           hudState[field] = initial[field];
         hudState.itemLayouts = initial.itemLayouts;
         hudState.hudLayouts = initial.hudLayouts;
+        savedLayout = JSON.stringify(initial.hudLayouts);
         hudState.hudLayoutUndo = null;
         refresh();
       };
@@ -72,6 +79,12 @@ export function createPanelPreferences({
       if (replacing) return Promise.resolve();
       const revision = generation;
       const snapshot = panelStateSnapshot(hudState);
+      const layoutSnapshot = JSON.stringify(snapshot.hudLayouts ?? {});
+      const previousLayout = savedLayout;
+      const layoutChanged = layoutSnapshot !== previousLayout;
+      savedLayout = layoutSnapshot;
+      const personalSnapshot = { ...snapshot };
+      delete personalSnapshot.hudLayouts;
       const trace = beginDiagnostic(
         "hud.preferences.save",
         { category: snapshot.combatCategory },
@@ -88,11 +101,19 @@ export function createPanelPreferences({
                   ...latest,
                   [key]: gmActive
                     ? { ...snapshot, hudLayouts: latest[key]?.hudLayouts ?? {} }
-                    : snapshot,
-                  ...(gmActive
+                    : sharedKey
+                      ? {
+                          ...personalSnapshot,
+                          ...(latest[key]?.hudLayouts
+                            ? { hudLayouts: latest[key].hudLayouts }
+                            : {})
+                        }
+                      : snapshot,
+                  ...(sharedKey &&
+                  (gmActive || layoutChanged || !latest[sharedKey])
                     ? {
-                        "gm:layout": {
-                          ...latest["gm:layout"],
+                        [sharedKey]: {
+                          ...latest[sharedKey],
                           hudLayouts: snapshot.hudLayouts ?? {}
                         }
                       }
@@ -101,8 +122,12 @@ export function createPanelPreferences({
               })()
         );
       writeQueue = pending.then(
-        () => trace.finish("completed", "saved"),
+        () => {
+          trace.finish("completed", "saved");
+        },
         error => {
+          if (revision === generation && savedLayout === layoutSnapshot)
+            savedLayout = previousLayout;
           trace.finish("error", "save-failed");
           reportFailure("hud.panels.save", error, { level: "warn" });
         }
@@ -110,7 +135,11 @@ export function createPanelPreferences({
       return pending;
     }
   };
-  if (gmActive && !readSetting(SETTINGS.panelStates)?.["gm:layout"])
+  if (
+    sharedKey &&
+    !readSetting(SETTINGS.panelStates)?.[sharedKey] &&
+    (gmActive || Object.keys(preferences.initialState.hudLayouts ?? {}).length)
+  )
     void preferences
       .save(createHudState(preferences.initialState))
       .catch(() => {});

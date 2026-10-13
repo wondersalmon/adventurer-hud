@@ -83,7 +83,18 @@ test("GM tray defaults to hidden self rolls and forwards every selected visibili
   assert.equal(root.querySelector(".ws-dice-tray"), null);
 });
 
-test("tray gestures, formula, clear and native chat respect visibility; close and session replacement release the popover", async () => {
+function trayTest(name, run) {
+  test(name, async () => {
+    const fixture = await trayFixture();
+    try {
+      await run(fixture);
+    } finally {
+      await fixture.app.close();
+    }
+  });
+}
+
+async function trayFixture() {
   const f = await hudFixture({ values: { playerFooter: true } });
   const calls = [];
   let rolledDice = [];
@@ -91,6 +102,8 @@ test("tray gestures, formula, clear and native chat respect visibility; close an
     Roll: class {
       constructor(formula, data) {
         calls.push(["formula", formula, data]);
+        if (/\+\s*$/.test(formula))
+          throw new Error("Incomplete native formula");
         this.total = 9;
         this.dice = rolledDice;
       }
@@ -137,128 +150,223 @@ test("tray gestures, formula, clear and native chat respect visibility; close an
   dispatch(button);
   await waitFor(() => app.element.querySelector(".ws-dice-tray"));
   const tray = app.element.querySelector(".ws-dice-tray");
-  tray.getBoundingClientRect = () => ({ width: 320, height: 250 });
   const die = tray.querySelector('[data-die="6"]');
-  dispatch(die);
-  dispatch(die);
-  dispatch(die, "contextmenu");
-  assert.equal(die.querySelector("small").textContent, "1");
   const input = tray.querySelector("input");
-  input.value = "-2";
-  dispatch(input, "input");
-  dispatch(tray.querySelector('[data-dice-tray="roll"]'));
-  await waitFor(() => calls.some(call => call[0] === "chat"));
-  assert.deepEqual(
-    calls.find(call => call[0] === "formula"),
-    ["formula", "1d6 + (-2)", { bonus: 3 }]
-  );
-  assert.deepEqual(
-    calls.find(call => call[0] === "chat"),
-    ["chat", { speaker: { actor: f.actor.id } }, { messageMode: "gm" }]
-  );
-  await waitFor(() => die.querySelector("small").textContent === "0");
-  assert.equal(input.value, "-2");
-  for (const [options, formula] of [
-    [{ shiftKey: true }, "1d6"],
-    [{ altKey: true }, "2d6kh"],
-    [{ ctrlKey: true }, "2d6kl"]
-  ]) {
-    const before = calls.filter(call => call[0] === "chat").length;
-    dispatch(die, "click", options);
+  tray.getBoundingClientRect = () => ({ width: 320, height: 250 });
+  return {
+    f,
+    calls,
+    app,
+    button,
+    tray,
+    die,
+    input,
+    dispatch,
+    setRolledDice: dice => {
+      rolledDice = dice;
+    }
+  };
+}
+
+trayTest(
+  "tray gestures and quick-roll modifiers delegate native formulas and chat visibility",
+  async ({ f, calls, tray, die, input, dispatch }) => {
+    assert.equal(tray.querySelector('[data-dice-tray="clear"]').hidden, true);
+    dispatch(die);
+    dispatch(die);
+    dispatch(die, "contextmenu");
+    assert.equal(die.querySelector("small").textContent, "1");
+    assert.equal(input.value, "1d6");
+    assert.equal(tray.querySelector('[data-dice-tray="clear"]').hidden, false);
+    assert.equal(tray.querySelector("output"), null);
+    input.value += " + -2";
+    dispatch(input, "input");
+    dispatch(tray.querySelector('[data-dice-tray="roll"]'));
+    await waitFor(() => calls.some(call => call[0] === "chat"));
+    assert.deepEqual(
+      calls.find(call => call[0] === "formula"),
+      ["formula", "1d6 + (-2)", { bonus: 3 }]
+    );
+    assert.deepEqual(
+      calls.find(call => call[0] === "chat"),
+      ["chat", { speaker: { actor: f.actor.id } }, { messageMode: "gm" }]
+    );
+    await waitFor(() => die.querySelector("small").textContent === "0");
+    assert.equal(input.value, "-2");
+    for (const [options, formula] of [
+      [{ shiftKey: true }, "1d6"],
+      [{ altKey: true }, "2d6kh"],
+      [{ ctrlKey: true }, "2d6kl"]
+    ]) {
+      const before = calls.filter(call => call[0] === "chat").length;
+      dispatch(die, "click", options);
+      await waitFor(
+        () => calls.filter(call => call[0] === "chat").length > before
+      );
+      assert.equal(
+        calls.filter(call => call[0] === "formula").at(-1)[1],
+        formula
+      );
+      assert.equal(die.querySelector("small").textContent, "0");
+    }
+  }
+);
+
+trayTest(
+  "tray highlights active native d20 results and mimic never posts to chat",
+  async ({ calls, tray, dispatch, setRolledDice }) => {
+    for (const [dice, expected] of [
+      [
+        [
+          {
+            faces: 20,
+            results: [
+              { result: 20, active: true },
+              { result: 1, active: false, discarded: true }
+            ]
+          }
+        ],
+        "ws-tray-nat20"
+      ],
+      [
+        [
+          {
+            faces: 20,
+            results: [
+              { result: 1, active: true },
+              { result: 20, discarded: true }
+            ]
+          }
+        ],
+        "ws-tray-nat1"
+      ],
+      [
+        [
+          {
+            faces: 20,
+            results: [
+              { result: 20, rerolled: true },
+              { result: 8, active: true }
+            ]
+          }
+        ],
+        null
+      ],
+      [[{ faces: 6, results: [{ result: 1, active: true }] }], null],
+      [
+        [
+          {
+            faces: 20,
+            results: [
+              { result: 1, active: true },
+              { result: 20, active: true }
+            ]
+          }
+        ],
+        "both"
+      ]
+    ]) {
+      setRolledDice(dice);
+      const before = calls.filter(call => call[0] === "chat").length;
+      dispatch(tray.querySelector('[data-die="20"]'), "click", {
+        altKey: true
+      });
+      await waitFor(
+        () => calls.filter(call => call[0] === "chat").length > before
+      );
+      await new Promise(resolve => setTimeout(resolve, 5));
+      assert.equal(
+        tray.classList.contains("ws-tray-nat20"),
+        expected === "ws-tray-nat20" || expected === "both"
+      );
+      assert.equal(
+        tray.classList.contains("ws-tray-nat1"),
+        expected === "ws-tray-nat1" || expected === "both"
+      );
+    }
+    const beforeMimic = calls.length;
+    for (let click = 0; click < 5; click++)
+      dispatch(tray.querySelector('[data-dice-tray="mimic"]'));
+    await waitFor(() => tray.classList.contains("ws-tray-mimic"));
+    assert.equal(calls.length, beforeMimic);
+  }
+);
+
+trayTest(
+  "tray clear, manual formulas and slash commands preserve errors and input",
+  async ({ calls, tray, die, input, dispatch }) => {
+    dispatch(tray.querySelector('[data-dice-tray="clear"]'));
+    dispatch(die, "contextmenu");
+    assert.equal(die.querySelector("small").textContent, "0");
+    assert.equal(input.value, "");
+    assert.equal(tray.querySelector('[data-dice-tray="clear"]').hidden, true);
+    input.value = "3d8 + @bonus";
+    dispatch(input, "input");
+    dispatch(die);
+    assert.equal(input.value, "1d6 + (3d8 + @bonus)");
+    const beforeManual = calls.filter(call => call[0] === "chat").length;
+    dispatch(tray.querySelector('[data-dice-tray="roll"]'));
     await waitFor(
-      () => calls.filter(call => call[0] === "chat").length > before
+      () => calls.filter(call => call[0] === "chat").length > beforeManual
     );
     assert.equal(
       calls.filter(call => call[0] === "formula").at(-1)[1],
-      formula
+      "1d6 + (3d8 + @bonus)"
     );
-    assert.equal(die.querySelector("small").textContent, "0");
+    dispatch(tray.querySelector('[data-dice-tray="clear"]'));
+    for (const formula of ["4d6kh3", "/r 4d6kh3", "/roll 4d6kh3"]) {
+      input.value = formula;
+      dispatch(input, "input");
+      assert.equal(input.value, formula);
+      const before = calls.filter(call => call[0] === "chat").length;
+      dispatch(input, "keydown", { key: "Enter" });
+      await waitFor(
+        () => calls.filter(call => call[0] === "chat").length > before
+      );
+      assert.equal(
+        calls.filter(call => call[0] === "formula").at(-1)[1],
+        "4d6kh3"
+      );
+      dispatch(tray.querySelector('[data-dice-tray="clear"]'));
+    }
+    for (const formula of ["1d6 +", "/roll 1d6 +"]) {
+      dispatch(die);
+      input.value = formula;
+      dispatch(input, "input");
+      const before = calls.filter(call => call[0] === "chat").length;
+      dispatch(input, "keydown", { key: "Enter" });
+      await waitFor(
+        () =>
+          tray.querySelector("[data-dice-result]").textContent ===
+          game.i18n.localize("ADVENTURER_HUD.DiceTray.Invalid")
+      );
+      assert.equal(
+        calls.filter(call => call[0] === "formula").at(-1)[1],
+        "1d6 +"
+      );
+      assert.equal(calls.filter(call => call[0] === "chat").length, before);
+      assert.equal(input.value, "1d6 +");
+      dispatch(tray.querySelector('[data-dice-tray="clear"]'));
+    }
+    input.value = "/r";
+    dispatch(input, "input");
+    assert.equal(tray.querySelector('[data-dice-tray="roll"]').disabled, true);
+    dispatch(tray.querySelector('[data-dice-tray="clear"]'));
   }
-  for (const [dice, expected] of [
-    [
-      [
-        {
-          faces: 20,
-          results: [
-            { result: 20, active: true },
-            { result: 1, active: false, discarded: true }
-          ]
-        }
-      ],
-      "ws-tray-nat20"
-    ],
-    [
-      [
-        {
-          faces: 20,
-          results: [
-            { result: 1, active: true },
-            { result: 20, discarded: true }
-          ]
-        }
-      ],
-      "ws-tray-nat1"
-    ],
-    [
-      [
-        {
-          faces: 20,
-          results: [
-            { result: 20, rerolled: true },
-            { result: 8, active: true }
-          ]
-        }
-      ],
-      null
-    ],
-    [[{ faces: 6, results: [{ result: 1, active: true }] }], null],
-    [
-      [
-        {
-          faces: 20,
-          results: [
-            { result: 1, active: true },
-            { result: 20, active: true }
-          ]
-        }
-      ],
-      "both"
-    ]
-  ]) {
-    rolledDice = dice;
-    const before = calls.filter(call => call[0] === "chat").length;
-    dispatch(tray.querySelector('[data-die="20"]'), "click", { altKey: true });
-    await waitFor(
-      () => calls.filter(call => call[0] === "chat").length > before
-    );
-    await new Promise(resolve => setTimeout(resolve, 5));
-    assert.equal(
-      tray.classList.contains("ws-tray-nat20"),
-      expected === "ws-tray-nat20" || expected === "both"
-    );
-    assert.equal(
-      tray.classList.contains("ws-tray-nat1"),
-      expected === "ws-tray-nat1" || expected === "both"
-    );
+);
+
+trayTest(
+  "tray Escape and session replacement close the popover and release its anchor",
+  async ({ app, button, tray, dispatch }) => {
+    dispatch(tray, "keydown", { key: "Escape" });
+    assert.equal(app.element.querySelector(".ws-dice-tray"), null);
+    assert.equal(button.getAttribute("aria-expanded"), "false");
+    dispatch(button);
+    await app.hudActions.togglefavorites();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.equal(app.element.querySelector(".ws-dice-tray"), null);
   }
-  const beforeMimic = calls.length;
-  for (let click = 0; click < 5; click++)
-    dispatch(tray.querySelector('[data-dice-tray="mimic"]'));
-  await waitFor(() => tray.classList.contains("ws-tray-mimic"));
-  assert.equal(calls.length, beforeMimic);
-  dispatch(tray.querySelector('[data-dice-tray="clear"]'));
-  dispatch(die, "contextmenu");
-  assert.equal(die.querySelector("small").textContent, "0");
-  assert.equal(input.value, "");
-  dispatch(tray, "keydown", { key: "Escape" });
-  assert.equal(app.element.querySelector(".ws-dice-tray"), null);
-  assert.equal(button.getAttribute("aria-expanded"), "false");
-  dispatch(button);
-  await app.hudActions.togglefavorites();
-  await new Promise(resolve => setTimeout(resolve, 0));
-  assert.equal(app.element.querySelector(".ws-dice-tray"), null);
-  await app.close();
-});
+);
 
 test("native dice reject ownership loss or replaced session after asynchronous evaluation", async () => {
   let current = true;
@@ -489,3 +597,44 @@ test("tray sounds use native interface context, obey mute/volume/lock and releas
     assert.equal(nodes.length, 0);
   }
 });
+
+trayTest(
+  "visual effects preference prevents tray animations and stops an active effect without disabling rolls",
+  async ({ tray, dispatch, setRolledDice, calls }) => {
+    for (let index = 0; index < 5; index++)
+      dispatch(tray.querySelector('[data-dice-tray="mimic"]'));
+    await waitFor(() => tray.classList.contains("ws-tray-mimic"));
+    await game.settings.set("adventurer-hud", "showVisualEffects", false);
+    assert.equal(tray.classList.contains("ws-tray-mimic"), false);
+    setRolledDice([{ faces: 20, results: [{ result: 20, active: true }] }]);
+    dispatch(tray.querySelector('[data-die="20"]'), "click", {
+      shiftKey: true
+    });
+    await waitFor(() => calls.some(call => call[0] === "chat"));
+    assert.equal(tray.classList.contains("ws-tray-nat20"), false);
+    assert.ok(calls.some(call => call[0] === "chat"));
+  }
+);
+
+trayTest(
+  "tray effects use full mode and master disabling clears effects while preserving native rolls",
+  async ({ tray, dispatch, setRolledDice, calls, app }) => {
+    await game.settings.set("adventurer-hud", "showVisualEffects", true);
+    setRolledDice([{ faces: 20, results: [{ result: 20, active: true }] }]);
+    dispatch(tray.querySelector('[data-die="20"]'), "click", {
+      shiftKey: true
+    });
+    await waitFor(() => tray.classList.contains("ws-tray-nat20"));
+    await game.settings.set("adventurer-hud", "showVisualEffects", false);
+    assert.equal(tray.classList.contains("ws-tray-nat20"), false);
+    const before = calls.filter(call => call[0] === "chat").length;
+    dispatch(tray.querySelector('[data-die="20"]'), "click", {
+      shiftKey: true
+    });
+    await waitFor(
+      () => calls.filter(call => call[0] === "chat").length > before
+    );
+    assert.equal(tray.classList.contains("ws-tray-nat20"), false);
+    app.clearDiceTrayEffect();
+  }
+);

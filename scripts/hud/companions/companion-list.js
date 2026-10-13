@@ -1,8 +1,10 @@
+import { healthFillColor } from "../health-feedback.js";
 import { recordAvailability, diagnosticRef } from "../../diagnostics.js";
 import { companionOnScene, companionIsFamiliar } from "./companions.js";
 import { getSetting, SETTINGS } from "../../settings-access.js";
 import { companionEffects, companionInitiative } from "./companion-details.js";
 import { companionPlacementReason } from "./companion-placement.js";
+import { activeEffectSummaries } from "../effect-summaries.js";
 
 /** @param {{entries: import('../../../types/hud.js').CompanionEntry[], owner: any, adapter: import('../../../types/hud.js').HudAdapter, t: import('../../../types/hud.js').Translate, escapeHTML: (value: unknown) => string, combatMode?: boolean, filter?: string, rolling?: boolean, showEffects?: boolean, visionUuid?: string | null, visionWarning?: (entry: import('../../../types/hud.js').CompanionEntry) => string | null | undefined, placing?: boolean}} options */
 export function renderCompanionList({
@@ -110,12 +112,23 @@ export function renderCompanionList({
       );
       const effects =
         showEffects && !ambiguous ? companionEffects(actor, adapter) : [];
+      const hoverEffects = ambiguous
+        ? []
+        : activeEffectSummaries(actor, adapter.statusDefinitions?.() ?? []);
+      const tooltip = ambiguous
+        ? ""
+        : `<strong>${escapeHTML(name)}</strong>${hoverEffects.length ? `<div class="ws-gm-hover-effects">${hoverEffects.map(effect => `<span><img src="${escapeHTML(effect.img ?? effect.icon ?? "icons/svg/aura.svg")}" alt=""><span>${escapeHTML(game.i18n.localize(effect.name ?? effect.label ?? effect.id))}</span></span>`).join("")}</div>` : `<div>${t("GM.NoEffects")}</div>`}`;
+      const effectMarkup = effect => {
+        const label = game.i18n.localize(effect.name ?? effect.label ?? "");
+        return `<span role="img" title="${escapeHTML(label)}" aria-label="${escapeHTML(label)}"><img src="${escapeHTML(effect.img ?? effect.icon ?? "icons/svg/aura.svg")}" alt=""></span>`;
+      };
       return `<article class="ws-companion-card"><div class="ws-companion-row">
-      <button type="button" class="ws-companion-open ws-button ${initiative.isTurn ? "ws-companion-turn" : ""} ${tokenInitiatives.some(state => state.value == null) ? "ws-companion-unrolled" : ""}" data-action="opencompanion" ${address} ${actor ? "" : "disabled"} title="${escapeHTML(name)} · ${status}${initiative.isTurn ? ` · ${t("Companions.Turn")}` : ""}" aria-label="${escapeHTML(name)}${initiative.isTurn ? ` · ${t("Companions.Turn")}` : ""}">
+      <button type="button" class="ws-companion-open ws-button ${initiative.isTurn ? "ws-companion-turn" : ""} ${tokenInitiatives.some(state => state.value == null) ? "ws-companion-unrolled" : ""}" data-action="opencompanion" ${address} ${actor ? "" : "disabled"} ${tooltip ? `data-tooltip="${escapeHTML(tooltip)}" data-tooltip-class="ws-gm-effects-tooltip"` : ""} title="${escapeHTML(name)} · ${status}${initiative.isTurn ? ` · ${t("Companions.Turn")}` : ""}" aria-description="${t("Companions.HealHint")}" aria-label="${escapeHTML(name)}${initiative.isTurn ? ` · ${t("Companions.Turn")}` : ""}">
         <img src="${escapeHTML(entry.token?.texture?.src ?? actor?.img ?? "icons/svg/mystery-man.svg")}" alt="">
-        <span class="ws-companion-copy"><strong>${escapeHTML(name)}</strong>${hp ? `<small>${hp.value}/${hp.max} ${t("Combat.HP")} · ${t("Combat.AC")} ${escapeHTML(stats.ac)}</small><span class="ws-companion-hp" role="meter" aria-label="${t("Combat.HP")}" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${Math.max(0, Math.min(total, hp.value))}"><span style="width:${width}%"></span></span>` : ""}${!scene || ambiguous ? `<small>${status}</small>` : ""}</span>
+        <span class="ws-companion-copy"><strong>${escapeHTML(name)}</strong>${hp ? `<small>${hp.value}/${hp.max} ${t("Combat.HP")} · ${t("Combat.AC")} ${escapeHTML(stats.ac)}</small><span class="ws-companion-hp" role="meter" aria-label="${t("Combat.HP")}" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${Math.max(0, Math.min(total, hp.value))}"><span style="width:${width}%;background:${healthFillColor(width)}"></span></span>` : ""}${!scene || ambiguous ? `<small>${status}</small>` : ""}</span>
       </button>
       <div class="ws-companion-controls">
+        ${effects.length ? `<div class="ws-companion-effects" role="group" aria-label="${t("Companions.Effects")}: ${escapeHTML(name)}">${effects.slice(0, 3).map(effectMarkup).join("")}<details class="ws-companion-effects-more" ${effects.length <= 3 ? "hidden" : ""} data-companion-effects="${escapeHTML(entry.uuid)}"><summary class="ws-button" data-companion-effects-toggle="${escapeHTML(entry.uuid)}" aria-label="${t("Companions.Effects")}: ${escapeHTML(name)}"><b class="ws-companion-effects-count">+${Math.max(0, effects.length - 3)}</b><b class="ws-companion-effects-collapse" aria-hidden="true">−</b></summary><div class="ws-companion-effects-extra">${effects.slice(3).map(effectMarkup).join("")}</div></details></div>` : ""}
         ${combatMode ? `<button type="button" class="ws-button ws-companion-initiative" data-action="companioninitiative" ${address} title="${t("Labels.Initiative")}: ${initiativeLabel}" aria-label="${t("Labels.Initiative")}: ${escapeHTML(name)}. ${tokenInitiatives.length && rollState.value != null ? `${escapeHTML(rollState.value)}. ` : ""}${initiativeLabel}" ${!rolling && tokenInitiatives.some(state => state.canRoll) ? "" : "disabled"}>${tokenInitiatives.length && rollState.value != null ? `<strong>${escapeHTML(rollState.value)}</strong>` : '<i class="fa-solid fa-dice-d20" aria-hidden="true"></i>'}</button>` : ""}
         ${
           scene
@@ -126,18 +139,7 @@ export function renderCompanionList({
         <button type="button" class="ws-button" data-action="companionsheet" ${address} title="${t("GM.Sheet")}" aria-label="${t("GM.Sheet")}: ${escapeHTML(name)}" ${actor ? "" : "disabled"}><i class="fa-solid fa-book-open" aria-hidden="true"></i></button>
       </div>
     </div>
-    ${
-      effects.length
-        ? `<div class="ws-companion-effects" role="group" aria-label="${t("Companions.Effects")}: ${escapeHTML(name)}">${effects
-            .map(effect => {
-              const label = game.i18n.localize(
-                effect.name ?? effect.label ?? ""
-              );
-              return `<span role="img" title="${escapeHTML(label)}" aria-label="${escapeHTML(label)}"><img src="${escapeHTML(effect.img ?? effect.icon ?? "icons/svg/aura.svg")}" alt=""></span>`;
-            })
-            .join("")}</div>`
-        : ""
-    }
+
     </article>`;
     })
     .join("");
