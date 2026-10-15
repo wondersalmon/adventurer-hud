@@ -3,10 +3,77 @@ import { applyPlayerLayout } from "../scripts/hud/window/responsive-layout.js";
 import { test, expect } from "@playwright/test";
 import { layoutFixture } from "./layout-fixture.mjs";
 import { loadHudModules } from "./module-fixture.mjs";
+import { readFile } from "node:fs/promises";
 import {
   captureHudDomState,
   restoreHudDomState
 } from "../scripts/hud/window/dom-state.js";
+
+for (const language of ["en", "ru"]) {
+  test(`${language} companion ping picker explains native modifiers at narrow widths`, async ({
+    page
+  }) => {
+    const { css, baseline } = await layoutFixture(language);
+    const catalog = JSON.parse(
+      await readFile(
+        new URL(`../lang/${language}.json`, import.meta.url),
+        "utf8"
+      )
+    );
+    await page.setContent(`<style>${baseline}${css}</style>`);
+    await loadHudModules(page, {
+      "hud/companions/companion-picker.js": ["createCompanionPicker"]
+    });
+    await page.evaluate(async catalog => {
+      const t = key => catalog[`ADVENTURER_HUD.${key}`];
+      const picker = window.createCompanionPicker({
+        t,
+        escapeHTML: value => {
+          const node = document.createElement("span");
+          node.textContent = value;
+          return node.innerHTML;
+        },
+        isCurrent: () => true,
+        DialogV2: class {
+          constructor(options) {
+            this.options = options;
+          }
+          render() {
+            const dialog = document.createElement("section");
+            dialog.className =
+              "ws-rolls-dialog ws-companion-picker ws-theme-light";
+            dialog.style.cssText = "width:270px;font-size:20px;padding:12px";
+            dialog.append(this.options.content);
+            document.body.append(dialog);
+          }
+        }
+      });
+      await picker.withToken(
+        {
+          tokenOptions: [
+            { uuid: "Scene.scene.Token.one", name: "First token" },
+            { uuid: "Scene.scene.Token.two", name: "Second token" }
+          ]
+        },
+        () => {},
+        { hint: t("Companions.PingChooseHint") }
+      );
+    }, catalog);
+    const select = page.locator(".ws-companion-picker select");
+    await expect(select).toHaveAccessibleDescription(
+      catalog["ADVENTURER_HUD.Companions.PingChooseHint"]
+    );
+    await expect(page.locator("#ws-companion-picker-hint")).toBeVisible();
+    expect(
+      await page
+        .locator(".ws-companion-picker")
+        .evaluate(node => node.scrollWidth <= node.clientWidth + 1)
+    ).toBe(true);
+    await select.focus();
+    await page.keyboard.press("ArrowDown");
+    await expect(select).toHaveValue("1");
+  });
+}
 
 test("companion native tooltip exposes its complete effect list at narrow widths", async ({
   page

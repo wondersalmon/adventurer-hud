@@ -191,21 +191,25 @@ export function createCompanionActions(
     companionping: async (_event, target) => {
       const entry = await resolved(target.dataset.companionUuid);
       if (!isCurrent() || !entry?.actor) return;
-      return picker.withToken(entry, async tokenUuid => {
-        const current = await resolved(entry.uuid, tokenUuid);
-        const token = current?.token;
-        if (!isCurrent() || !token || token.parent?.id !== canvas.scene?.id)
-          return ui.notifications.warn(t("Companions.OffScene"));
-        const placeable = canvas.tokens?.get?.(token.id);
-        if (
-          !placeable ||
-          !token.actor?.isOwner ||
-          (token.hidden && !game.user?.isGM)
-        )
-          return ui.notifications.warn(t("Companions.NoPermission"));
-        if (placeable.document && placeable.document !== token) return;
-        return canvas.ping(placeable.center);
-      });
+      return picker.withToken(
+        entry,
+        async tokenUuid => {
+          const current = await resolved(entry.uuid, tokenUuid);
+          const token = current?.token;
+          if (!isCurrent() || !token || token.parent?.id !== canvas.scene?.id)
+            return ui.notifications.warn(t("Companions.OffScene"));
+          const placeable = canvas.tokens?.get?.(token.id);
+          if (
+            !placeable ||
+            !token.actor?.isOwner ||
+            (token.hidden && !game.user?.isGM)
+          )
+            return ui.notifications.warn(t("Companions.NoPermission"));
+          if (placeable.document && placeable.document !== token) return;
+          return canvas.ping(placeable.center);
+        },
+        { hint: t("Companions.PingChooseHint") }
+      );
     }
   };
   /** @param {{uuid: string, tokenUuid: string | null}[]} choices

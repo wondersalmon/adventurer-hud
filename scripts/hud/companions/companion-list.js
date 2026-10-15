@@ -133,7 +133,7 @@ export function renderCompanionList({
         ${
           scene
             ? `<button type="button" class="ws-button ws-companion-vision" data-action="companionvision" ${address} aria-pressed="${active}" title="${reason ? t(reason) : eyeLabel}" aria-label="${eyeLabel}: ${escapeHTML(name)}" ${actor && scene && !reason ? "" : "disabled"}><i class="fa-solid fa-eye" aria-hidden="true"></i></button>
-<button type="button" class="ws-button" data-action="companionping" ${address} title="${t("Companions.Ping")}" aria-label="${t("Companions.Ping")}: ${escapeHTML(name)}" ${actor && (entry.token || entry.tokenOptions.length) ? "" : "disabled"}><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i></button>`
+<button type="button" class="ws-button" data-action="companionping" ${address} title="${t("Ping.Hint")}" aria-label="${t("Companions.Ping")}: ${escapeHTML(name)}" ${actor && (entry.token || entry.tokenOptions.length) ? "" : "disabled"}><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i></button>`
             : `<button type="button" class="ws-companion-place ws-button" data-action="companionplace" ${address} title="${t(canPlace ? "Companions.Place" : "Companions.PlacePermission")}" aria-label="${t("Companions.Place")}: ${escapeHTML(name)}" ${!placing && canPlace ? "" : "disabled"}><i class="fa-solid fa-plus" aria-hidden="true"></i></button>`
         }
         <button type="button" class="ws-button" data-action="companionsheet" ${address} title="${t("GM.Sheet")}" aria-label="${t("GM.Sheet")}: ${escapeHTML(name)}" ${actor ? "" : "disabled"}><i class="fa-solid fa-book-open" aria-hidden="true"></i></button>

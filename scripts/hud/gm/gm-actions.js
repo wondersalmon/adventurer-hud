@@ -49,14 +49,15 @@ export function createGmActions({
       tokenToggleLocks.set(token, performance.now() + TOGGLE_PAUSE_MS);
     }
   };
-  const move = (target, ping = false) => {
+  let pingPending = false;
+  const move = async (target, ping = false) => {
     const combat = gmController?.getCombat();
     const entry = target?.dataset.combatantId
       ? combat?.combatants?.get(target.dataset.combatantId)
       : gmController?.sync();
     const token = entry?.token;
     if (!gmController?.isGM() || !token || !isSessionCurrent()) return;
-    return runScene(canExecute => {
+    const execute = canExecute => {
       if (
         !canExecute() ||
         combat?.combatants?.get(entry.id) !== entry ||
@@ -66,7 +67,16 @@ export function createGmActions({
       )
         return;
       return moveToCreature(entry, { ping });
-    });
+    };
+    if (!ping) return runScene(execute);
+    if (pingPending) return;
+    // A ping changes no documents and must not occupy the mutation runner or render.
+    pingPending = true;
+    try {
+      return await execute(createGmActionScope(gmController, isSessionCurrent));
+    } finally {
+      pingPending = false;
+    }
   };
   return {
     gmdefeated: function (_event, target) {

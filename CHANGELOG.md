@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.2.1
+
+### New
+
+- **Ping hints:** Added Alt/Shift hints to ping buttons and the companion token picker.
+
+### Changes and improvements
+
+- **Cards:** Item and action cards update with less processing.
+
+### Fixes
+
+- **GM ping:** Pinging a creature no longer blocks other controls or forces a panel refresh.
+
+Documentation: [Player guide](docs/player-guide.md) · [Companions](docs/companions-guide.md) · [Layout editor](docs/layout-guide.md).
+
 ## 2.2.0
 
 ### New
