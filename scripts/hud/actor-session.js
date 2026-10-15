@@ -327,7 +327,6 @@ export async function openActorHud(
     disabledActions: [
       "gmremove",
       "gmremovedead",
-      "gmping",
       "gmcenter",
       "gmhidden",
       "gmdefeated"

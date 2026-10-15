@@ -314,6 +314,8 @@
   "ADVENTURER_HUD.GM.Saves": "Saving throws",
   "ADVENTURER_HUD.GM.ToToken": "To token",
   "ADVENTURER_HUD.GM.Ping": "Ping",
+  "ADVENTURER_HUD.Ping.Hint": "Click: ping the token. Alt-click: red warning triangle. Shift-click (GM): move all cameras on this scene.",
+  "ADVENTURER_HUD.Companions.PingChooseHint": "Hold Alt when confirming for a red warning triangle. As GM, hold Shift when confirming to move all cameras on this scene.",
   "ADVENTURER_HUD.GM.LegendaryResistances": "Legendary resistances",
   "ADVENTURER_HUD.GM.LegendaryActions": "Legendary actions",
   "ADVENTURER_HUD.GM.LairActions": "Lair actions",

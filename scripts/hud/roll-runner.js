@@ -8,7 +8,6 @@ const ROLL_ACTIONS = [
   "gmnext",
   "gmremove",
   "gmremovedead",
-  "gmping",
   "gmcenter",
   "gmhidden",
   "gmdefeated",

@@ -4,14 +4,14 @@ import { reportFailure } from "../../diagnostics.js";
 export function createCompanionPicker({ DialogV2, t, escapeHTML, isCurrent }) {
   /** @type {any} Native DialogV2. */
   let picker = null;
-  /** @param {{ choices: import('../../../types/hud.js').CompanionChoice[], title: string, onSelect: (choice: import('../../../types/hud.js').CompanionChoice) => unknown }} options */
-  const choose = async ({ choices, title, onSelect }) => {
+  /** @param {{ choices: import('../../../types/hud.js').CompanionChoice[], title: string, hint?: string, onSelect: (choice: import('../../../types/hud.js').CompanionChoice) => unknown }} options */
+  const choose = async ({ choices, title, hint = "", onSelect }) => {
     if (!choices.length)
       return ui.notifications.warn(t("Companions.NoCandidates"));
     await picker?.close();
     if (!isCurrent()) return;
     const content = document.createElement("div");
-    content.innerHTML = `<div class="ws-companion-picker-fields"><label>${title}<select name="companion" aria-label="${title}">${choices.map((choice, index) => `<option value="${index}">${escapeHTML(choice.name)}</option>`).join("")}</select></label></div>`;
+    content.innerHTML = `<div class="ws-companion-picker-fields"><label>${title}<select name="companion" aria-label="${title}" ${hint ? 'aria-describedby="ws-companion-picker-hint"' : ""}>${choices.map((choice, index) => `<option value="${index}">${escapeHTML(choice.name)}</option>`).join("")}</select></label>${hint ? `<p class="hint" id="ws-companion-picker-hint">${escapeHTML(hint)}</p>` : ""}</div>`;
     const currentPicker = new DialogV2({
       classes: ["ws-companion-picker"],
       window: { title },
@@ -45,11 +45,12 @@ export function createCompanionPicker({ DialogV2, t, escapeHTML, isCurrent }) {
     picker = currentPicker;
     return currentPicker.render({ force: true });
   };
-  /** @param {import('../../../types/hud.js').CompanionEntry} entry @param {(uuid: string | null) => unknown} operation */
-  const withToken = async (entry, operation) => {
+  /** @param {import('../../../types/hud.js').CompanionEntry} entry @param {(uuid: string | null) => unknown} operation @param {{hint?: string}} options */
+  const withToken = async (entry, operation, { hint = "" } = {}) => {
     if (entry.tokenOptions.length > 1 && !entry.token)
       return choose({
         title: t("Companions.ChooseToken"),
+        hint,
         choices: entry.tokenOptions.map((token, index) => ({
           uuid: token.uuid,
           name: `${token.name ?? token.actor.name} · ${t("Companions.Token")} ${index + 1}`

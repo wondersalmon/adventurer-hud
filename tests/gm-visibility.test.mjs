@@ -208,6 +208,33 @@ test("roster Ping and To token target their own card without changing the inspec
   assert.equal(calls.length, 3);
 });
 
+test("GM ping retains scene/session/token guards and recovers after native failure", async () => {
+  for (const change of ["scene", "session", "permission", "replacement"]) {
+    const f = fixture();
+    let pings = 0;
+    canvas.tokens = { get: () => ({ center: { x: 1, y: 2 } }) };
+    canvas.ping = () => pings++;
+    if (change === "scene") canvas.scene = { ...f.scene };
+    if (change === "session") f.dispose();
+    if (change === "permission") game.user.isGM = false;
+    if (change === "replacement")
+      f.scene.tokens.set("one", { ...f.entries[0].token });
+    await f.actions.gmping(null, { dataset: { combatantId: "one" } });
+    assert.equal(pings, 0, change);
+  }
+  const f = fixture();
+  canvas.tokens = { get: () => ({ center: { x: 1, y: 2 } }) };
+  canvas.ping = async () => {
+    throw new Error("native ping failed");
+  };
+  const command = { dataset: { combatantId: "one" } };
+  await assert.rejects(f.actions.gmping(null, command), /native ping failed/);
+  let pings = 0;
+  canvas.ping = () => pings++;
+  await f.actions.gmping(null, command);
+  assert.equal(pings, 1);
+});
+
 test("Show all hidden rechecks permissions, exact documents and scene after confirmation and each native update", async () => {
   for (const change of [
     "scene",

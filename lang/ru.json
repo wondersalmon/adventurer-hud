@@ -314,6 +314,8 @@
   "ADVENTURER_HUD.GM.Saves": "Спасброски",
   "ADVENTURER_HUD.GM.ToToken": "К токену",
   "ADVENTURER_HUD.GM.Ping": "Пинг",
+  "ADVENTURER_HUD.Ping.Hint": "ЛКМ: пинг токена. Alt+ЛКМ: красный треугольник. Shift+ЛКМ (ГМ): переместить камеры всех пользователей на этой сцене.",
+  "ADVENTURER_HUD.Companions.PingChooseHint": "Для красного треугольника удерживайте Alt при подтверждении. Чтобы переместить камеры всех пользователей на этой сцене, удерживайте Shift при подтверждении (только ГМ).",
   "ADVENTURER_HUD.GM.LegendaryResistances": "Легендарные сопротивления",
   "ADVENTURER_HUD.GM.LegendaryActions": "Легендарные действия",
   "ADVENTURER_HUD.GM.LairActions": "Действия логова",

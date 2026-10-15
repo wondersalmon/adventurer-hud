@@ -262,7 +262,7 @@ test("a GM transition closes the named HP dialog and rejects its delayed save", 
 });
 
 test("ambiguous actor rows pick exact tokens for ping and recheck permissions at submission", async () => {
-  const f = await fixture();
+  const f = await fixture({ values: { language: "en" } });
   const base = f.npc();
   const first = f.token(base, "first"),
     second = f.token(base, "second");
@@ -271,14 +271,64 @@ test("ambiguous actor rows pick exact tokens for ping and recheck permissions at
   const app = __adventurerHud.app;
   await app.hudActions.companionping(null, target(base.uuid));
   assert.deepEqual(f.calls, []);
+  const pickerContent = f.pickers.at(-1).options.content;
+  const hint = pickerContent.querySelector("#ws-companion-picker-hint");
+  assert.match(hint.textContent, /Alt/);
+  assert.match(hint.textContent, /Shift/);
+  assert.equal(
+    pickerContent.querySelector("select").getAttribute("aria-describedby"),
+    hint.id
+  );
   await select(f.pickers.at(-1), 1);
   assert.deepEqual(f.calls, [["ping", f.placeables.get(second.id).center]]);
   assert.equal(canvas.tokens.controlled[0].document, first);
   f.calls.length = 0;
   await app.hudActions.companionsheet(null, target(base.uuid));
+  assert.equal(
+    f.pickers.at(-1).options.content.querySelector("#ws-companion-picker-hint"),
+    null
+  );
   second.actor.isOwner = false;
   await select(f.pickers.at(-1), 1);
   assert.deepEqual(f.calls, []);
+  await app.close();
+});
+
+test("GM ping leaves scene commands enabled and never refreshes the HUD", async () => {
+  const f = await fixture({ isGM: true });
+  const token = f.token(f.npc(), "chosen");
+  const { combat, entries } = combatFor(f, [token]);
+  combat.combatants = itemCollection(entries);
+  combat.combatant = entries[0];
+  await f.api.open(token.actor);
+  const app = __adventurerHud.app;
+  const command = { dataset: { combatantId: token.id } };
+  let finishPing;
+  let pingCount = 0;
+  canvas.ping = () => {
+    pingCount++;
+    return new Promise(resolve => {
+      finishPing = resolve;
+    });
+  };
+  let refreshes = 0;
+  app.updateHudEditControl = () => refreshes++;
+  const pending = app.hudActions.gmping(null, command);
+  await waitFor(() => typeof finishPing === "function");
+  for (const action of ["gmcenter", "gmdefeated"])
+    assert.equal(
+      app.element.querySelector(`[data-action="${action}"]`).disabled,
+      false
+    );
+  await app.hudActions.gmping(null, command);
+  assert.equal(pingCount, 1, "pending native ping is not repeated");
+  assert.equal(refreshes, 0);
+  await app.hudActions.gmcenter(null, command);
+  assert.ok(f.calls.some(call => call[0] === "control"));
+  const afterCenter = refreshes;
+  finishPing(true);
+  await pending;
+  assert.equal(refreshes, afterCenter, "ping completion does not render");
   await app.close();
 });
 
