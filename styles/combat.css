@@ -434,7 +434,14 @@
   object-fit: cover;
 }
 
-.ws-rolls-dialog .ws-combat-filters {
+.ws-rolls-dialog .ws-combat-filters,
+.ws-rolls-dialog
+  :is(
+    .ws-player-actions,
+    .ws-gm-action-column,
+    .ws-hud-extra-lane,
+    .ws-combat-category-sections
+  ):has(> :is(.ws-combat-category-section, .ws-exploration-section)) {
   display: grid;
   grid-template-columns: repeat(
     auto-fit,
@@ -446,7 +453,7 @@
       1fr
     )
   );
-  justify-content: start;
+  place-content: start;
   gap: 5px;
 }
 
@@ -2511,31 +2518,12 @@
     .ws-gm-action-column,
     .ws-hud-extra-lane,
     .ws-combat-category-sections
-  ):has(> .ws-combat-category-section) {
-  display: grid;
-  grid-template-columns: repeat(
-    auto-fit,
-    minmax(
-      min(
-        100%,
-        max(calc(110px * var(--ws-type-scale)), calc((100% - 12px) / 3))
-      ),
-      1fr
-    )
-  );
-  align-content: start;
-  gap: 6px;
-}
-
+  ):has(> :is(.ws-combat-category-section, .ws-exploration-section))
+  > :not(.ws-combat-category-section, .ws-exploration-section),
 .ws-rolls-dialog
-  :is(
-    .ws-player-actions,
-    .ws-gm-action-column,
-    .ws-hud-extra-lane,
-    .ws-combat-category-sections
-  ):has(> .ws-combat-category-section)
-  > :not(.ws-combat-category-section),
-.ws-rolls-dialog .ws-combat-category-section:has(> [aria-expanded="true"]) {
+  :is(.ws-combat-category-section, .ws-exploration-section):has(
+    > [aria-expanded="true"]
+  ) {
   grid-column: 1 / -1;
 }
 
@@ -2591,7 +2579,7 @@
     .ws-hud-extra-lane,
     .ws-combat-category-sections
   )
-  > .ws-combat-category-section {
+  > :is(.ws-combat-category-section, .ws-exploration-section) {
   display: contents;
 }
 
@@ -2602,8 +2590,8 @@
     .ws-hud-extra-lane,
     .ws-combat-category-sections
   )
-  > .ws-combat-category-section
-  > :not(.ws-combat-filter) {
+  > :is(.ws-combat-category-section, .ws-exploration-section)
+  > :not(.ws-combat-filter, .ws-nav) {
   grid-column: 1 / -1;
   order: 1;
 }
@@ -2614,7 +2602,7 @@
     .ws-gm-action-column,
     .ws-hud-extra-lane,
     .ws-combat-category-sections
-  ):has(> .ws-combat-category-section) {
+  ):has(> :is(.ws-combat-category-section, .ws-exploration-section)) {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
 }
 

@@ -46,6 +46,36 @@ test("search matches item and activity names", () => {
   );
 });
 
+test("card activity choices stay fresh between renders and retain native availability", () => {
+  const item = { id: "staff", name: "Staff", type: "feat" };
+  let activities = [
+    { id: "attack", name: "Attack", use() {} },
+    { id: "save", name: "Save", use() {} },
+    { id: "blocked", name: "Blocked", canUse: false, use() {} }
+  ];
+  const { renderer } = itemRendererFixture({
+    items: [item],
+    hudState: { openActivityItemId: item.id },
+    visibility: { activityPicker: true },
+    adapter: { itemActivities: () => activities }
+  });
+  const before = renderer.combatItemButton(item);
+  assert.match(before, /data-activity-id="attack"/);
+  assert.match(before, /data-activity-id="save"/);
+  assert.doesNotMatch(before, /data-activity-id="blocked"/);
+  activities = [];
+  const passive = renderer.combatItemButton(item);
+  assert.match(passive, /data-action="openitem"/);
+  assert.doesNotMatch(passive, /ws-activity-menu|data-activity-id=/);
+  activities = [{ id: "replacement", name: "Replacement", use() {} }];
+  const updated = renderer.combatItemButton(item, {
+    activityId: "replacement",
+    activityOption: true
+  });
+  assert.match(updated, /Replacement/);
+  assert.match(updated, /data-activity-id="replacement"/);
+});
+
 test("features follow Actions and activate through the existing item cards", () => {
   const feature = { id: "flurry", name: "Flurry of Blows" };
   let available = [feature];

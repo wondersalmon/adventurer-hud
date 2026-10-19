@@ -1131,3 +1131,136 @@
   background: transparent !important;
   transform: none;
 }
+
+.ws-rolls-dialog .ws-rat-memory-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ws-rolls-dialog .ws-rat-memory {
+  position: fixed;
+  z-index: 100;
+  inset: auto;
+  width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  padding: 8px;
+  margin: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--ws-palette-border);
+  border-radius: 8px;
+  background: var(--ws-palette-background);
+  color: var(--ws-palette-text);
+  font-family: var(--ws-text-font);
+  font-size: var(--ws-font-size, 12px);
+}
+
+.ws-rat-memory-heading,
+.ws-rat-memory-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.ws-rat-memory[data-placement="above"] {
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+}
+
+.ws-rolls-dialog:has(> .ws-rat-memory[data-placement="above"]),
+.ws-rolls-dialog:has(> .ws-rat-memory[data-placement="above"])
+  > .window-header {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.ws-rat-memory-heading {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.ws-rat-memory-heading > strong {
+  margin-right: auto;
+}
+
+.ws-rat-memory-entries {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 6px 12px;
+}
+
+.ws-rat-memory-record {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--ws-palette-border);
+  overflow-wrap: anywhere;
+}
+
+.ws-rat-memory-description {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.ws-rat-memory-description > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-rat-memory-description small {
+  color: var(--ws-palette-muted);
+}
+
+.ws-rat-memory button {
+  flex: 0 0 24px;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  color: inherit;
+  background: var(--ws-palette-card);
+  border: 1px solid var(--ws-palette-border);
+}
+
+.ws-rat-memory
+  button:is([data-memory-action="settings"], [data-memory-action="clear"]) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 1 auto;
+  width: auto;
+  padding: 0 6px;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.ws-rat-memory > p {
+  margin: 8px 0 0;
+}
+
+@media (pointer: coarse) {
+  .ws-rat-memory button {
+    flex-basis: 36px;
+    width: 36px;
+    height: 44px;
+  }
+}
+
+.ws-rolls-dialog .window-header .ws-action-feedback {
+  flex: 0 1 auto;
+  max-width: 120px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--ws-text-font);
+  font-size: 11px;
+  color: var(--ws-palette-text);
+}

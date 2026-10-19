@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { setTimeout as delay } from "node:timers/promises";
 import { hudFixture, waitFor } from "./helpers/hud.mjs";
 import { restoreGlobalsAfterEach } from "./helpers/foundry.mjs";
 import { itemCollection } from "./helpers/rendering.mjs";
@@ -364,7 +363,7 @@ test("GM ignores foreign biography/items/effects and another combat but refreshe
   }
 });
 
-test("status buttons remove via Ctrl+Enter/Space and reject plain/repeated/denied/stale keyboard events", async () => {
+test("status buttons reject Ctrl+Enter/Space and keyboard-generated clicks, allowing only Ctrl pointer click", async () => {
   const f = await hudFixture();
   CONFIG.statusEffects = [{ id: "poisoned", name: "Poisoned" }];
   f.actor.statuses = new Set(["poisoned"]);
@@ -374,35 +373,38 @@ test("status buttons remove via Ctrl+Enter/Space and reject plain/repeated/denie
   };
   await f.api.open(f.actor);
   const app = __adventurerHud.app;
-  const send = (key, ctrlKey = true, repeat = false) => {
-    const button = app.element.querySelector('[data-status-id="poisoned"]');
-    assert.equal(button.tagName, "BUTTON");
+  const button = app.element.querySelector('[data-status-id="poisoned"]');
+  for (const key of ["Enter", " "]) {
     const event = new document.defaultView.Event("keydown", {
       bubbles: true,
       cancelable: true
     });
-    Object.assign(event, { key, ctrlKey, repeat });
+    Object.assign(event, { key, ctrlKey: true });
     button.dispatchEvent(event);
-    return event;
-  };
-  send("Enter", false);
-  send(" ", true, true);
-  assert.equal(removals, 0);
-  assert.equal(send("Enter").defaultPrevented, true);
-  await waitFor(() => removals === 1);
-  f.flushFrames();
-  await delay(700);
-  send(" ");
-  await waitFor(() => removals === 2);
-  f.flushFrames();
-  f.actor.isOwner = false;
-  send("Enter");
-  const saved = app.hudActions;
-  await app.close();
-  f.actor.isOwner = true;
-  await saved.removestatus(
-    { type: "keydown", key: "Enter", ctrlKey: true },
+    assert.equal(event.defaultPrevented, false);
+    await app.hudActions.removestatus(
+      { type: "keydown", key, ctrlKey: true },
+      { dataset: { statusId: "poisoned" } }
+    );
+  }
+  await app.hudActions.removestatus(
+    { type: "click", ctrlKey: true, button: 0, detail: 0 },
     { dataset: { statusId: "poisoned" } }
   );
-  assert.equal(removals, 2);
+  assert.equal(removals, 0);
+  const click = new document.defaultView.Event("click", {
+    bubbles: true,
+    cancelable: true
+  });
+  Object.assign(click, { ctrlKey: true, button: 0, detail: 1 });
+  button.dispatchEvent(click);
+  assert.equal(click.defaultPrevented, true);
+  await waitFor(() => removals === 1);
+  const saved = app.hudActions;
+  await app.close();
+  await saved.removestatus(
+    { type: "click", ctrlKey: true, button: 0, detail: 1 },
+    { dataset: { statusId: "poisoned" } }
+  );
+  assert.equal(removals, 1);
 });

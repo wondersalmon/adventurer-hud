@@ -1,12 +1,14 @@
-export const usableActivities = (adapter, item) =>
-  adapter
-    .itemActivities(item)
-    .filter(
-      activity =>
-        activity?.id &&
-        activity.canUse !== false &&
-        typeof activity.use === "function"
-    );
+export const usableActivities = (
+  adapter,
+  item,
+  activities = adapter.itemActivities(item)
+) =>
+  activities.filter(
+    activity =>
+      activity?.id &&
+      activity.canUse !== false &&
+      typeof activity.use === "function"
+  );
 
 export function matchesItemSearch(adapter, item, query) {
   const needle = String(query ?? "")

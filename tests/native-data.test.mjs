@@ -6,6 +6,18 @@ import { itemCollection } from "./helpers/rendering.mjs";
 
 restoreGlobalsAfterEach();
 
+test("concentration summary reads native source names and effect count without mutating documents", () => {
+  const item = { name: "Blade Ward <b>test</b>" };
+  const actor = {
+    concentration: { items: new Set([item]), effects: new Set([{}, {}]) }
+  };
+  assert.deepEqual(adapter.concentrationSummary(actor), {
+    count: 2,
+    names: [item.name]
+  });
+  assert.deepEqual(adapter.concentrationSummary({}), { count: 0, names: [] });
+});
+
 test("render usage index preserves first Cast source and rebuilds after activity changes", () => {
   const spell = { id: "spell", type: "spell", system: { activities: [] } };
   const cached = { name: "Cached spell" };
@@ -294,6 +306,33 @@ test("status removal delegates conditions and protects transferred effect defini
   );
   assert.deepEqual(calls, [["poisoned", { active: false }], "deleted"]);
 });
+test("spell concentration ends through native hooks while a manual condition uses the standard toggle", async () => {
+  globalThis.CONFIG = { statusEffects: [{ id: "concentrating" }] };
+  const calls = [];
+  const spell = {
+    id: "blade-ward",
+    uuid: "Actor.hero.ActiveEffect.blade-ward"
+  };
+  const actor = {
+    concentration: { effects: new Set([spell]) },
+    effects: [spell],
+    endConcentration: async (...args) => calls.push(["end", ...args]),
+    toggleStatusEffect: async (...args) => calls.push(["toggle", ...args])
+  };
+  await adapter.removeStatus(actor, "concentrating");
+  await adapter.removeStatus(
+    actor,
+    "effect:Actor.hero.ActiveEffect.blade-ward"
+  );
+  actor.concentration.effects.clear();
+  await adapter.removeStatus(actor, "concentrating");
+  assert.deepEqual(calls, [
+    ["end"],
+    ["end", spell],
+    ["toggle", "concentrating", { active: false }]
+  ]);
+});
+
 test("native status rule references cover concentration and dodge without overriding configured references", () => {
   globalThis.CONFIG = {
     DND5E: {

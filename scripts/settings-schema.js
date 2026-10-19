@@ -25,6 +25,7 @@ export const SETTINGS = Object.freeze({
   autoScrollExpanded: "autoScrollExpanded",
   gmWindowGeometry: "gmWindowGeometry",
   showTokenControl: "showTokenControl",
+  showRatMemory: "showRatMemory",
   fontSize: "fontSize",
   fontSizePx: "fontSizePx",
   fontFamily: "fontFamily",
@@ -403,6 +404,7 @@ export const SETTING_DEFINITIONS = Object.freeze({
   [SETTINGS.showTokenControl]: defineSetting("interface", {
     refresh: "controls"
   }),
+  [SETTINGS.showRatMemory]: defineSetting("interface"),
   [SETTINGS.autoOpenHud]: defineSetting("behavior", {
     defaultValue: false,
     placement: "basic",
@@ -641,6 +643,7 @@ export const getConfigureSettingGroups = (isGM = false) => {
       SETTINGS.language,
       SETTINGS.autoOpenHud,
       SETTINGS.showTokenControl,
+      SETTINGS.showRatMemory,
       SETTINGS.hudActorSelection,
       SETTINGS.openPlayerOnCombat,
       SETTINGS.autoUpdateActor,
@@ -805,6 +808,7 @@ export const getAdvancedSettingGroups = () => ({
   interface: [
     SETTINGS.showVisualEffects,
     SETTINGS.showTokenControl,
+    SETTINGS.showRatMemory,
     SETTINGS.showShortcuts
   ]
 });

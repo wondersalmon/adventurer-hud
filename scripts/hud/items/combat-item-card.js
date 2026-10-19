@@ -80,18 +80,24 @@ export function createCombatItemCardRenderer({
     const usageItem = usage?.item ?? item;
     const usageActivityId = usage?.activityId ?? activityId;
     const detailsItem = usage?.detailsItem ?? item;
-    const activities = usableActivities(adapter, item);
+    const itemActivities = adapter.itemActivities(item);
+    const activities =
+      visibility.activityPicker && !usageActivityId
+        ? usableActivities(adapter, item, itemActivities)
+        : [];
     const offersActivities =
       visibility.activityPicker && !usageActivityId && activities.length > 1;
-    const detailActivities = adapter.itemActivities(detailsItem);
+    const detailActivities =
+      detailsItem === item
+        ? itemActivities
+        : adapter.itemActivities(detailsItem);
     // An unresolved parent or removed Activity has no unambiguous per-action details.
     const hideActivityDetails = activityId
       ? !detailActivities.some(activity => activity.id === activityId)
       : !usageActivityId && detailActivities.length > 1;
     const favorite = isFavorite(hudState.favoriteEntries, item.id, activityId);
     const role = adapter.itemRole(item);
-    const passive =
-      item.type === "feat" && !adapter.itemActivities(item).length;
+    const passive = item.type === "feat" && !itemActivities.length;
     const isSpell = role === "spell";
     const isWeapon = role === "weapon";
     const detailFields = visibility.cardDetailFields;
@@ -103,9 +109,7 @@ export function createCombatItemCardRenderer({
     const canPrepare = !inFavorites && Boolean(preparation?.canPrepare);
     const showFavorite = visibility.favorites;
     const activityName = activityId
-      ? adapter
-          .itemActivities(item)
-          .find(activity => activity.id === activityId)?.name
+      ? itemActivities.find(activity => activity.id === activityId)?.name
       : null;
     const name =
       activityId && activityName ? `${item.name}: ${activityName}` : item.name;

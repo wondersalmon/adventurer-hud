@@ -67,7 +67,27 @@ export const dnd5eActor = {
   },
   openInventorySheet: actor =>
     actor.sheet?.render({ force: true, tab: "inventory" }),
+  concentrationSummary(actor) {
+    const concentration = actor.concentration;
+    return {
+      count: concentration?.effects?.size ?? 0,
+      names: [
+        ...new Set(
+          [...(concentration?.items ?? [])]
+            .map(item => item.name)
+            .filter(Boolean)
+        )
+      ]
+    };
+  },
   removeStatus(actor, id) {
+    const concentration = actor.concentration?.effects;
+    if (
+      this.statusKind({ id }) === "concentrating" &&
+      concentration?.size &&
+      typeof actor.endConcentration === "function"
+    )
+      return actor.endConcentration();
     if (this.statusDefinitions().some(status => status.id === id))
       return actor.toggleStatusEffect(id, { active: false });
     // Only delete effects embedded directly in this actor, never transferred item definitions.
@@ -81,8 +101,14 @@ export const dnd5eActor = {
       !effect.disabled &&
       !effect.isSuppressed &&
       effect.isOwner !== false
-    )
+    ) {
+      if (
+        concentration?.has(effect) &&
+        typeof actor.endConcentration === "function"
+      )
+        return actor.endConcentration(effect);
       return effect.delete();
+    }
   },
   abilityDefinitions: () => abilities,
   abilityData: (actor, id) => actor.system.abilities?.[id] ?? {},

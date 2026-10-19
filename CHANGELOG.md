@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.2.1
+
+### New
+
+- **Ping hints:** Added Alt/Shift hints to ping buttons and the companion token picker.
+
+### Changes and improvements
+
+- **Recent actions:** Unavailable repeats explain why they cannot be used.
+- **Cards:** Item and action cards update with less processing.
+
+### Fixes
+
+- **Actions:** Busy controls remain locked after panel updates, with feedback during execution and the brief wait between actions.
+- **Concentration:** Ctrl + click ends spell concentration through the native D&D command; hints show its source and explain when all maintained effects will end.
+- **GM ping:** Pinging a creature no longer blocks other controls or forces a panel refresh.
+
+Documentation: [Player guide](docs/player-guide.md) · [Companions](docs/companions-guide.md) · [Layout editor](docs/layout-guide.md).
+
 ## 2.2.0
 
 ### New

@@ -52,6 +52,7 @@ export async function openEmptyGmHud(
         syncLayout: () => synchronizeHudLayout(app.element, hudState, t)
       });
       app.updateHudEditControl?.();
+      sceneRunner.syncControls();
     }
   };
   const refreshScheduler = createRefreshScheduler(refreshHud);
@@ -64,9 +65,10 @@ export async function openEmptyGmHud(
   });
   const { onCombatChange } = gmSelection;
   const sceneRunner = createHudRollRunner({
-    getApp: () => app,
+    getApp: () => (!disposed && state.session === session ? app : null),
     refreshHud,
-    refreshScheduler
+    refreshScheduler,
+    t
   });
   const performAndRefresh = callback =>
     sceneRunner.performAndRefresh(() =>
@@ -92,6 +94,7 @@ export async function openEmptyGmHud(
     layoutState: hudState,
     onDispose: () => {
       disposed = true;
+      sceneRunner.dispose();
       unsubscribe();
     },
     actor: null,

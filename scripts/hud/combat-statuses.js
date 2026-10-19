@@ -42,10 +42,33 @@ export function createCombatStatusRenderer({
     const statusMarkup = status => {
       const label = statusLabel(status);
       const uuid = status.reference ?? status.uuid;
-      const tooltip = uuid
-        ? `<section class="loading" data-uuid="${escapeHTML(uuid)}"><i class="fas fa-spinner fa-spin-pulse"></i></section>`
-        : label;
       const kind = statusKind(status);
+      const concentration =
+        kind === "concentrating" ? adapter.concentrationSummary?.(actor) : null;
+      const sources = concentration?.names?.length
+        ? t("Combat.ConcentrationSources").replace(
+            "{spells}",
+            concentration.names.join(", ")
+          )
+        : "";
+      const hint =
+        actor.isOwner === false
+          ? t("Warnings.NoPermission")
+          : kind === "concentrating"
+            ? t(
+                concentration?.count > 1
+                  ? "Combat.EndAllConcentrationHint"
+                  : "Combat.EndConcentrationHint"
+              ).replace("{count}", String(concentration?.count ?? 1))
+            : t("Combat.RemoveStatusHint");
+      // Native rich tooltip loading replaces its whole content. Use a complete
+      // concentration tooltip so its source and removal warning remain visible.
+      const tooltip =
+        kind === "concentrating"
+          ? `<strong>${escapeHTML(label)}</strong>${sources ? `<p>${escapeHTML(sources)}</p>` : ""}<p>${escapeHTML(hint)}</p>`
+          : uuid
+            ? `<section class="loading" data-uuid="${escapeHTML(uuid)}"><i class="fas fa-spinner fa-spin-pulse"></i></section>`
+            : `${escapeHTML(label)}<p>${escapeHTML(hint)}</p>`;
       const classes = [
         "ws-status",
         kind && `ws-status-${kind}`,
@@ -54,7 +77,7 @@ export function createCombatStatusRenderer({
         .filter(Boolean)
         .join(" ");
       return `
-        <button type="button" class="${classes}" aria-label="${escapeHTML(label)}" aria-description="${escapeHTML(t("Combat.RemoveStatusHint"))}" data-status-id="${escapeHTML(status.id)}" data-tooltip="${escapeHTML(tooltip)}" ${uuid ? 'data-tooltip-class="dnd5e2 dnd5e-tooltip effect-tooltip" data-tooltip-direction="RIGHT"' : ""}>
+        <button type="button" class="${classes}" aria-label="${escapeHTML(label)}" aria-description="${escapeHTML([sources, hint].filter(Boolean).join(". "))}" data-status-id="${escapeHTML(status.id)}" data-tooltip="${escapeHTML(tooltip)}" ${uuid && kind !== "concentrating" ? 'data-tooltip-class="dnd5e2 dnd5e-tooltip effect-tooltip" data-tooltip-direction="RIGHT"' : ""}>
           <img src="${escapeHTML(statusIcon(status))}" alt="">
         </button>
       `;

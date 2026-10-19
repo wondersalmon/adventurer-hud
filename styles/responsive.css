@@ -133,7 +133,12 @@
 .ws-rolls-dialog
   .ws-player-columns.ws-combat-view
   .ws-combat-actions
-  > .ws-combat-filters {
+  > .ws-combat-filters,
+.ws-rolls-dialog
+  .ws-player-columns
+  :is(.ws-player-actions, .ws-hud-extra-lane, .ws-combat-category-sections):has(
+    > :is(.ws-combat-category-section, .ws-exploration-section)
+  ) {
   grid-template-columns: repeat(
     auto-fill,
     minmax(
