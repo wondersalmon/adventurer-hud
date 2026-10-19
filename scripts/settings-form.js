@@ -8,6 +8,7 @@ import {
   cardDetailFields,
   validCardDetailFields
 } from "./settings-schema.js";
+import { ratActive } from "./hud/rat-memory.js";
 
 export function prepareSettingsGroups({
   groups,
@@ -127,6 +128,7 @@ export function prepareSettingsGroups({
       ),
       settings: keys
         .filter(key => key !== SETTINGS.hudPreferredActor)
+        .filter(key => key !== SETTINGS.showRatMemory || ratActive())
         .map(key => {
           const value = valueFor(key);
           const choices =

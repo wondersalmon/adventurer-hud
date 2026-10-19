@@ -59,7 +59,8 @@ export function renderRecentActions({
       let label,
         img,
         icon = "fa-dice-d20",
-        blocked = false;
+        blocked = false,
+        reason = !actor.isOwner ? "Warnings.NoPermission" : null;
       if (itemId) {
         const item = actor.items.get(itemId);
         if (!item) return "";
@@ -69,10 +70,19 @@ export function renderRecentActions({
         if (activityId && !activity) return "";
         label = activity ? `${item.name}: ${activity.name}` : item.name;
         img = activity?.img ?? item.img;
-        blocked = Boolean(
-          adapter.itemUseState?.(item, activityId)?.blocked ||
-          activity?.canUse === false
-        );
+        const state = adapter.itemUseState?.(item, activityId);
+        blocked = Boolean(state?.blocked || activity?.canUse === false);
+        if (!reason && blocked) {
+          const preparation =
+            item.type === "spell" ? adapter.spellPreparation?.(item) : null;
+          reason =
+            preparation?.canPrepare && !preparation.prepared
+              ? "Combat.UnpreparedSpell"
+              : (state?.reason ??
+                (activity?.canUse === false
+                  ? "Quick.ActivityUnavailable"
+                  : "Recent.Unavailable"));
+        }
       } else if (action === "ability") {
         if (!key || !Object.keys(adapter.abilityData(actor, key)).length)
           return "";
@@ -92,7 +102,7 @@ export function renderRecentActions({
         label = tool.name;
         img = tool?.img;
       }
-      const title = `${t("Recent.Repeat")}: ${label}${blocked ? ` — ${t("Recent.Unavailable")}` : ""}`;
+      const title = `${t("Recent.Repeat")}: ${label}${reason ? ` — ${t(reason)}` : ""}`;
       return `<button type="button" class="ws-button ws-recent-action" data-recent-action="true" ${Object.entries(
         entry
       )
@@ -102,7 +112,7 @@ export function renderRecentActions({
         )
         .join(
           " "
-        )} title="${escapeHTML(title)}" aria-label="${escapeHTML(title)}" ${!actor.isOwner || blocked ? "disabled" : ""}>${img ? `<img src="${escapeHTML(img)}" alt="">` : `<i class="fa-solid ${escapeHTML(icon)}" aria-hidden="true"></i>`}</button>`;
+        )} title="${escapeHTML(title)}" data-tooltip="${escapeHTML(escapeHTML(title))}" aria-label="${escapeHTML(title)}" ${!actor.isOwner || blocked ? "disabled" : ""}>${img ? `<img src="${escapeHTML(img)}" alt="">` : `<i class="fa-solid ${escapeHTML(icon)}" aria-hidden="true"></i>`}</button>`;
     })
     .filter(Boolean)
     .join("");

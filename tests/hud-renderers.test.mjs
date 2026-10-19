@@ -12,7 +12,45 @@ import {
 } from "./helpers/rendering.mjs";
 
 import { createCombatRenderer } from "../scripts/hud/combat.js";
+import { createCombatStatusRenderer } from "../scripts/hud/combat-statuses.js";
 import { createItemPanelRenderer } from "../scripts/hud/items/item-panels.js";
+
+test("concentration tooltip preserves escaped sources and an explicit all-effects Ctrl-click hint", () => {
+  installSettings();
+  const renderer = createCombatStatusRenderer({
+    actor: { isOwner: true, statuses: new Set(["concentrating"]), effects: [] },
+    adapter: {
+      statusDefinitions: () => [
+        {
+          id: "concentrating",
+          name: "Concentration",
+          reference: "JournalEntry.rules"
+        }
+      ],
+      statusKind: () => "concentrating",
+      concentrationSummary: () => ({
+        count: 2,
+        names: ["Blade Ward <img src=x>"]
+      })
+    },
+    hudState: {},
+    escapeHTML,
+    t: key =>
+      ({
+        "Combat.ConcentrationSources": "Concentrating on: {spells}",
+        "Combat.EndAllConcentrationHint": "End all {count}: Ctrl+click"
+      })[key] ?? key
+  });
+  const button = fragment(renderer.combatStatuses()).querySelector(
+    '[data-status-id="concentrating"]'
+  );
+  const tooltip = fragment(button.dataset.tooltip);
+  assert.match(tooltip.textContent, /Blade Ward <img src=x>/);
+  assert.match(tooltip.textContent, /End all 2: Ctrl\+click/);
+  assert.equal(tooltip.querySelector("img"), null);
+  assert.equal(tooltip.querySelector(".loading"), null);
+  assert.doesNotMatch(button.getAttribute("aria-description"), /Enter|Space/);
+});
 
 test("GM action-only tabs include ordinary spells and keep legendary activities separate", () => {
   const weapon = { id: "sword", name: "Sword", type: "weapon" };

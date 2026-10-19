@@ -28,6 +28,7 @@ import { bindExtraColumn } from "./extra-column.js";
 import { synchronizeHudLayout } from "./hud-layout.js";
 import { bindHudLayoutDrag } from "./hud-layout-interactions.js";
 import { bindHudAxisResize } from "./axis-resize.js";
+import { bindRatMemory } from "../rat-memory.js";
 
 export async function activateHudWindow({
   actor,
@@ -70,6 +71,7 @@ export async function activateHudWindow({
 }) {
   app.disposeHudSession?.();
   let disposed = false;
+  let memory = null;
   let itemPreview = null;
   let actorDrop = null;
   let effectsMaster = Boolean(visualEffectsEnabled);
@@ -222,6 +224,7 @@ export async function activateHudWindow({
   };
 
   app.refreshFromSettings = () => {
+    memory?.sync();
     Object.assign(visibility, readVisibility());
     syncPreferences?.();
     refreshHud();
@@ -235,6 +238,11 @@ export async function activateHudWindow({
     restoreHudDomState(app.element, domState);
   } else await app.render({ force: true });
   await app.revealHud?.();
+  memory = bindRatMemory({
+    app,
+    t,
+    isActive: () => !disposed && app.rendered && !app.hudStowed
+  });
   effectsElement = app.element;
   for (const name of Array.from(app.element.classList)) {
     if (name.startsWith("ws-font-")) app.element.classList.remove(name);
@@ -531,6 +539,7 @@ export async function activateHudWindow({
   app.disposeHudSession = () => {
     if (disposed) return;
     disposed = true;
+    memory?.dispose();
     layout.dispose();
     gmLayout.dispose();
     extraLayout.dispose();

@@ -11,11 +11,12 @@ test("right-column expansion and collapse restore only that column, including co
 }) => {
   const { baseline, css } = await layoutFixture("ru");
   for (const action of ["togglefavorites", "combatfilter", "view"]) {
+    // Match production header classes so the grid does not order the control as body content.
     const attributes =
       action === "combatfilter"
         ? 'class="ws-combat-filter" data-category="features"'
         : action === "view"
-          ? 'data-view="skills" data-exploration-section="true"'
+          ? 'class="ws-nav ws-section-toggle ws-button" data-view="skills" data-exploration-section="true"'
           : "";
     const section =
       action === "combatfilter"

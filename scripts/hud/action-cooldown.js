@@ -5,12 +5,14 @@ export function createActionCooldown({
   now = () => performance.now()
 } = {}) {
   let nextAllowed = -Infinity;
-  return () => {
+  const remaining = () => Math.max(0, nextAllowed - now());
+  const allow = () => {
     const time = now();
     if (time < nextAllowed) return false;
     nextAllowed = time + duration;
     return true;
   };
+  return Object.assign(allow, { remaining });
 }
 
 const actorCooldowns = new WeakMap();

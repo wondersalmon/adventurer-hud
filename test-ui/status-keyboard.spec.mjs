@@ -3,7 +3,7 @@ import { layoutFixture } from "./layout-fixture.mjs";
 import { loadHudModules } from "./module-fixture.mjs";
 
 for (const theme of ["dark", "light"]) {
-  test(`${theme} status uses native keyboard focus and removes once per guarded gesture`, async ({
+  test(`${theme} status keeps keyboard focus but removes only on Ctrl pointer click`, async ({
     page
   }) => {
     const errors = [];
@@ -65,15 +65,97 @@ for (const theme of ["dark", "light"]) {
     await status.press("Space");
     expect(await page.evaluate(() => window.statusCalls)).toBe(0);
     await status.press("Control+Enter");
-    await expect.poll(() => page.evaluate(() => window.statusCalls)).toBe(1);
     await status.press("Control+Space");
-    await expect.poll(() => page.evaluate(() => window.statusCalls)).toBe(2);
+    expect(await page.evaluate(() => window.statusCalls)).toBe(0);
+    await status.click({ modifiers: ["Control"] });
+    await expect.poll(() => page.evaluate(() => window.statusCalls)).toBe(1);
     await page.evaluate(() => window.disposeStatuses());
-    await status.press("Control+Enter");
-    expect(await page.evaluate(() => window.statusCalls)).toBe(2);
+    await status.click({ modifiers: ["Control"] });
+    expect(await page.evaluate(() => window.statusCalls)).toBe(1);
     expect(errors).toEqual([]);
   });
 }
+
+test("Ctrl click ends Blade Ward concentration through the native Actor command", async ({
+  page
+}) => {
+  const fixture = await layoutFixture("en");
+  await page.setContent(
+    `<style>${fixture.baseline}${fixture.css}</style><section class="ws-rolls-dialog"><div id="statuses"></div></section>`
+  );
+  await loadHudModules(page, {
+    "hud/combat-statuses.js": ["createCombatStatusRenderer"],
+    "hud/status-interactions.js": ["bindStatusInteractions"],
+    "hud/actions.js": ["createHudActions"],
+    "dnd5e/index.js": ["dnd5eAdapter"]
+  });
+  await page.evaluate(() => {
+    const spell = {
+      id: "ward",
+      statuses: new Set(["concentrating"]),
+      name: "Blade Ward"
+    };
+    window.CONFIG = {
+      statusEffects: [{ id: "concentrating", name: "Concentration" }]
+    };
+    window.game = {
+      user: {},
+      settings: { get: () => false },
+      i18n: { localize: key => key }
+    };
+    window.concentrationEnds = 0;
+    const actor = {
+      id: "hero",
+      isOwner: true,
+      effects: [spell],
+      statuses: new Set(["concentrating"]),
+      concentration: { effects: new Set([spell]) },
+      endConcentration: async () => {
+        window.concentrationEnds++;
+        actor.effects = [];
+        actor.statuses.clear();
+        actor.concentration.effects.clear();
+      },
+      toggleStatusEffect: () => {
+        throw new Error(
+          "Spell concentration must use the native concentration command"
+        );
+      }
+    };
+    const root = document.querySelector("#statuses");
+    const renderer = window.createCombatStatusRenderer({
+      actor,
+      adapter: window.dnd5eAdapter,
+      hudState: {},
+      escapeHTML: key => key,
+      t: key => key
+    });
+    const refresh = () => {
+      root.innerHTML = renderer.combatStatuses();
+    };
+    refresh();
+    const actions = window.createHudActions({
+      actor,
+      adapter: window.dnd5eAdapter,
+      t: key => key,
+      performAndRefresh: async callback => {
+        await callback();
+        refresh();
+      }
+    });
+    window.bindStatusInteractions({
+      element: root,
+      isActive: () => true,
+      remove: (event, target) => actions.removestatus(event, target)
+    });
+  });
+  const status = page.locator('[data-status-id="concentrating"]');
+  await status.click();
+  expect(await page.evaluate(() => window.concentrationEnds)).toBe(0);
+  await status.click({ modifiers: ["Control"] });
+  await expect(status).toHaveCount(0);
+  expect(await page.evaluate(() => window.concentrationEnds)).toBe(1);
+});
 
 test("concentration stays left and visible when the player effect row overflows", async ({
   page

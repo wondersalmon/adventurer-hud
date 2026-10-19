@@ -1,10 +1,59 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { hudFixture } from "./helpers/hud.mjs";
-import { itemCollection } from "./helpers/rendering.mjs";
-import { restoreGlobalsAfterEach } from "./helpers/foundry.mjs";
+import { itemCollection, fragment, escapeHTML } from "./helpers/rendering.mjs";
+import {
+  installSettings,
+  restoreGlobalsAfterEach
+} from "./helpers/foundry.mjs";
+import {
+  rememberRecentAction,
+  renderRecentActions
+} from "../scripts/hud/recent-actions.js";
 
 restoreGlobalsAfterEach();
+
+test("recent action labels explain native unavailability without blocking resource overrides", () => {
+  installSettings();
+  const activity = { id: "cast", name: "Cast", canUse: true };
+  const item = { id: "ward", name: "Blade Ward <b>test</b>", type: "spell" };
+  const actor = {
+    uuid: "Actor.reason-test",
+    isOwner: true,
+    items: itemCollection([item])
+  };
+  let state = { blocked: false, reason: "Quick.NoCharges" };
+  let prepared = true;
+  const adapter = {
+    itemActivities: () => [activity],
+    itemUseState: () => state,
+    spellPreparation: () => ({ canPrepare: true, prepared })
+  };
+  rememberRecentAction(actor, {
+    action: "useactivity",
+    itemId: item.id,
+    activityId: activity.id
+  });
+  const button = () =>
+    fragment(
+      renderRecentActions({
+        actor,
+        adapter,
+        toolState: {},
+        t: key => key,
+        escapeHTML
+      })
+    ).querySelector("button");
+  assert.equal(button().disabled, false);
+  state = { blocked: true, reason: "Quick.ActivityUnavailable" };
+  assert.match(button().title, /Quick.ActivityUnavailable/);
+  assert.equal(button().disabled, true);
+  prepared = false;
+  assert.match(button().title, /Combat.UnpreparedSpell/);
+  actor.isOwner = false;
+  assert.match(button().title, /Warnings.NoPermission/);
+  assert.equal(button().querySelector("b"), null);
+});
 
 test("skill/tool repeats retain native keys and separate character histories", async t => {
   const f = await hudFixture({

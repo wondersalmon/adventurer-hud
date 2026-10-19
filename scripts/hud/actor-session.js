@@ -61,6 +61,7 @@ export async function openActorHud(
   /** @type {any} Foundry ApplicationV2 instance. */
   let app = null;
   let disposed = false;
+  let syncActionState = () => {};
   let recoveringActor = false;
   const isSessionCurrent = () => !disposed && state.session === session;
   const isActorCurrent = createActorSessionGuard({
@@ -260,6 +261,7 @@ export async function openActorHud(
       syncLayout: () => app?.syncHudLayout?.(),
       beforeReplace: () => app?.closeDiceTray?.()
     });
+    syncActionState();
     if (
       hudState.armorClassExpanded &&
       region !== "search" &&
@@ -317,12 +319,14 @@ export async function openActorHud(
     }
     playerWasCombatant = joined;
   };
-  const { performRoll, performAndRefresh } = createHudRollRunner({
+  const mutationRunner = createHudRollRunner({
     canStartMutation,
-    getApp: () => app,
+    getApp: () => (isSessionCurrent() ? app : null),
     refreshHud,
-    refreshScheduler
+    refreshScheduler,
+    t
   });
+  const { performRoll, performAndRefresh } = mutationRunner;
   const sceneRunner = createHudRollRunner({
     disabledActions: [
       "gmremove",
@@ -333,8 +337,13 @@ export async function openActorHud(
     ],
     getApp: () => (isSessionCurrent() ? app : null),
     refreshHud,
-    refreshScheduler
+    refreshScheduler,
+    t
   });
+  syncActionState = () => {
+    mutationRunner.syncControls();
+    sceneRunner.syncControls();
+  };
   const performSceneAction = callback =>
     sceneRunner.performAndRefresh(() =>
       gmSelection.duringSceneAction(callback)
@@ -440,6 +449,8 @@ export async function openActorHud(
     onDispose: () => {
       unsubscribePreferences();
       disposed = true;
+      mutationRunner.dispose();
+      sceneRunner.dispose();
       hpDialog.dispose();
       companions?.dispose();
       app.stopFamiliarVision = null;

@@ -1,16 +1,14 @@
-/** Keep the guarded removal gesture identical for dispatch and native handlers. */
+/** Only Ctrl + primary pointer click removes a status; keyboard clicks have detail 0. */
 export function isStatusRemovalEvent(event) {
   return Boolean(
     event?.ctrlKey &&
-    (event.type === "click"
-      ? !(event.button > 0)
-      : event.type === "keydown" &&
-        ["Enter", " "].includes(event.key) &&
-        !event.repeat)
+    event.type === "click" &&
+    !(event.button > 0) &&
+    event.detail !== 0
   );
 }
 
-/** Bind both pointer and keyboard removal; prevent native button double activation. */
+/** Capture the pointer removal gesture before native application routing. */
 export function bindStatusInteractions({ element, isActive, remove }) {
   const activate = event => {
     const status = event.target?.closest?.("[data-status-id]");
@@ -26,9 +24,7 @@ export function bindStatusInteractions({ element, isActive, remove }) {
     void remove(event, status);
   };
   element.addEventListener("click", activate, true);
-  element.addEventListener("keydown", activate, true);
   return () => {
     element.removeEventListener("click", activate, true);
-    element.removeEventListener("keydown", activate, true);
   };
 }

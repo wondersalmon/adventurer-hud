@@ -1091,7 +1091,7 @@ test("exploration uses the same responsive columns even without favorites", asyn
       const info = await page.locator(".ws-player-info").boundingBox();
       const actions = await page.locator(".ws-player-actions").boundingBox();
       const nav = await page
-        .locator(".ws-exploration-section")
+        .locator('[data-exploration-section="true"]')
         .first()
         .boundingBox();
       if (width < 600) {
@@ -1389,7 +1389,7 @@ test("player health precedes abilities and navigation and wide panels share the 
     font: "medium"
   });
   const nav = await page
-    .locator(".ws-exploration-section")
+    .locator('[data-exploration-section="true"]')
     .first()
     .boundingBox();
   const abilities = await page.locator(".ws-ability-table").boundingBox();
@@ -1852,50 +1852,97 @@ test("companion cards leave room for names with actions below the information", 
   }
 });
 
-test("exploration sections keep their icons and content together at every wide size", async ({
+test("exploration section buttons reflow like combat categories while their content stays below navigation", async ({
   page
 }) => {
-  for (const width of [600, 800, 1100, 1737]) {
-    await page.setViewportSize({ width: 1900, height: 900 });
-    await showPanel(page, "player-inventory", {
-      width,
-      height: 640,
-      threshold: 480,
-      font: "medium"
-    });
-    const headers = page.locator('[data-exploration-section="true"]');
-    await expect(headers).toHaveCount(3);
-    for (const header of await headers.all()) {
-      await expect(header).toBeVisible();
-      await expect(header.locator(".ws-nav-main i")).toBeVisible();
-      const box = await header.boundingBox();
-      expect(box.width).toBeLessThanOrEqual(
-        (await page.locator(".ws-player-actions").boundingBox()).width
-      );
-      expect(
-        await header.evaluate(node => node.scrollWidth <= node.clientWidth + 1)
-      ).toBe(true);
+  test.setTimeout(60000);
+  await page.setViewportSize({ width: 1900, height: 900 });
+  for (const language of ["en", "ru"])
+    for (const font of ["medium", "extralarge"]) {
+      const combatColumns = new Map();
+      await showPanel(page, "player-combat", {
+        width: 1100,
+        height: 640,
+        threshold: 480,
+        language,
+        font
+      });
+      for (const width of [1100, 600, 800, 1737]) {
+        await page.locator(".ws-rolls-dialog").evaluate((node, width) => {
+          node.style.width = `${width}px`;
+          synchronizePlayerLayout(document, window.hudLayoutThreshold);
+        }, width);
+        combatColumns.set(
+          width,
+          await page
+            .locator(".ws-combat-actions > .ws-combat-filters")
+            .evaluate(
+              node =>
+                getComputedStyle(node).gridTemplateColumns.split(" ").length
+            )
+        );
+      }
+      for (const scenario of ["player-inventory", "player-spells"]) {
+        await showPanel(page, scenario, {
+          width: 1100,
+          height: 640,
+          threshold: 480,
+          language,
+          font,
+          theme: language === "en" ? "light" : "dark"
+        });
+        for (const width of [1100, 600, 800, 1737, 600]) {
+          await page.locator(".ws-rolls-dialog").evaluate((node, width) => {
+            node.style.width = `${width}px`;
+            synchronizePlayerLayout(document, window.hudLayoutThreshold);
+          }, width);
+          const headers = page.locator('[data-exploration-section="true"]');
+          await expect(headers).toHaveCount(3);
+          const layout = await page
+            .locator(".ws-player-actions")
+            .evaluate(area => {
+              const headers = [
+                ...area.querySelectorAll('[data-exploration-section="true"]')
+              ];
+              const bounds = headers.map(node => node.getBoundingClientRect());
+              const body = area
+                .querySelector(".ws-expanded > .ws-exploration-section-body")
+                .getBoundingClientRect();
+              return {
+                firstRow: bounds.filter(
+                  box => Math.abs(box.y - bounds[0].y) < 1
+                ).length,
+                bodyBelow:
+                  body.top >= Math.max(...bounds.map(box => box.bottom)),
+                bodyWidth: body.width,
+                areaWidth: area.clientWidth,
+                clipped: headers.some(
+                  node => node.scrollWidth > node.clientWidth + 1
+                ),
+                visible: bounds.every(box => box.width > 0 && box.height > 0)
+              };
+            });
+          expect(
+            layout.firstRow,
+            `${scenario}, ${language}, ${font}, ${width}`
+          ).toBe(combatColumns.get(width));
+          expect(layout.bodyBelow).toBe(true);
+          expect(layout.bodyWidth).toBeCloseTo(layout.areaWidth, 0);
+          expect(layout.clipped).toBe(false);
+          expect(layout.visible).toBe(true);
+          for (const header of await headers.all())
+            await expect(header.locator(".ws-nav-main i")).toBeVisible();
+          await expect(page.locator(".ws-column-divider")).toBeVisible();
+          await expect(page.locator(".ws-column-divider")).toHaveCSS(
+            "width",
+            "8px"
+          );
+          await expect(
+            page.locator('.ws-player-subview > .ws-nav[data-view="main"]')
+          ).toBeHidden();
+        }
+      }
     }
-    const boxes = await headers.evaluateAll(nodes =>
-      nodes.map(node => {
-        const b = node.getBoundingClientRect();
-        return { x: b.x, y: b.y, bottom: b.bottom };
-      })
-    );
-    const panel = await page
-      .locator("#ws-exploration-content-inventory")
-      .boundingBox();
-    expect(panel.y).toBeGreaterThanOrEqual(
-      Math.max(...boxes.map(b => b.bottom))
-    );
-    expect(boxes[1].x).toBeCloseTo(boxes[0].x, 0);
-    expect(boxes[1].y).toBeGreaterThan(boxes[0].y);
-    await expect(page.locator(".ws-column-divider")).toBeVisible();
-    await expect(page.locator(".ws-column-divider")).toHaveCSS("width", "8px");
-    await expect(
-      page.locator('#ws-inventory > .ws-nav[data-view="main"]')
-    ).toBeHidden();
-  }
 });
 
 test("wide exploration defaults to skills while narrow exploration keeps its home navigation", async ({
