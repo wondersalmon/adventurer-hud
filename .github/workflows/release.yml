@@ -1,29 +1,51 @@
 name: Release
+run-name: Release ${{ inputs.tag || github.ref_name }}
 
 on:
   push:
-    tags:
-      - "v*"
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing stable GitHub release tag (for example v1.2.0; no prereleases)"
+        description: "Existing release tag (stable or beta)"
         required: true
         type: string
+      stage:
+        description: "Resume GitHub release creation or retry Foundry publication"
+        type: choice
+        options: [foundry, release]
+        default: foundry
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   release:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || inputs.stage == 'release'
     runs-on: ubuntu-latest
-    concurrency:
-      group: github-release-${{ github.ref_name }}
-      cancel-in-progress: false
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
-      - name: Check out repository
+      - name: Check out release tag
         uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+
+      - name: Check out pinned private release toolkit
+        uses: actions/checkout@v7
+        with:
+          repository: wondersalmon/foundry-release-tools
+          ref: 9ad17b969cb2c6ce51a92b036f36b3be84fa8dc5
+          path: dev/release-tools
+          ssh-key: ${{ secrets.RELEASE_TOOLS_SSH_KEY }}
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -31,14 +53,14 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Install pinned toolkit dependencies
+        run: npm ci --prefix dev/release-tools --omit=dev --ignore-scripts
+
+      - name: Verify tag and package version
+        run: node --input-type=module -e 'import {parseVersion} from "./dev/release-tools/src/contract.mjs"; import {readFile} from "node:fs/promises"; const p=JSON.parse(await readFile("package.json","utf8")); if(parseVersion(p.version).tag!==process.env.RELEASE_TAG) throw new Error("Tag and package version differ");'
+
       - name: Install dependencies
         run: npm ci
-
-      - name: Verify tag matches package version
-        shell: bash
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          test "v${VERSION}" = "${GITHUB_REF_NAME}"
 
       - name: Run checks
         run: npm run check:ci
@@ -49,39 +71,29 @@ jobs:
       - name: Check browser layout
         run: npm run test:ui
 
-      - name: Upload UI diagnostics
+      - name: Upload release diagnostics
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: release-ui-diagnostics-${{ github.ref_name }}
+          name: release-diagnostics-${{ inputs.tag || github.ref_name }}
           path: |
+            dev/coverage
+            dev/benchmarks
             dev/playwright-report
             dev/test-results
-            dev/coverage
           if-no-files-found: ignore
           retention-days: 7
 
       - name: Build release assets
-        run: npm run build
+        run: npm run release:build -- --release
 
-      - name: Prepare release notes
-        run: npm run release:notes
+      - name: Verify release package
+        run: npm run release:verify -- --release
 
-      - name: Publish GitHub release
+      - name: Publish or resume GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          CHANNEL_ARGS=()
-          if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
-            CHANNEL_ARGS=(--prerelease --latest=false)
-          fi
-          gh release create "${GITHUB_REF_NAME}" \
-            dist/module.json dist/adventurer-hud.zip \
-            --verify-tag \
-            --notes-file dist/release-notes.md \
-            --title "Adventurer HUD ${GITHUB_REF_NAME}" \
-            "${CHANNEL_ARGS[@]}"
+        run: npm run release:github
 
   publish-foundry:
     concurrency:
@@ -89,7 +101,7 @@ jobs:
       cancel-in-progress: false
     timeout-minutes: 10
     needs: release
-    if: ${{ always() && !contains(inputs.tag || github.ref_name, '-') && (github.event_name == 'workflow_dispatch' || needs.release.result == 'success') }}
+    if: ${{ always() && !contains(inputs.tag || github.ref_name, '-') && ((github.event_name == 'workflow_dispatch' && inputs.stage != 'release') || needs.release.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -99,21 +111,23 @@ jobs:
       - name: Check out release tag
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag || github.ref_name }}
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+
+      - name: Check out pinned private release toolkit
+        uses: actions/checkout@v7
+        with:
+          repository: wondersalmon/foundry-release-tools
+          ref: 9ad17b969cb2c6ce51a92b036f36b3be84fa8dc5
+          path: dev/release-tools
+          ssh-key: ${{ secrets.RELEASE_TOOLS_SSH_KEY }}
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version: 22
 
-      - name: Check out publication tooling
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.workflow_sha }}
-          path: .release-tools
-          persist-credentials: false
-
       - name: Verify release assets and publish to Foundry
         env:
           FOUNDRY_RELEASE_TOKEN: ${{ secrets.FOUNDRY_RELEASE_TOKEN }}
-        run: node .release-tools/tools/publish-foundry.mjs
+        run: node dev/release-tools/bin/publish-foundry.mjs

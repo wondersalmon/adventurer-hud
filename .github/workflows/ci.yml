@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - "codex/**"
       - "beta/**"
       - "feature/**"
       - "release/**"
@@ -53,7 +54,28 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Build release assets
+      - name: Check out pinned private release toolkit for trusted builds
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/checkout@v7
+        with:
+          repository: wondersalmon/foundry-release-tools
+          ref: 9ad17b969cb2c6ce51a92b036f36b3be84fa8dc5
+          path: dev/release-tools
+          ssh-key: ${{ secrets.RELEASE_TOOLS_SSH_KEY }}
+          persist-credentials: false
+
+      - name: Install pinned toolkit dependencies
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        run: npm ci --prefix dev/release-tools --omit=dev --ignore-scripts
+
+      - name: Build and verify with shared toolkit
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          npm run release:build
+          npm run release:verify
+
+      - name: Build fork package without private credentials
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
         run: npm run build
 
       - name: Upload build artifact
@@ -63,5 +85,7 @@ jobs:
           path: |
             dist/module.json
             dist/adventurer-hud.zip
+            dist/release-notes.md
+            dist/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14

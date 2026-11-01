@@ -24,7 +24,11 @@
     "test:coverage": "node tools/test-suite.mjs all --coverage",
     "validate": "node tools/validate.mjs",
     "version:sync": "node tools/sync-version.mjs",
-    "test:ui": "playwright test"
+    "test:ui": "playwright test",
+    "release:verify": "node dev/release-tools/bin/package.mjs --verify",
+    "release:github": "node dev/release-tools/bin/publish-github.mjs",
+    "release:setup": "node tools/files.mjs --setup-release-tools",
+    "release:build": "node dev/release-tools/bin/package.mjs"
   },
   "engines": {
     "node": ">=22"
@@ -40,5 +44,25 @@
     "stylelint": "^17.16.0",
     "stylelint-config-standard": "^40.0.0",
     "typescript": "^7.0.2"
+  },
+  "foundryRelease": {
+    "toolkitRepository": "wondersalmon/foundry-release-tools",
+    "revision": "9ad17b969cb2c6ce51a92b036f36b3be84fa8dc5",
+    "sourceReleaseUrls": true,
+    "defaultReleaseBuild": true,
+    "benchmark": {
+      "executable": "node",
+      "arguments": [
+        "dev/benchmark/run.mjs"
+      ],
+      "baselinePointer": "dev/benchmarks/last-release.txt"
+    },
+    "notesHeading": false,
+    "packageFiles": {
+      "module": "tools/release-package.mjs",
+      "export": "collectReleaseFiles"
+    },
+    "documentationModule": "tools/release-documentation.mjs",
+    "localContracts": true
   }
 }
