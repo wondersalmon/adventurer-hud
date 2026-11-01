@@ -47,7 +47,7 @@
   },
   "foundryRelease": {
     "toolkitRepository": "wondersalmon/foundry-release-tools",
-    "revision": "9ad17b969cb2c6ce51a92b036f36b3be84fa8dc5",
+    "revision": "ce0605457e7fe4b12ace77be224d8f9819038de2",
     "sourceReleaseUrls": true,
     "defaultReleaseBuild": true,
     "benchmark": {

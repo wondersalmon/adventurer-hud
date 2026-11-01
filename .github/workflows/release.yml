@@ -42,7 +42,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: wondersalmon/foundry-release-tools
-          ref: 9ad17b969cb2c6ce51a92b036f36b3be84fa8dc5
+          ref: ce0605457e7fe4b12ace77be224d8f9819038de2
           path: dev/release-tools
           ssh-key: ${{ secrets.RELEASE_TOOLS_SSH_KEY }}
           persist-credentials: false
@@ -117,7 +117,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: wondersalmon/foundry-release-tools
-          ref: 9ad17b969cb2c6ce51a92b036f36b3be84fa8dc5
+          ref: ce0605457e7fe4b12ace77be224d8f9819038de2
           path: dev/release-tools
           ssh-key: ${{ secrets.RELEASE_TOOLS_SSH_KEY }}
           persist-credentials: false
