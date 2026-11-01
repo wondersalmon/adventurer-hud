@@ -128,7 +128,8 @@ test("companion initiative placeholders become available on joining combat and r
   assert.deepEqual(f.calls, [
     ["initiative", [second.id], { updateTurn: true }]
   ]);
-  assert.equal(f.pickers.length, 1); // HUD only: the sole participant needs no picker.
+  assert.ok(app instanceof foundry.applications.api.ApplicationV2);
+  assert.equal(f.pickers.length, 0); // The persistent HUD is not a choice dialog; the sole participant needs no picker.
   await app.hudActions.opencompanion(null, target(base.uuid));
   await select(f.pickers.at(-1), 0);
   assert.equal(__adventurerHud.actor, first.actor);

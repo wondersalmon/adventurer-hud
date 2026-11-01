@@ -2,10 +2,12 @@
 import { MODULE_ID } from "./module-id.js";
 import { createTaskQueue } from "./task-queue.js";
 import { reportFailure } from "./diagnostics.js";
+import { scModule } from "./compatibility/sc-module.js";
 import {
   getSettingDefinitions,
   getSettingDefaults,
   normalizeHudTheme,
+  normalizeFooterMode,
   SETTINGS
 } from "./settings-schema.js";
 export {
@@ -122,7 +124,9 @@ export async function resetSettings({ gmOnly = false } = {}) {
   if (gmOnly && !game.user?.isGM) return;
   await saveChangedSettings([
     ...Object.entries(getSettingDefaults()).filter(
-      ([key]) => Boolean(getSettingDefinitions()[key].gmOnly) === gmOnly
+      ([key]) =>
+        Boolean(getSettingDefinitions()[key].gmOnly) === gmOnly &&
+        getSettingDefinitions()[key].scope !== "world"
     ),
     ...(gmOnly
       ? []
@@ -138,12 +142,19 @@ export async function resetSettings({ gmOnly = false } = {}) {
 /** @param {string} key */
 export const getSetting = key => {
   const value = game.settings.get(MODULE_ID, key);
-  return key === SETTINGS.theme ? normalizeHudTheme(value) : value;
+  return key === SETTINGS.theme
+    ? normalizeHudTheme(value)
+    : key === SETTINGS.explorationFooterMode ||
+        key === SETTINGS.combatFooterMode
+      ? normalizeFooterMode(value, key === SETTINGS.combatFooterMode)
+      : value;
 };
 
 /** @param {string} key @param {unknown} value */
 export const setSetting = (key, value) =>
-  (getSettingDefinitions()[key]?.gmOnly || key === SETTINGS.gmWindowGeometry) &&
-  !game.user?.isGM
+  (key === SETTINGS.scInitiative && !scModule()) ||
+  ((getSettingDefinitions()[key]?.gmOnly ||
+    key === SETTINGS.gmWindowGeometry) &&
+    !game.user?.isGM)
     ? Promise.resolve()
     : game.settings.set(MODULE_ID, key, value);

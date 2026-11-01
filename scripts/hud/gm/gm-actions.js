@@ -3,6 +3,11 @@ import { toggleStatDetails } from "../state.js";
 import { openGmSettings } from "../../settings-navigation.js";
 import { createGmActionScope } from "./gm-action-scope.js";
 import {
+  completeScTurn,
+  openScTracker,
+  readScInitiative
+} from "../../compatibility/sc-venaerys-initiative.js";
+import {
   canGoToPreviousTurn,
   hasPlayerOwner,
   defeated,
@@ -179,7 +184,9 @@ export function createGmActions({
       const combat = gmController?.getCombat();
       const combatant = combat?.combatants?.get(target?.dataset.combatantId);
       if (!gmController?.isGM() || !combatant) return;
-      const canExecute = createGmActionScope(gmController, isSessionCurrent);
+      if (readScInitiative(combat)) return openScTracker(combat, t);
+      const scope = createGmActionScope(gmController, isSessionCurrent);
+      const canExecute = () => scope() && !readScInitiative(combat);
       if (combatant.initiative == null)
         return runScene(
           () => combat.rollInitiative([combatant.id], { updateTurn: true }),
@@ -288,6 +295,7 @@ export function createGmActions({
     gmresetinitiative: async function (_event, target) {
       const combat = gmController?.getCombat();
       if (!gmController?.isGM() || !combat) return;
+      if (readScInitiative(combat)) return openScTracker(combat, t);
       const npcOnly = target?.dataset.scope === "npc";
       const participants = [
         ...(combat.turns ?? combat.combatants?.values?.() ?? [])
@@ -297,7 +305,8 @@ export function createGmActions({
           (!npcOnly || (entry.isNPC ?? !hasPlayerOwner(entry)))
       );
       if (!participants.length) return;
-      const canExecute = createGmActionScope(gmController, isSessionCurrent);
+      const scope = createGmActionScope(gmController, isSessionCurrent);
+      const canExecute = () => scope() && !readScInitiative(combat);
       const accepted = await foundry.applications.api.DialogV2.confirm({
         window: {
           title: t(npcOnly ? "GM.ResetNpcInitiative" : "GM.ResetAllInitiative")
@@ -324,18 +333,25 @@ export function createGmActions({
     gmresetcombatantinitiative: async function (_event, target) {
       const combat = gmController?.getCombat();
       if (!gmController?.isGM() || !combat) return;
+      if (readScInitiative(combat)) return openScTracker(combat, t);
       const combatant = combat.combatants?.get(
         target?.dataset.resetInitiativeId
       );
       if (!combatant || combatant.initiative == null) return;
-      return runScene(() => combatant.update({ initiative: null }));
+      return runScene(() =>
+        readScInitiative(combat)
+          ? undefined
+          : combatant.update({ initiative: null })
+      );
     },
     gmrollinitiative: async function (_event, target) {
-      if (!gmController?.isGM()) return;
+      if (!gmController?.isGM() || readScInitiative(gmController.getCombat()))
+        return;
       return runScene(async canExecute => {
         const combat = gmController.getCombat();
         if (!combat) return;
         if (!gmController.isGM()) return;
+        if (readScInitiative(combat)) return;
         if (target.dataset.reroll !== "true") {
           const scope = target.dataset.scope;
           if (scope === "all" || scope === "npc") {
@@ -364,6 +380,7 @@ export function createGmActions({
               if (
                 !confirmed ||
                 !canExecute() ||
+                readScInitiative(combat) ||
                 participants.some(
                   entry =>
                     combat.combatants?.get &&
@@ -395,6 +412,43 @@ export function createGmActions({
             { updateTurn: true }
           );
       });
+    },
+    scdone: async function (_event, target) {
+      const combat = gmController?.getCombat();
+      if (!gmController?.isGM() || !combat) return;
+      const combatant = combat.combatants?.get(target?.dataset.combatantId);
+      const canExecute = createGmActionScope(gmController, isSessionCurrent);
+      const requested = readScInitiative(combat, combatant);
+      const round = combat.round;
+      const data = target?.dataset;
+      if (
+        data?.scRound != null &&
+        (data.scRound !== String(round) ||
+          data.scPhase !== requested?.currentPhaseId ||
+          data.scHalf !== (requested?.half ?? ""))
+      )
+        return;
+      const completed = target?.dataset.scComplete !== "false";
+      return runScene(
+        () =>
+          completeScTurn(
+            combat,
+            combatant,
+            () => {
+              const current = readScInitiative(combat, combatant);
+              return (
+                canExecute() &&
+                combat.round === round &&
+                current?.currentPhaseId === requested?.currentPhaseId &&
+                current?.half === requested?.half &&
+                current?.marked === requested?.marked
+              );
+            },
+            undefined,
+            completed
+          ),
+        canExecute
+      );
     },
     gmspeeds() {
       toggleStatDetails(hudState, "gmSpeedsExpanded");
@@ -541,6 +595,7 @@ export function createGmActions({
     },
     gmnext: async function () {
       if (!gmController?.isGM() || !gmController.getCombat()?.started) return;
+      if (readScInitiative(gmController.getCombat())?.valid === false) return;
       return runScene(async canExecute => {
         if (!gmController.isGM() || !gmController.getCombat()?.started) return;
         await gmController.getCombat().nextTurn();

@@ -255,6 +255,8 @@ test("reset restores configurable defaults", async () => {
     ])
   );
   values[SETTINGS.proficientSkillsOnly] = false;
+  values[SETTINGS.explorationFooterMode] = "none";
+  values[SETTINGS.combatFooterMode] = "none";
   const { writes } = installSettings({
     values,
     onEvent: (name, changes) => {

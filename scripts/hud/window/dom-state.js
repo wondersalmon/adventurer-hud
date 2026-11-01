@@ -8,6 +8,8 @@ export function captureHudDomState(root) {
   const attributes = [
     "data-action",
     "data-recent-action",
+    "data-target-uuid",
+    "data-target-entry",
     "data-status-id",
     "data-combatant-id",
     "data-item-id",
@@ -39,6 +41,7 @@ export function captureHudDomState(root) {
     "id"
   ];
   return {
+    targetsExpanded: Boolean(root?.querySelector(".ws-target-list")?.open),
     companionSwitchesExpanded: Boolean(
       root?.querySelector(".ws-companion-switch-list")?.open
     ),
@@ -115,6 +118,8 @@ export function restoreHudDomState(
     if (defaultBody) defaultBody.hidden = !state.playerColumns;
   }
   synchronizeStatusLayout(root);
+  const targets = root.querySelector(".ws-target-list");
+  if (targets) targets.open = Boolean(state.targetsExpanded);
   const companionSwitches = root.querySelector(".ws-companion-switch-list");
   if (companionSwitches)
     companionSwitches.open = Boolean(state.companionSwitchesExpanded);

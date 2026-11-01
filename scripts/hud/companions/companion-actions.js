@@ -4,6 +4,10 @@ import { worldDocument, companionIsFamiliar } from "./companions.js";
 import { hudSceneTokens } from "../token-focus.js";
 import { getSetting, SETTINGS } from "../../settings-access.js";
 import { reportFailure } from "../../diagnostics.js";
+import {
+  readScInitiative,
+  completeScTurn
+} from "../../compatibility/sc-venaerys-initiative.js";
 /** @param {import('../../../types/hud.js').CompanionPanelOptions} options @param {import('../../../types/hud.js').CompanionActionDependencies} dependencies */
 export function createCompanionActions(
   {
@@ -23,6 +27,7 @@ export function createCompanionActions(
 ) {
   let rolling = false;
   let healing = false;
+  let changingTurn = false;
   const focus = selector =>
     document
       .querySelector(".ws-rolls-dialog")
@@ -30,6 +35,77 @@ export function createCompanionActions(
       ?.focus?.({ preventScroll: true });
   /** @type {import('../../../types/hud.js').CompanionActions} */
   const actions = {
+    companionscturn: async (_event, target) => {
+      if (!isCurrent() || changingTurn || currentMode() !== "combat") return;
+      const combat = companionInitiative({}).combat;
+      const phase = readScInitiative(combat);
+      const data = target.dataset;
+      const completed = data.scComplete !== "false";
+      const round = combat?.round;
+      const phaseCurrent = () => {
+        const current = readScInitiative(combat);
+        return (
+          isCurrent() &&
+          currentMode() === "combat" &&
+          companionInitiative({}).combat === combat &&
+          combat?.round === round &&
+          current?.currentPhaseId === phase?.currentPhaseId &&
+          current?.half === phase?.half
+        );
+      };
+      if (
+        !phase?.valid ||
+        String(round) !== data.scRound ||
+        phase.currentPhaseId !== data.scPhase ||
+        (phase.half ?? "") !== data.scHalf
+      )
+        return;
+      const entry = await resolved(data.companionUuid);
+      if (!phaseCurrent() || !entry?.actor) return;
+      const choices = entry.tokenOptions
+        .map(token => ({
+          token,
+          actor: token.actor,
+          ...companionInitiative({ actor: token.actor, token })
+        }))
+        .filter(state => state.sc?.canToggle && state.sc.marked !== completed);
+      return picker.withToken(
+        { ...entry, tokenOptions: choices.map(choice => choice.token) },
+        async tokenUuid => {
+          if (!phaseCurrent() || changingTurn) return;
+          const expected = choices.find(
+            choice => choice.token.uuid === tokenUuid
+          );
+          if (!expected) return;
+          const current = await resolved(entry.uuid, tokenUuid);
+          const state = current?.actor ? companionInitiative(current) : null;
+          if (
+            !phaseCurrent() ||
+            !state ||
+            !current ||
+            current.token !== expected.token ||
+            current.actor !== expected.actor ||
+            state.combatant !== expected.combatant ||
+            state.sc?.marked !== expected.sc?.marked
+          )
+            return;
+          changingTurn = true;
+          refreshHud();
+          try {
+            return await completeScTurn(
+              combat,
+              state.combatant,
+              phaseCurrent,
+              current.actor,
+              completed
+            );
+          } finally {
+            changingTurn = false;
+            if (isCurrent()) await refresh();
+          }
+        }
+      );
+    },
     companionplace: (_event, target) =>
       placement.place(target.dataset.companionUuid),
     companionvisionstop: () => isCurrent() && vision?.stop(),
@@ -63,9 +139,19 @@ export function createCompanionActions(
       focus(`[data-companion-filter="${filter}"]`);
     },
     companioninitiative: async (event, target) => {
-      if (!isCurrent() || rolling) return;
+      if (
+        !isCurrent() ||
+        rolling ||
+        readScInitiative(companionInitiative({}).combat)
+      )
+        return;
       const entry = await resolved(target.dataset.companionUuid);
-      if (!isCurrent() || !entry?.actor) return;
+      if (
+        !isCurrent() ||
+        !entry?.actor ||
+        readScInitiative(companionInitiative({}).combat)
+      )
+        return;
       return picker.withToken(
         {
           ...entry,
@@ -217,8 +303,9 @@ export function createCompanionActions(
    */
   const rollEntries = async (choices, event) => {
     if (rolling || !isCurrent() || currentMode() !== "combat") return;
-    rolling = true;
     const combat = companionInitiative({}).combat;
+    if (readScInitiative(combat)) return;
+    rolling = true;
     const seen = new Set();
     refreshHud();
     try {
@@ -228,7 +315,8 @@ export function createCompanionActions(
         if (
           !isCurrent() ||
           currentMode() !== "combat" ||
-          companionInitiative({}).combat !== combat
+          companionInitiative({}).combat !== combat ||
+          readScInitiative(combat)
         )
           break;
         const state = companionInitiative(current ?? {});
@@ -262,7 +350,7 @@ export function createCompanionActions(
   return {
     actions,
     get rolling() {
-      return rolling;
+      return rolling || changingTurn;
     }
   };
 }

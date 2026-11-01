@@ -68,20 +68,23 @@ export async function hudFixture({
     frames.clear();
     pending.forEach(callback => callback());
   };
-  class DialogV2 {
-    constructor(options) {
-      this.options = options;
-      this.position = options.position;
+  class ApplicationV2 {
+    constructor(options = {}) {
+      this.options = { tag: "div", ...options };
+      this.position = options.position ?? {};
       this.listeners = new Map();
       this.element = document.createElement("section");
-      this.element.className = options.classes.join(" ");
+      this.element.className = (options.classes ?? []).join(" ");
       this.element.innerHTML =
         '<header class="window-header"><h4 class="window-title"></h4><button data-action="toggleControls"></button></header><div class="window-content"></div>';
-      this.element.querySelector(".window-content").append(options.content);
+      if (options.content)
+        this.element.querySelector(".window-content").append(options.content);
     }
     _onRender() {}
     async render() {
       this.rendered = true;
+      this.context = await this._prepareContext?.();
+      this.renderCount = (this.renderCount ?? 0) + 1;
       document.body.append(this.element);
       this._onRender({}, {});
       return this;
@@ -100,7 +103,12 @@ export async function hudFixture({
       Object.assign(this.position, position);
     }
   }
-  Object.assign(foundry.applications.api, { DialogV2 });
+  class DialogV2 extends ApplicationV2 {
+    constructor(options) {
+      super({ tag: "dialog", ...options });
+    }
+  }
+  Object.assign(foundry.applications.api, { ApplicationV2, DialogV2 });
   foundry.utils = {
     escapeHTML,
     getRoute: path => path,

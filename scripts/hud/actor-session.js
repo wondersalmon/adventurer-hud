@@ -31,6 +31,8 @@ import {
   resolveSessionActor
 } from "./session-guard.js";
 import { captureHudDomState, restoreHudDomState } from "./window/dom-state.js";
+import { subscribeHudTarget, createTargetSelection } from "./target.js";
+import { footerCenterMode } from "./footer-center.js";
 
 /**
  * @param {import('../../types/hud.js').ActorOpenContext} context
@@ -168,6 +170,7 @@ export async function openActorHud(
     canRollDeathSave,
     currentMode,
     combatHTML,
+    targetHTML,
     globalSearchPanel,
     combatActions,
     availableViews,
@@ -379,11 +382,15 @@ export async function openActorHud(
     content,
     currentMode
   });
+  const targetSelection = createTargetSelection({
+    isCurrent: isSessionCurrent
+  });
   const actions = createHudActions({
     isSessionCurrent,
     actor,
     adapter,
     canStartMutation,
+    selectHudTarget: event => targetSelection.select(event),
     pingActorToken: async () => {
       if (!isSessionCurrent()) return;
       const warning = await focusHudToken(actorContext, {
@@ -443,11 +450,14 @@ export async function openActorHud(
   const unsubscribePreferences = panelPreferences.subscribe(hudState, () => {
     if (isSessionCurrent()) app.refreshFromSettings?.();
   });
+  let unsubscribeTargets = () => {};
   await hudWindow.activate({
     layoutState: hudState,
     adapter,
     onDispose: () => {
       unsubscribePreferences();
+      unsubscribeTargets();
+      targetSelection.dispose();
       disposed = true;
       mutationRunner.dispose();
       sceneRunner.dispose();
@@ -470,6 +480,7 @@ export async function openActorHud(
       gmController ? gmController.getCombat() : getCombatState().combat,
     isCurrentCombatant: actorContext.isCurrentCombatant,
     isPlayersTurn: () => getCombatState().isTurn,
+    getTurnKey: () => getCombatState().sc?.turnKey ?? null,
     readVisibility,
     syncPreferences: () => {
       syncHudPreferences(hudState, {
@@ -497,6 +508,20 @@ export async function openActorHud(
     onCombatSelection: gmActive ? gmSelection.selectCombat : null,
     visibility
   });
+
+  // Activation can close or replace the session while its window is rendering.
+  if (!gmActive && isSessionCurrent() && app.rendered)
+    unsubscribeTargets = subscribeHudTarget({
+      hooks: Hooks,
+      actorContext,
+      isActive: () =>
+        isSessionCurrent() &&
+        app.rendered &&
+        footerCenterMode({ visibility, currentMode }) === "target" &&
+        visibility.playerFooter,
+      read: targetHTML,
+      scheduleRefresh: () => refreshScheduler.schedule()
+    });
 
   syncHealthAppearance();
   if (hudState.armorClassExpanded) void refreshArmorClass();

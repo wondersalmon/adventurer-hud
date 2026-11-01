@@ -78,6 +78,15 @@
       <p class="hint">{{recordingStatus}}</p>
     </fieldset>
     <p role="status">{{diagnosticSummary}}</p>
+    <div class="ws-sc-diagnostics" data-sc-integration-status role="status">
+      <strong>{{scIntegrationLabel}}</strong>
+      <p>{{scIntegrationState}}</p>
+      <p>Adventurer HUD:
+        {{scIntegration.hudVersion}}
+        · SC:
+        {{scIntegration.scVersion}}</p>
+      <p>{{scApiLabel}}: {{scIntegrationApi}}</p>
+    </div>
     <label class="ws-diagnostic-comment">{{commentLabel}}<textarea
         name="diagnosticComment"
         data-diagnostic-comment

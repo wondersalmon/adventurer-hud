@@ -3,16 +3,24 @@ import {
   tokenForActor,
   ownerTokenForActor
 } from "../runtime-helpers.js";
+import {
+  readScInitiative,
+  scActingCombatant
+} from "../compatibility/sc-venaerys-initiative.js";
 
 export function combatTurnState(combat, combatant, canAct) {
+  const sc = readScInitiative(combat, combatant);
   const isActive = Boolean(combat?.started && combatant);
-  const isTurn = Boolean(isActive && combat.combatant?.id === combatant.id);
+  const isTurn = sc
+    ? sc.isActing
+    : Boolean(isActive && combat.combatant?.id === combatant.id);
   return {
     combat,
     combatant,
+    sc,
     isActive,
     isTurn,
-    canEndTurn: Boolean(canAct && isTurn)
+    canEndTurn: Boolean(canAct && (sc ? sc.canToggle : isTurn))
   };
 }
 
@@ -40,7 +48,11 @@ export function createHudActorContext({
             tokenId: ownerDocument?.id,
             sceneId: ownerDocument?.parent?.id
           });
-    return combatTurnState(combat, combatant, actor.isOwner);
+    return combatTurnState(
+      combat,
+      combatantId ? combatant : scActingCombatant(combat, combatant),
+      actor.isOwner
+    );
   };
   return {
     actor,

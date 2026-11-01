@@ -154,6 +154,9 @@ test("recent actions record only completed native rolls, repeat fresh events and
     ["dex", "wis", "con"]
   );
   await app.hudActions.combatmode();
+  assert.equal(buttons().length, 0);
+  assert.ok(app.element.querySelector(".ws-footer-target"));
+  await app.hudActions.normal();
   assert.deepEqual(
     buttons().map(node => node.dataset.key),
     ["dex", "wis", "con"]

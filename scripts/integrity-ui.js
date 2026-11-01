@@ -452,6 +452,23 @@ export function createIntegrityApplication({
         integritySectionLabel: t("Troubleshooting.Integrity"),
         resetsLabel: t("Troubleshooting.Resets"),
         reportHelpLabel: t("Troubleshooting.ReportHelp"),
+        scIntegration: {
+          ...diagnostics.context.scInitiative,
+          hudVersion: diagnostics.context.scInitiative?.hudVersion ?? "—",
+          scVersion: diagnostics.context.scInitiative?.scVersion ?? "—"
+        },
+        scIntegrationLabel: t("SC.Diagnostics.Title"),
+        scIntegrationState: t(
+          "SC.Diagnostics." +
+            (diagnostics.context.scInitiative?.state ?? "unavailable")
+        ),
+        scApiLabel: t("SC.Diagnostics.API"),
+        scIntegrationApi: ["open", "setDone", "setMoved"]
+          .map(
+            key =>
+              `${key}: ${t(diagnostics.context.scInitiative?.api?.[key] ? "SC.Diagnostics.available" : "SC.Diagnostics.unavailable")}`
+          )
+          .join(" · "),
         recordingHint: t("Troubleshooting.RecordingHint"),
         intro: t("Integrity.Intro"),
         recording: diagnostics.summary.recording,

@@ -17,11 +17,179 @@ import {
 
 const fixtures = {};
 
+test("expanded target lists fit both languages and themes", async ({
+  page
+}) => {
+  for (const language of ["en", "ru"])
+    for (const theme of ["light", "dark"])
+      for (const width of [270, 450, 900]) {
+        await showPanel(page, "player-combat-target-multi-footer", {
+          width,
+          height: 500,
+          language,
+          theme
+        });
+        await page.locator(".ws-target-list summary").focus();
+        await page.keyboard.press("Enter");
+        await expect(page.locator(".ws-target-list-panel")).toBeVisible();
+        await expect(page.locator(".ws-target-row")).toHaveCount(2);
+        await expect(
+          page.locator(".ws-target-row .ws-target-distance")
+        ).toHaveCount(2);
+        const bounds = await page
+          .locator(".ws-target-list-panel")
+          .evaluate(node => {
+            const box = node.getBoundingClientRect(),
+              root = node.closest(".ws-rolls-dialog").getBoundingClientRect();
+            return {
+              overflow: node.scrollWidth > node.clientWidth + 1,
+              left: box.left - root.left,
+              right: box.right - root.right,
+              top: box.top - root.top
+            };
+          });
+        expect(bounds.overflow).toBe(false);
+        expect(bounds.left).toBeGreaterThanOrEqual(-1);
+        expect(bounds.right).toBeLessThanOrEqual(1);
+        expect(bounds.top).toBeGreaterThanOrEqual(-1);
+      }
+});
+test("all toolbar center modes fit in exploration and combat", async ({
+  page
+}) => {
+  for (const language of ["en", "ru"])
+    for (const theme of ["light", "dark"])
+      for (const [scenario, selector, count] of [
+        ["player-main-target-footer", ".ws-footer-target", 2],
+        ["player-main-empty-footer", ".ws-footer-empty", 0],
+        ["player-combat-empty-footer", ".ws-footer-empty", 0],
+        ["player-combat-recent-footer", ".ws-footer-recent", null]
+      ])
+        for (const width of [270, 450, 900]) {
+          await showPanel(page, scenario, {
+            width,
+            height: 380,
+            font: "extralarge",
+            language,
+            theme
+          });
+          if (count === 0) {
+            await expect(page.locator(selector)).toHaveCount(1);
+            await expect(page.locator(selector + " > *")).toHaveCount(0);
+          } else await expect(page.locator(selector)).toBeVisible();
+          if (count !== null)
+            await expect(page.locator(selector + " button")).toHaveCount(count);
+          expect(
+            await page
+              .locator(".ws-player-footer")
+              .evaluate(
+                footer =>
+                  footer.scrollWidth <= footer.clientWidth + 1 &&
+                  footer.getBoundingClientRect().right <=
+                    footer.closest(".ws-rolls-dialog").getBoundingClientRect()
+                      .right +
+                      1
+              )
+          ).toBe(true);
+          const overlap = await page
+            .locator(".ws-player-footer")
+            .evaluate(footer => {
+              const boxes = [...footer.children]
+                .filter(node => node.getClientRects().length)
+                .map(node => node.getBoundingClientRect());
+              return boxes.some((a, i) =>
+                boxes
+                  .slice(i + 1)
+                  .some(
+                    b =>
+                      a.left < b.right - 1 &&
+                      a.right > b.left + 1 &&
+                      a.top < b.bottom - 1 &&
+                      a.bottom > b.top + 1
+                  )
+              );
+            });
+          expect(overlap, `${scenario} ${width} ${language} ${theme}`).toBe(
+            false
+          );
+        }
+});
+
+test("combat target footer fits long names, multiple targets and empty states in both themes", async ({
+  page
+}) => {
+  for (const language of ["en", "ru"])
+    for (const theme of ["light", "dark"])
+      for (const scenario of [
+        "player-combat-footer",
+        "player-combat-target-empty-footer",
+        "player-combat-target-multi-footer"
+      ])
+        for (const width of [270, 450, 900]) {
+          await showPanel(page, scenario, {
+            width,
+            height: 380,
+            font: "extralarge",
+            language,
+            theme
+          });
+          await expect(page.locator(".ws-footer-recent")).toHaveCount(0);
+          await expect(page.locator(".ws-footer-target")).toBeVisible();
+          await expect(
+            page.locator(".ws-target-content > .ws-target-clear")
+          ).toHaveCount(scenario.includes("empty") ? 0 : 1);
+          await expect(
+            page.locator(".ws-target-content > .ws-target-distance")
+          ).toHaveCount(scenario === "player-combat-footer" ? 1 : 0);
+          await expect(page.locator(".ws-target-count")).toHaveCount(
+            scenario.includes("multi") ? 1 : 0
+          );
+          const bounds = await page
+            .locator(".ws-player-footer")
+            .evaluate(footer => {
+              const nodes = [
+                ...footer.children,
+                ...footer.querySelectorAll(".ws-target-content > *")
+              ].filter(node => node.getClientRects().length);
+              const overlap = nodes.some((node, i) =>
+                nodes.slice(i + 1).some(other => {
+                  if (node.contains(other) || other.contains(node))
+                    return false;
+                  const a = node.getBoundingClientRect(),
+                    b = other.getBoundingClientRect();
+                  return (
+                    a.left < b.right - 1 &&
+                    a.right > b.left + 1 &&
+                    a.top < b.bottom - 1 &&
+                    a.bottom > b.top + 1
+                  );
+                })
+              );
+              return {
+                overflow: footer.scrollWidth > footer.clientWidth + 1,
+                overlap,
+                height: footer.getBoundingClientRect().height
+              };
+            });
+          expect(
+            bounds.overflow,
+            `${scenario} ${language} ${theme} ${width}`
+          ).toBe(false);
+          expect(
+            bounds.overlap,
+            `${scenario} ${language} ${theme} ${width}`
+          ).toBe(false);
+          expect(bounds.height).toBeLessThanOrEqual(48);
+          await page.locator(".ws-target-select").focus();
+          await expect(page.locator(".ws-target-select")).toBeFocused();
+        }
+});
+
 test("recent actions fit the footer without displaying money outside inventory", async ({
   page
 }) => {
   for (const width of [270, 450, 900]) {
-    await showPanel(page, "player-combat-footer", {
+    await showPanel(page, "player-main-footer", {
       width,
       height: 380,
       font: "extralarge"

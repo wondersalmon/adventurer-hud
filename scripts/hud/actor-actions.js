@@ -1,6 +1,11 @@
 import { isStatusRemovalEvent } from "./status-interactions.js";
 import { createGmActionScope } from "./gm/gm-action-scope.js";
 import { performRecentRoll } from "./recent-actions.js";
+import {
+  completeScTurn,
+  openScTracker,
+  readScInitiative
+} from "../compatibility/sc-venaerys-initiative.js";
 
 /** @param {import('../../types/hud.js').HudActionsOptions} options */
 export function createActorActions({
@@ -26,7 +31,54 @@ export function createActorActions({
 }) {
   const canAct = () => Boolean(actor?.isOwner ?? canRollActor);
   let changingStatus = false;
+  const changeScTurn = (completed, target) => {
+    const requested = getCombatState();
+    const data = target?.dataset;
+    if (
+      data?.scRound != null &&
+      (data.scRound !== String(requested.combat?.round) ||
+        data.scPhase !== requested.sc?.currentPhaseId ||
+        data.scHalf !== (requested.sc?.half ?? ""))
+    )
+      return;
+    if (
+      !requested.sc?.canToggle ||
+      requested.sc.marked === completed ||
+      !canAct()
+    )
+      return;
+    const round = requested.combat.round;
+    return performAndRefresh(async () => {
+      const current = getCombatState();
+      if (
+        !current.canEndTurn ||
+        current.combat !== requested.combat ||
+        current.combatant !== requested.combatant ||
+        current.combat.round !== round ||
+        current.sc?.currentPhaseId !== requested.sc.currentPhaseId ||
+        current.sc?.half !== requested.sc.half ||
+        current.sc?.marked !== requested.sc.marked
+      )
+        return;
+      const result = await completeScTurn(
+        current.combat,
+        current.combatant,
+        () =>
+          isSessionCurrent() &&
+          getCombatState().combat === current.combat &&
+          getCombatState().combatant === current.combatant,
+        actor,
+        completed
+      );
+      if (completed && result === "done" && isSessionCurrent())
+        await onPlayerTurnEnded?.();
+      return result;
+    });
+  };
   return {
+    scundo: (_event, target) => changeScTurn(false, target),
+    sctracker: () =>
+      openScTracker(gmController?.getCombat() ?? getCombatState?.().combat, t),
     editspellslots: async function (event, target) {
       event?.preventDefault?.();
       event?.stopPropagation?.();
@@ -111,15 +163,20 @@ export function createActorActions({
         return ui.notifications.warn(t("Initiative.NotCombatant"));
       }
 
+      if (readScInitiative(combat, combatant)) return;
+
       return performRoll(() =>
-        adapter.rollInitiative(actor, { combatant, event })
+        readScInitiative(combat, combatant)
+          ? undefined
+          : adapter.rollInitiative(actor, { combatant, event })
       );
     },
-    endturn: async function () {
+    endturn: async function (_event, target) {
       if (gmController) {
         const combat = gmController.getCombat();
         const canExecute = createGmActionScope(gmController, isSessionCurrent);
         if (!combat?.started || !combat.combatant) return;
+        if (readScInitiative(combat)?.valid === false) return;
         return performSceneAction(async () => {
           if (!canExecute()) return;
           if (gmCombatantId) {
@@ -134,10 +191,14 @@ export function createActorActions({
           }
         });
       }
+      if (getCombatState().sc) return changeScTurn(true, target);
       if (!getCombatState().canEndTurn) return;
+      const requested = getCombatState();
       return performAndRefresh(async () => {
-        const { combat, canEndTurn } = getCombatState();
+        const { combat, combatant, canEndTurn } = getCombatState();
         if (!canEndTurn) return;
+        const currentSc = readScInitiative(combat, combatant);
+        if (Boolean(currentSc) !== Boolean(requested.sc)) return;
         const before = {
           id: combat.combatant?.id,
           round: combat.round,

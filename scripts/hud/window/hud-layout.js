@@ -244,7 +244,7 @@ export function synchronizeHudLayout(root, state, t) {
     );
     if (!node) continue;
     if (
-      ["search", "hints", "rests"].includes(key) &&
+      ["search", "hints", "rests", "sc-phase"].includes(key) &&
       !lanes.includes(node.parentElement)
     ) {
       const customized = laneNames.some(lane => laneOrder(lane).includes(key));
@@ -260,11 +260,12 @@ export function synchronizeHudLayout(root, state, t) {
           const health = nodes.get("hp");
           if (health) health.after(node);
           else lanes[0]?.append(node);
-        } else lanes[1]?.prepend(node);
+        } else if (key === "sc-phase") lanes[0]?.prepend(node);
+        else lanes[1]?.prepend(node);
       }
     }
     if (
-      ["search", "hints", "rests"].includes(key) &&
+      ["search", "hints", "rests", "sc-phase"].includes(key) &&
       !state.hudEditing &&
       !laneNames.some(lane => laneOrder(lane).includes(key))
     )
@@ -279,13 +280,23 @@ export function synchronizeHudLayout(root, state, t) {
       key !== "search" &&
       key !== "hints" &&
       key !== "rests" &&
+      key !== "sc-phase" &&
       key !== "weight"
     )
       continue;
     node.dataset.hudBlock = key;
-    node.dataset.hudLabel = t(label);
+    node.dataset.hudLabel =
+      key === "recent-actions"
+        ? (node.getAttribute("aria-label") ?? t(label))
+        : t(label);
     if (!node.dataset.hudHome)
-      node.dataset.hudHome = footer ? "footer" : lane ? "actions" : "info";
+      node.dataset.hudHome = footer
+        ? "footer"
+        : key === "sc-phase" && lane < 0
+          ? "info"
+          : lane
+            ? "actions"
+            : "info";
     nodes.set(key, node);
     rememberBlockHome(root, node, key);
   }

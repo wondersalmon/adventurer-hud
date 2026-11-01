@@ -26,82 +26,96 @@ for (const language of ["en", "ru"]) {
     await readFile(new URL(`../lang/${language}.json`, import.meta.url), "utf8")
   );
   for (const isGM of [false, true]) {
-    test(`${language} ${isGM ? "GM" : "player"} Configure categories preserve edits, keyboard navigation and footer`, async ({
-      page
-    }) => {
-      await page.route(
-        /https:\/\/adventurer-hud.test\/CHANGELOG(?:\.ru)?\.md$/,
-        route =>
-          route.fulfill({
-            contentType: "text/plain",
-            headers: { "Access-Control-Allow-Origin": "*" },
-            body: "# Changelog\n\n## 2.2.0\n- Current release. [Guide](docs/player-guide.md) [Unsafe](javascript:alert)\n\n## 2.1.0\n- Older release.\n\n## 1.4.1\n- Legacy release."
-          })
-      );
-      await page.route(
-        "https://adventurer-hud.test/modules/adventurer-hud/lang/*.json",
-        async route => {
-          const locale = route.request().url().endsWith("ru.json")
-            ? "ru"
-            : "en";
-          await route.fulfill({
-            contentType: "application/json",
-            headers: { "Access-Control-Allow-Origin": "*" },
-            body: await readFile(
-              new URL(`../lang/${locale}.json`, import.meta.url),
-              "utf8"
-            )
+    for (const theme of ["dark", "light"])
+      for (const width of [360, 650, 820])
+        test(`${language} ${isGM ? "GM" : "player"} Configure categories preserve edits, keyboard navigation and footer (${theme}, ${width}px)`, async ({
+          page
+        }) => {
+          await page.route(
+            /https:\/\/adventurer-hud.test\/CHANGELOG(?:\.ru)?\.md$/,
+            route =>
+              route.fulfill({
+                contentType: "text/plain",
+                headers: { "Access-Control-Allow-Origin": "*" },
+                body: "# Changelog\n\n## 2.2.0\n- Current release. [Guide](docs/player-guide.md) [Unsafe](javascript:alert)\n\n## 2.1.0\n- Older release.\n\n## 1.4.1\n- Legacy release."
+              })
+          );
+          await page.route(
+            "https://adventurer-hud.test/modules/adventurer-hud/lang/*.json",
+            async route => {
+              const locale = route.request().url().endsWith("ru.json")
+                ? "ru"
+                : "en";
+              await route.fulfill({
+                contentType: "application/json",
+                headers: { "Access-Control-Allow-Origin": "*" },
+                body: await readFile(
+                  new URL(`../lang/${locale}.json`, import.meta.url),
+                  "utf8"
+                )
+              });
+            }
+          );
+          const f = installSettings({
+            isGM,
+            values: {
+              language: "auto",
+              showCompanions: false,
+              gmEnabled: false
+            }
           });
-        }
-      );
-      const f = installSettings({
-        isGM,
-        values: { language: "auto", showCompanions: false, gmEnabled: false }
-      });
-      globalThis.CONFIG = {
-        statusEffects: [
-          {
-            id: "flying",
-            name: "Flying",
-            img: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M12 17L2 3v9l7 9h6l7-9V3z'/%3E%3C/svg%3E"
-          },
-          { id: "thinking", name: "Thinking" },
-          { id: "hovering", name: "Hovering" },
-          { id: "poisoned", name: "Poisoned" }
-        ],
-        DND5E: { conditionTypes: { poisoned: {} } }
-      };
-      f.current.set("hiddenEffects", ["status:thinking"]);
-      game.modules = new Map([["adventurer-hud", { version: "2.2.0" }]]);
-      foundry.utils.getRoute = path => path;
-      globalThis.fetch = async path => ({
-        ok: true,
-        json: async () =>
-          JSON.parse(
-            await readFile(
-              new URL(
-                `../lang/${path.includes("ru.json") ? "ru" : "en"}.json`,
-                import.meta.url
-              ),
-              "utf8"
-            )
-          )
-      });
-      game.i18n.lang = language;
-      game.i18n.localize = key => strings[key] ?? key;
-      game.actors = [
-        { uuid: "Actor.rook", name: "Rook", type: "character", isOwner: true },
-        { uuid: "Actor.hero", name: "Hero", type: "character", isOwner: true }
-      ];
-      const context = await new (f.menus.get(
-        "configure"
-      ).type)()._prepareContext();
-      const body = template(context);
-      await page.addScriptTag({
-        path: "node_modules/handlebars/dist/handlebars.min.js"
-      });
-      for (const theme of ["dark", "light"])
-        for (const width of [360, 650, 820]) {
+          globalThis.CONFIG = {
+            statusEffects: [
+              {
+                id: "flying",
+                name: "Flying",
+                img: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M12 17L2 3v9l7 9h6l7-9V3z'/%3E%3C/svg%3E"
+              },
+              { id: "thinking", name: "Thinking" },
+              { id: "hovering", name: "Hovering" },
+              { id: "poisoned", name: "Poisoned" }
+            ],
+            DND5E: { conditionTypes: { poisoned: {} } }
+          };
+          f.current.set("hiddenEffects", ["status:thinking"]);
+          game.modules = new Map([["adventurer-hud", { version: "2.2.0" }]]);
+          foundry.utils.getRoute = path => path;
+          globalThis.fetch = async path => ({
+            ok: true,
+            json: async () =>
+              JSON.parse(
+                await readFile(
+                  new URL(
+                    `../lang/${path.includes("ru.json") ? "ru" : "en"}.json`,
+                    import.meta.url
+                  ),
+                  "utf8"
+                )
+              )
+          });
+          game.i18n.lang = language;
+          game.i18n.localize = key => strings[key] ?? key;
+          game.actors = [
+            {
+              uuid: "Actor.rook",
+              name: "Rook",
+              type: "character",
+              isOwner: true
+            },
+            {
+              uuid: "Actor.hero",
+              name: "Hero",
+              type: "character",
+              isOwner: true
+            }
+          ];
+          const context = await new (f.menus.get(
+            "configure"
+          ).type)()._prepareContext();
+          const body = template(context);
+          await page.addScriptTag({
+            path: "node_modules/handlebars/dist/handlebars.min.js"
+          });
           await page.setViewportSize({ width: width + 30, height: 750 });
           await page.setContent(
             `<style>body{margin:10px;font:14px Arial}*{box-sizing:border-box}.adventurer-hud-settings{width:${width}px;height:680px;display:flex;flex-direction:column}.window-header{padding:12px;flex:0 0 auto}.window-content{flex:1}input,select,button{font:inherit}.fa-solid{font-family:"Font Awesome 6 Free";font-weight:900}.form-fields{min-width:0}${css}</style><section class="adventurer-hud-settings"><header class="window-header">Adventurer HUD<button class="header-control icon fa-solid" data-action="close"></button><button class="header-control icon fa-solid" data-action="toggleControls"></button></header><div class="window-content">${body}</div></section>`
@@ -405,7 +419,14 @@ for (const language of ["en", "ru"]) {
             "cardDetails",
             "companions",
             ...(isGM
-              ? ["gm", "gmWindow", "gmSelection", "gmActions", "gmCards"]
+              ? [
+                  "gm",
+                  "gmWindow",
+                  "gmSelection",
+                  "gmActions",
+                  "gmCards",
+                  "world"
+                ]
               : []),
             "help",
             "changelog",
@@ -475,6 +496,32 @@ for (const language of ["en", "ru"]) {
           const heightBefore = await layoutTab.evaluate(
             n => n.getBoundingClientRect().height
           );
+          await layoutTab.click();
+          await tab("quickAccess").click();
+          await expect(panel("panelSections")).toBeVisible();
+          for (const [key, defaultValue] of [
+            ["explorationFooterMode", "recent"],
+            ["combatFooterMode", "target"]
+          ]) {
+            const footerSelect = page.locator(`[name="${key}"]`);
+            await expect(footerSelect).toBeVisible();
+            await expect(footerSelect.locator("option")).toHaveCount(3);
+            await footerSelect.selectOption("none");
+            await expect(footerSelect).toHaveValue("none");
+            await footerSelect.selectOption(defaultValue);
+          }
+          const footerEnabled = page.locator('[name="playerFooter"]');
+          await footerEnabled.uncheck();
+          for (const key of ["explorationFooterMode", "combatFooterMode"])
+            await expect(page.locator(`[name="${key}"]`)).toBeDisabled();
+          await footerEnabled.check();
+          for (const [key, value] of [
+            ["explorationFooterMode", "recent"],
+            ["combatFooterMode", "target"]
+          ]) {
+            await expect(page.locator(`[name="${key}"]`)).toBeEnabled();
+            await expect(page.locator(`[name="${key}"]`)).toHaveValue(value);
+          }
           await layoutTab.click();
           expect(
             await layoutTab.evaluate(n => n.getBoundingClientRect().height)
@@ -1021,7 +1068,6 @@ for (const language of ["en", "ru"]) {
             "custom"
           );
           await page.evaluate(() => window.settingsApp._onClose({}));
-        }
-    });
+        });
   }
 }

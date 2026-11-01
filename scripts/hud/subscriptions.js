@@ -32,10 +32,14 @@ export function subscribeHudDocuments({
   onStatusChange,
   onCombatChange,
   isCurrentCombatant,
-  isPlayersTurn
+  isPlayersTurn,
+  getTurnKey
 }) {
   let previousHp = readHp?.() ?? null;
   let wasPlayersTurn = Boolean(isPlayersTurn?.());
+  const turnKeys = new Set();
+  const initialTurnKey = getTurnKey?.();
+  if (initialTurnKey) turnKeys.add(initialTurnKey);
   let observedCombat = getCombat?.();
   const actorInCombat = candidate =>
     Boolean(
@@ -78,7 +82,13 @@ export function subscribeHudDocuments({
     onCombatChange?.({ follow: true });
     scheduleRefresh();
     const playersTurn = Boolean(isPlayersTurn?.());
-    if (playersTurn && !wasPlayersTurn) onTurnStart?.();
+    const turnKey = getTurnKey?.();
+    if (playersTurn && (turnKey ? !turnKeys.has(turnKey) : !wasPlayersTurn))
+      onTurnStart?.();
+    if (turnKey) {
+      if (turnKeys.size >= 64) turnKeys.delete(turnKeys.values().next().value);
+      turnKeys.add(turnKey);
+    }
     wasPlayersTurn = playersTurn;
   };
   const refreshActorEffect = effect => {

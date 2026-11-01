@@ -123,8 +123,9 @@ export async function layoutFixture(
     "Уход за животными"
   ];
   for (const [index, label] of skillNames.entries()) {
-    CONFIG.DND5E.skills["s" + index] = { label };
-    actor.system.skills["s" + index] = { prof: 1, total: (index % 3) + 5 };
+    const key = { 3: "prc", 13: "ins", 15: "ste" }[index] ?? "s" + index;
+    CONFIG.DND5E.skills[key] = { label };
+    actor.system.skills[key] = { prof: 1, total: (index % 3) + 5 };
   }
   CONFIG.statusEffects = Array.from({ length: 7 }, (_, index) => ({
     id: "status" + index,
@@ -220,7 +221,13 @@ export async function layoutFixture(
     "player-main-no-favorites",
     "player-combat",
     "player-combat-footer",
+    "player-combat-target-empty-footer",
+    "player-combat-target-multi-footer",
+    "player-combat-recent-footer",
+    "player-combat-empty-footer",
     "player-main-footer",
+    "player-main-target-footer",
+    "player-main-empty-footer",
     "player-combat-spells",
     "player-combat-inventory",
     "player-combat-skills",
@@ -273,6 +280,26 @@ export async function layoutFixture(
       }
     }));
     canvas.scene.tokens = itemCollection(entries.map(entry => entry.token));
+    const targetTokens = entries.slice(1, 3).map((entry, index) => {
+      entry.token.name = "Гоблин-разведчик — очень длинное имя выбранной цели";
+      entry.token.getCenterPoint = () => ({ x: 600 + index * 100, y: 50 });
+      return {
+        id: entry.token.id,
+        document: entry.token,
+        name: entry.token.name,
+        isVisible: true,
+        visible: true
+      };
+    });
+    entries[0].token.getCenterPoint = () => ({ x: 0, y: 50 });
+    canvas.tokens.get = id => targetTokens.find(token => token.id === id);
+    canvas.grid = { measurePath: () => ({ distance: 30 }) };
+    canvas.scene.grid = { units: "ft" };
+    game.user.targets = new Set(
+      scenario.includes("target-empty")
+        ? []
+        : targetTokens.slice(0, scenario.includes("target-multi") ? 2 : 1)
+    );
     const combat = {
       id: "battle",
       name: "Оборона древнего храма — финальная схватка",
@@ -293,6 +320,16 @@ export async function layoutFixture(
     const visibility = {
       ...readHudVisibility(),
       playerFooter: scenario.endsWith("-footer"),
+      explorationFooterMode: scenario.includes("target")
+        ? "target"
+        : scenario.includes("empty")
+          ? "none"
+          : "recent",
+      combatFooterMode: scenario.includes("recent")
+        ? "recent"
+        : scenario === "player-combat-empty-footer"
+          ? "none"
+          : "target",
       ...(scenario === "player-main-no-favorites" ? { favorites: false } : {}),
       ...(companion ? { favorites: false } : {}),
       ...(gm

@@ -10,6 +10,7 @@ export const SETTINGS = Object.freeze({
   closeOnEscape: "closeOnEscape",
   slidePanel: "slidePanel",
   openPlayerOnCombat: "openPlayerOnCombat",
+  scInitiative: "scInitiative",
   separateModeSizes: "separateModeSizes",
   perCharacterLayout: "perCharacterLayout",
   windowModeSizes: "windowModeSizes",
@@ -17,6 +18,8 @@ export const SETTINGS = Object.freeze({
   twoColumnWidth: "twoColumnWidth",
   twoColumnMode: "twoColumnMode",
   playerFooter: "playerFooter",
+  explorationFooterMode: "explorationFooterMode",
+  combatFooterMode: "combatFooterMode",
   playerColumnRatio: "playerColumnRatio",
   gmRosterColumnRatio: "gmRosterColumnRatio",
   gmInfoColumnRatio: "gmInfoColumnRatio",
@@ -112,6 +115,20 @@ const LANGUAGE_CHOICES = Object.freeze({
   en: "English",
   ru: "Русский"
 });
+
+const FOOTER_MODE_CHOICES = Object.freeze({
+  recent: "ADVENTURER_HUD.Recent.Title",
+  target: "ADVENTURER_HUD.Target.Title",
+  none: "ADVENTURER_HUD.Footer.Disabled"
+});
+
+/** @param {unknown} value @param {boolean} combat */
+export const normalizeFooterMode = (value, combat = false) =>
+  typeof value === "string" && Object.hasOwn(FOOTER_MODE_CHOICES, value)
+    ? value
+    : combat
+      ? "target"
+      : "recent";
 
 const defineSetting = (
   group,
@@ -343,6 +360,12 @@ export const SETTING_DEFINITIONS = Object.freeze({
     placement: "basic",
     refresh: "none"
   }),
+  [SETTINGS.scInitiative]: defineSetting("behavior", {
+    defaultValue: false,
+    placement: "gm",
+    gmOnly: true,
+    scope: "world"
+  }),
   [SETTINGS.separateModeSizes]: defineSetting("interface", {
     defaultValue: false,
     placement: "advanced"
@@ -360,6 +383,16 @@ export const SETTING_DEFINITIONS = Object.freeze({
     range: { min: 450, max: 1200, step: 10 }
   }),
   [SETTINGS.playerFooter]: defineSetting("interface"),
+  [SETTINGS.explorationFooterMode]: defineSetting("interface", {
+    type: String,
+    choices: FOOTER_MODE_CHOICES,
+    defaultValue: "recent"
+  }),
+  [SETTINGS.combatFooterMode]: defineSetting("interface", {
+    type: String,
+    choices: FOOTER_MODE_CHOICES,
+    defaultValue: "target"
+  }),
   [SETTINGS.playerColumnRatio]: defineSetting("interface", {
     defaultValue: 0.48,
     placement: "internal",
@@ -656,8 +689,7 @@ export const getConfigureSettingGroups = (isGM = false) => {
       SETTINGS.perCharacterLayout,
       SETTINGS.twoColumnMode,
       SETTINGS.twoColumnWidth,
-      SETTINGS.debugWindowSize,
-      SETTINGS.playerFooter
+      SETTINGS.debugWindowSize
     ],
     appearance: [],
     appearanceTheme: [
@@ -781,10 +813,12 @@ export const getAdvancedSettingGroups = () => ({
     SETTINGS.debugWindowSize,
     SETTINGS.separateModeSizes,
     SETTINGS.twoColumnWidth,
-    SETTINGS.autoScrollExpanded,
-    SETTINGS.playerFooter
+    SETTINGS.autoScrollExpanded
   ],
   quickAccess: [
+    SETTINGS.playerFooter,
+    SETTINGS.explorationFooterMode,
+    SETTINGS.combatFooterMode,
     SETTINGS.statusFilter,
     SETTINGS.hiddenEffects,
     SETTINGS.showSearch,

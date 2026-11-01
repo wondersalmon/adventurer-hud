@@ -1,9 +1,32 @@
 # Changelog
 
+## 2.3.1
+
+### New
+
+- **SC Initiative:** Optional integration with SC - Venaerys’s Initiative shows the current phase, movement/actions halves and a shortcut to its tracker. Enable it in GM world settings after installing the module.
+- **SC turn controls:** Undo a Done or Moved mark while its phase and half remain current.
+- **Companions:** Mark or undo a companion's turn directly from its card, choosing the exact token when needed.
+- **Extra turns:** A label identifies additional critical turns in the HUD and participant list.
+- **Phase progress:** See how many of your visible participants have finished the current phase or half.
+- **Diagnostics:** View integration status, module versions and SC command availability in Troubleshooting and downloaded reports.
+
+### Changes and improvements
+
+- **Turns and companions:** Done and Moved complete only the displayed participant; phase highlights, additional critical turns and shared senses follow phased combat. Initiative rolls remain in the SC tracker.
+
+### Fixes
+
+- **Combat progression:** Keeping the HUD open no longer makes SC wait for a pending dialog before advancing a completed phase.
+
+Documentation: [SC Initiative integration](docs/sc-venaerys-initiative.md) · [Player guide](docs/player-guide.md) · [GM guide](docs/gm-guide.md).
+
 ## 2.2.1
 
 ### New
 
+- **Toolbar center:** With the toolbar enabled, choose recent actions, target or disabled independently for exploration and combat.
+- **Targets:** View selected targets and distances, clear individual targets or the whole selection, and return to the previous canvas tool after choosing a target or pressing Escape.
 - **Ping hints:** Added Alt/Shift hints to ping buttons and the companion token picker.
 
 ### Changes and improvements

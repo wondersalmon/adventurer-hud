@@ -1,4 +1,5 @@
 import { MODULE_ID } from "./module-id.js";
+import { scIntegrationStatus } from "./compatibility/sc-venaerys-initiative.js";
 // Only explicitly selected, observable documents can be referenced. Instances and
 // document identities are separate: synthetic Actor replacement is significant.
 let instances = new WeakMap(),
@@ -151,7 +152,8 @@ export function diagnosticContext() {
         width: globalThis.innerWidth ?? null,
         height: globalThis.innerHeight ?? null
       },
-      settings
+      settings,
+      scInitiative: scIntegrationStatus(combat)
     };
   } catch {
     return { unavailable: true };

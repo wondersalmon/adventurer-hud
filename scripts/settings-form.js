@@ -9,6 +9,7 @@ import {
   validCardDetailFields
 } from "./settings-schema.js";
 import { ratActive } from "./hud/rat-memory.js";
+import { scModule } from "./compatibility/sc-module.js";
 
 export function prepareSettingsGroups({
   groups,
@@ -161,8 +162,12 @@ export function prepareSettingsGroups({
                     : [])
                 ])
               : definitions[key]?.choices;
-          const parentKey =
-            key === SETTINGS.twoColumnWidth
+          const parentKey = [
+            SETTINGS.explorationFooterMode,
+            SETTINGS.combatFooterMode
+          ].includes(key)
+            ? SETTINGS.playerFooter
+            : key === SETTINGS.twoColumnWidth
               ? SETTINGS.twoColumnMode
               : key === SETTINGS.accentColor
                 ? SETTINGS.accentPreset
@@ -184,8 +189,10 @@ export function prepareSettingsGroups({
                         ["gmSelectionMode", "gmActionDisplay"].includes(key))
                     ? SETTINGS.gmEnabled
                     : null;
-          const disabled =
-            parentKey === SETTINGS.twoColumnMode
+          const sc = key === SETTINGS.scInitiative;
+          const disabled = sc
+            ? !scModule()
+            : parentKey === SETTINGS.twoColumnMode
               ? readValue(parentKey) !== "manual"
               : parentKey === SETTINGS.accentPreset
                 ? readValue(parentKey) !== "custom"
@@ -200,7 +207,14 @@ export function prepareSettingsGroups({
             animationDisabledHint: t("Settings.Animations.Disabled"),
             fieldsSummary: t("Settings.CardFields.Summary"),
             name: t(`Settings.${key}.Name`),
-            hint: t(`Settings.${key}.Hint`),
+            hint:
+              sc && !scModule()?.active
+                ? t(
+                    scModule()
+                      ? "Settings.scInitiative.Inactive"
+                      : "Settings.scInitiative.Missing"
+                  )
+                : t(`Settings.${key}.Hint`),
             value,
             parentKey,
             disabled,

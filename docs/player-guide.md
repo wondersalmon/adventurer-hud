@@ -26,7 +26,12 @@ Search finds your character's items, actions and skills. Use stars to keep frequ
 
 Filter spells by preparation or source, and click a slot counter to change the remaining slots. Feature groups can be collapsed, and active and passive features can be viewed separately.
 
-Inventory shows your items, weight and coins. Click the weight and coins block to open the character's inventory. Recent actions let you repeat an action from the panel.
+Inventory shows your items, weight and coins. Click the weight and coins block to open the character's inventory.
+
+Enable the fixed toolbar in **Panel content → Visible sections**, then choose its center separately for exploration and combat: target, recent actions, or disabled. Combat defaults to target; exploration defaults to recent actions. Turning off the toolbar makes these choices unavailable and retains their values.
+
+- **Recent actions:** repeat an action previously used from the HUD.
+- **Target:** click the name to select a target, or the cross to clear it. After selection, or cancellation with Escape, your previous canvas tool returns. Open **+N** to see all visible targets and their distances, remove one, or clear all targets.
 
 ## Dice tray
 

@@ -153,6 +153,21 @@
   justify-content: center;
 }
 
+.ws-rolls-dialog .ws-companion-controls:has(.ws-companion-sc-turn) {
+  flex-wrap: wrap;
+}
+
+.ws-rolls-dialog .ws-companion-controls .ws-companion-sc-turn {
+  flex: 1 1 100%;
+  width: auto;
+  height: auto;
+  min-height: 28px;
+  padding: 3px 6px;
+  gap: 5px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .ws-rolls-dialog .ws-companion-initiative strong {
   font-size: calc(11px * var(--ws-type-scale));
 }

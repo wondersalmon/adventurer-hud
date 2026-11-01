@@ -28,7 +28,14 @@ export interface CompanionEntry {
   reason: string | null;
 }
 export interface CompanionTarget {
-  dataset: { companionUuid?: string; companionFilter?: string };
+  dataset: {
+    companionUuid?: string;
+    companionFilter?: string;
+    scComplete?: string;
+    scRound?: string;
+    scPhase?: string;
+    scHalf?: string;
+  };
 }
 export type HudInputEvent = Event & {
   altKey?: boolean;
@@ -42,6 +49,7 @@ export type CompanionActions = Partial<
     | "companionvision"
     | "companionfilter"
     | "companioninitiative"
+    | "companionscturn"
     | "companionsinitiative"
     | "togglecompanions"
     | "companionback"
@@ -188,6 +196,7 @@ export interface HudActionsOptions {
   canStartMutation?: () => boolean;
   focusActorToken?: () => Promise<void>;
   pingActorToken?: () => Promise<void>;
+  selectHudTarget?: (event: any) => Promise<void>;
   canRollDeathSave?: () => boolean;
   combatModeAvailable?: () => boolean;
   currentMode?: () => string;

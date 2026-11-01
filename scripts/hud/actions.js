@@ -9,6 +9,7 @@ import { createGmActions } from "./gm/gm-actions.js";
 import { createActorActions } from "./actor-actions.js";
 import { createItemActions } from "./items/item-actions.js";
 import { createViewActions } from "./view-actions.js";
+import { createTargetActions } from "./target.js";
 
 // Commands using the displayed actor reject stale selections and companion links.
 const ACTOR_ACTIONS = new Set([
@@ -26,6 +27,7 @@ const ACTOR_ACTIONS = new Set([
   "moveitembottom",
   "dropitemlayout",
   "initiative",
+  "scundo",
   "togglearmorclass",
   "togglefeaturegroup",
   "spellsourcefilter",
@@ -67,7 +69,8 @@ export function createHudActions(options) {
     ...createGmActions(options),
     ...createActorActions(options),
     ...createItemActions(options),
-    ...createViewActions(options)
+    ...createViewActions(options),
+    ...createTargetActions(options)
   };
   Object.assign(actions, companionActions);
   const sectionReveal = createHudSectionReveal();

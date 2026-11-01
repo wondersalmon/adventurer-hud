@@ -5,6 +5,7 @@ import { getSetting, SETTINGS } from "../../settings-access.js";
 import { companionEffects, companionInitiative } from "./companion-details.js";
 import { companionPlacementReason } from "./companion-placement.js";
 import { activeEffectSummaries } from "../effect-summaries.js";
+import { scTurnActionLabel } from "../../compatibility/sc-venaerys-initiative.js";
 
 /** @param {{entries: import('../../../types/hud.js').CompanionEntry[], owner: any, adapter: import('../../../types/hud.js').HudAdapter, t: import('../../../types/hud.js').Translate, escapeHTML: (value: unknown) => string, combatMode?: boolean, filter?: string, rolling?: boolean, showEffects?: boolean, visionUuid?: string | null, visionWarning?: (entry: import('../../../types/hud.js').CompanionEntry) => string | null | undefined, placing?: boolean}} options */
 export function renderCompanionList({
@@ -44,6 +45,16 @@ export function renderCompanionList({
       return {
         entry,
         tokenInitiatives,
+        order: Math.min(
+          Infinity,
+          ...tokenInitiatives
+            .filter(state => state.sc)
+            .map(state =>
+              (
+                state.combat.turns ?? [...state.combat.combatants.values()]
+              ).indexOf(state.combatant)
+            )
+        ),
         isTurn: tokenInitiatives.some(state => state.isTurn),
         value: Math.max(
           -Infinity,
@@ -56,7 +67,9 @@ export function renderCompanionList({
         Number(b.isTurn) - Number(a.isTurn) ||
         Number(companionOnScene(b.entry) && b.tokenInitiatives.length > 0) -
           Number(companionOnScene(a.entry) && a.tokenInitiatives.length > 0) ||
-        b.value - a.value ||
+        (Number.isFinite(a.order) && Number.isFinite(b.order)
+          ? a.order - b.order
+          : b.value - a.value) ||
         0
     )
     .map(({ entry, tokenInitiatives }) => {
@@ -101,10 +114,24 @@ export function renderCompanionList({
           ? "Companions.ChooseToken"
           : !tokenInitiatives.length
             ? "Initiative.NotCombatant"
-            : rollState.value != null
-              ? "Initiative.Rolled"
-              : "Initiative.Roll"
+            : rollState.sc && !rollState.sc.usesInitiative
+              ? "SC.NoRoll"
+              : rollState.sc
+                ? "SC.RollInTracker"
+                : rollState.value != null
+                  ? "Initiative.Rolled"
+                  : "Initiative.Roll"
       );
+      const scControls = [true, false]
+        .map(completed => {
+          const state = tokenInitiatives.find(
+            state => state.sc?.canToggle && state.sc.marked !== completed
+          );
+          if (!state) return "";
+          const label = scTurnActionLabel(state.sc, t);
+          return `<button type="button" class="ws-button ws-companion-sc-turn" data-action="companionscturn" ${address} data-sc-complete="${completed}" data-sc-round="${state.combat.round}" data-sc-phase="${escapeHTML(state.sc.currentPhaseId)}" data-sc-half="${state.sc.half ?? ""}" aria-label="${escapeHTML(label + ": " + name)}" title="${escapeHTML(label)}" aria-pressed="${!completed}" ${rolling ? "disabled" : ""}><i class="fa-solid ${completed ? "fa-check" : "fa-rotate-left"}" aria-hidden="true"></i><span>${escapeHTML(label)}</span></button>`;
+        })
+        .join("");
       const active = visionUuid === entry.uuid;
       const reason = active ? null : visionWarning(entry);
       const eyeLabel = t(
@@ -123,13 +150,14 @@ export function renderCompanionList({
         return `<span role="img" title="${escapeHTML(label)}" aria-label="${escapeHTML(label)}"><img src="${escapeHTML(effect.img ?? effect.icon ?? "icons/svg/aura.svg")}" alt=""></span>`;
       };
       return `<article class="ws-companion-card"><div class="ws-companion-row">
-      <button type="button" class="ws-companion-open ws-button ${initiative.isTurn ? "ws-companion-turn" : ""} ${tokenInitiatives.some(state => state.value == null) ? "ws-companion-unrolled" : ""}" data-action="opencompanion" ${address} ${actor ? "" : "disabled"} ${tooltip ? `data-tooltip="${escapeHTML(tooltip)}" data-tooltip-class="ws-gm-effects-tooltip"` : ""} title="${escapeHTML(name)} · ${status}${initiative.isTurn ? ` · ${t("Companions.Turn")}` : ""}" aria-description="${t("Companions.HealHint")}" aria-label="${escapeHTML(name)}${initiative.isTurn ? ` · ${t("Companions.Turn")}` : ""}">
+      <button type="button" class="ws-companion-open ws-button ${initiative.isTurn ? "ws-companion-turn" : ""} ${tokenInitiatives.some(state => (state.sc ? state.sc.canRoll : state.value == null)) ? "ws-companion-unrolled" : ""}" data-action="opencompanion" ${address} ${actor ? "" : "disabled"} ${tooltip ? `data-tooltip="${escapeHTML(tooltip)}" data-tooltip-class="ws-gm-effects-tooltip"` : ""} title="${escapeHTML(name)} · ${status}${initiative.isTurn ? ` · ${t("Companions.Turn")}` : ""}" aria-description="${t("Companions.HealHint")}" aria-label="${escapeHTML(name)}${initiative.isTurn ? ` · ${t("Companions.Turn")}` : ""}">
         <img src="${escapeHTML(entry.token?.texture?.src ?? actor?.img ?? "icons/svg/mystery-man.svg")}" alt="">
-        <span class="ws-companion-copy"><strong>${escapeHTML(name)}</strong>${hp ? `<small>${hp.value}/${hp.max} ${t("Combat.HP")} · ${t("Combat.AC")} ${escapeHTML(stats.ac)}</small><span class="ws-companion-hp" role="meter" aria-label="${t("Combat.HP")}" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${Math.max(0, Math.min(total, hp.value))}"><span style="width:${width}%;background:${healthFillColor(width)}"></span></span>` : ""}${!scene || ambiguous ? `<small>${status}</small>` : ""}</span>
+        <span class="ws-companion-copy"><strong>${escapeHTML(name)}</strong>${rollState.sc?.extraTurn ? `<small class="ws-sc-extra">${escapeHTML(t("SC.ExtraTurn"))}</small>` : ""}${hp ? `<small>${hp.value}/${hp.max} ${t("Combat.HP")} · ${t("Combat.AC")} ${escapeHTML(stats.ac)}</small><span class="ws-companion-hp" role="meter" aria-label="${t("Combat.HP")}" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${Math.max(0, Math.min(total, hp.value))}"><span style="width:${width}%;background:${healthFillColor(width)}"></span></span>` : ""}${!scene || ambiguous ? `<small>${status}</small>` : ""}${initiative.sc?.phaseName ? `<small>${escapeHTML(initiative.sc.phaseName)}${initiative.sc.done ? ` · ${t("SC.Done")}` : initiative.sc.isTurn && initiative.sc.moved && initiative.sc.half === "move" ? ` · ${t("SC.Moved")}` : ""}</small>` : ""}</span>
       </button>
       <div class="ws-companion-controls">
+        ${scControls}
         ${effects.length ? `<div class="ws-companion-effects" role="group" aria-label="${t("Companions.Effects")}: ${escapeHTML(name)}">${effects.slice(0, 3).map(effectMarkup).join("")}<details class="ws-companion-effects-more" ${effects.length <= 3 ? "hidden" : ""} data-companion-effects="${escapeHTML(entry.uuid)}"><summary class="ws-button" data-companion-effects-toggle="${escapeHTML(entry.uuid)}" aria-label="${t("Companions.Effects")}: ${escapeHTML(name)}"><b class="ws-companion-effects-count">+${Math.max(0, effects.length - 3)}</b><b class="ws-companion-effects-collapse" aria-hidden="true">−</b></summary><div class="ws-companion-effects-extra">${effects.slice(3).map(effectMarkup).join("")}</div></details></div>` : ""}
-        ${combatMode ? `<button type="button" class="ws-button ws-companion-initiative" data-action="companioninitiative" ${address} title="${t("Labels.Initiative")}: ${initiativeLabel}" aria-label="${t("Labels.Initiative")}: ${escapeHTML(name)}. ${tokenInitiatives.length && rollState.value != null ? `${escapeHTML(rollState.value)}. ` : ""}${initiativeLabel}" ${!rolling && tokenInitiatives.some(state => state.canRoll) ? "" : "disabled"}>${tokenInitiatives.length && rollState.value != null ? `<strong>${escapeHTML(rollState.value)}</strong>` : '<i class="fa-solid fa-dice-d20" aria-hidden="true"></i>'}</button>` : ""}
+        ${combatMode ? `<button type="button" class="ws-button ws-companion-initiative" data-action="companioninitiative" ${address} title="${t("Labels.Initiative")}: ${initiativeLabel}" aria-label="${t("Labels.Initiative")}: ${escapeHTML(name)}. ${tokenInitiatives.length && rollState.value != null ? `${escapeHTML(rollState.value)}. ` : ""}${initiativeLabel}" ${!rolling && tokenInitiatives.some(state => state.canRoll) ? "" : "disabled"}>${rollState.sc && !rollState.sc.usesInitiative ? `<strong>—</strong>` : tokenInitiatives.length && rollState.value != null ? `<strong>${escapeHTML(rollState.value)}</strong>` : '<i class="fa-solid fa-dice-d20" aria-hidden="true"></i>'}</button>` : ""}
         ${
           scene
             ? `<button type="button" class="ws-button ws-companion-vision" data-action="companionvision" ${address} aria-pressed="${active}" title="${reason ? t(reason) : eyeLabel}" aria-label="${eyeLabel}: ${escapeHTML(name)}" ${actor && scene && !reason ? "" : "disabled"}><i class="fa-solid fa-eye" aria-hidden="true"></i></button>

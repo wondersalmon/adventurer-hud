@@ -6,6 +6,8 @@ import {
   diagnosticRef
 } from "../../diagnostics.js";
 import { focusHudToken, hudSceneTokens } from "../token-focus.js";
+import { combatTurnState } from "../actor-context.js";
+import { scActingCombatant } from "../../compatibility/sc-venaerys-initiative.js";
 import {
   createSharedVisionSource,
   supportsSharedVision,
@@ -20,7 +22,7 @@ export function createFamiliarVision({
   refreshHud,
   t
 }) {
-  /** @type {{uuid: string, name: string, token: any, ownerToken: any, placeable: any, combat: any, round: number, leftOwner: boolean, until: number, source: ReturnType<typeof createSharedVisionSource> | null} | null} */
+  /** @type {{uuid: string, name: string, token: any, ownerToken: any, placeable: any, combat: any, round: number, phased: boolean, leftOwner: boolean, until: number, source: ReturnType<typeof createSharedVisionSource> | null} | null} */
   let active = null;
   let changing = false;
   let busy = false;
@@ -45,21 +47,31 @@ export function createFamiliarVision({
       : null;
   };
   const ownerCombatant = (combat, token) =>
-    findCombatant(combat?.combatants, {
-      tokenId: token.id,
-      sceneId: token.parent.id
-    });
+    scActingCombatant(
+      combat,
+      findCombatant(combat?.combatants, {
+        tokenId: token.id,
+        sceneId: token.parent.id
+      })
+    );
+  const mayUseSenses = (combat, owner) => {
+    const state = combatTurnState(combat, owner, true);
+    return state.sc
+      ? state.sc.isActing &&
+          (!getSetting(SETTINGS.familiarVision2024) || state.sc.half !== "move")
+      : state.isTurn;
+  };
   const ownerTokenFor = () => {
     const candidates = hudSceneTokens(actorContext);
     const selected = candidates.filter(controlled);
     if (selected.length === 1) return selected[0];
     if (candidates.length === 1) return candidates[0];
     const combat = getCurrentCombat(game);
-    return combat?.combatant
-      ? (candidates.find(
-          token => ownerCombatant(combat, token)?.id === combat.combatant.id
-        ) ?? null)
-      : null;
+    const activeTokens = candidates.filter(
+      token =>
+        combatTurnState(combat, ownerCombatant(combat, token), true).isTurn
+    );
+    return activeTokens.length === 1 ? activeTokens[0] : null;
   };
   const eligibility = entry => {
     if (active?.uuid === entry.uuid) return null;
@@ -92,7 +104,7 @@ export function createFamiliarVision({
     const owner = ownerCombatant(combat, ownerToken);
     return !getSetting(SETTINGS.companionVisionAnyTurn) &&
       combat?.started &&
-      (!owner || combat.combatant?.id !== owner.id)
+      (!owner || !mayUseSenses(combat, owner))
       ? "Companions.VisionOwnTurn"
       : null;
   };
@@ -180,9 +192,15 @@ export function createFamiliarVision({
     let expired = false;
     if (state.combat) {
       const owner = ownerCombatant(combat, state.ownerToken);
-      const isOwnerTurn = combat?.combatant?.id === owner?.id;
+      const turnState = combatTurnState(combat, owner, true);
+      const isOwnerTurn = turnState.sc
+        ? turnState.sc.isTurn
+        : combat?.combatant?.id === owner?.id;
       const turns = combat?.turns ?? [];
       const ownerIndex = turns.findIndex(turn => turn.id === owner?.id);
+      const passedNextPhase = turnState.sc
+        ? turnState.sc.currentRank >= turnState.sc.phaseRank
+        : ownerIndex >= 0 && Number(combat.turn) >= ownerIndex;
       if (!owner && getSetting(SETTINGS.companionVisionAnyTurn)) {
         expired =
           combat !== state.combat ||
@@ -193,10 +211,11 @@ export function createFamiliarVision({
           combat !== state.combat ||
           !combat?.started ||
           !owner ||
+          turnState.sc?.valid === false ||
+          state.phased !== Boolean(turnState.sc) ||
           Number(combat.round) < state.round ||
           (Number(combat.round) > state.round &&
-            (isOwnerTurn ||
-              (ownerIndex >= 0 && Number(combat.turn) >= ownerIndex))) ||
+            (isOwnerTurn || passedNextPhase)) ||
           (state.leftOwner && isOwnerTurn);
       if (!isOwnerTurn) state.leftOwner = true;
     } else {
@@ -236,7 +255,7 @@ export function createFamiliarVision({
       if (
         !getSetting(SETTINGS.companionVisionAnyTurn) &&
         combat?.started &&
-        (!owner || combat.combatant?.id !== owner.id)
+        (!owner || !mayUseSenses(combat, owner))
       )
         return ui.notifications.warn(t("Companions.VisionOwnTurn"));
       busy = true;
@@ -278,6 +297,7 @@ export function createFamiliarVision({
         ownerToken,
         combat: combat?.started ? combat : null,
         round: Number(combat?.round ?? 0),
+        phased: Boolean(combatTurnState(combat, owner, true).sc),
         leftOwner: false,
         until: Number(game.time?.worldTime ?? 0) + 6,
         source: null
@@ -344,10 +364,17 @@ export function createFamiliarVision({
     stop,
     validate,
     start() {
+      hooks.push([
+        "adventurerHudSettingChanged",
+        Hooks.on("adventurerHudSettingChanged", key => {
+          if (key === SETTINGS.scInitiative) validate();
+        })
+      ]);
       for (const hook of [
         "updateCombat",
         "deleteCombat",
         "deleteCombatant",
+        "updateCombatant",
         "updateWorldTime"
       ])
         hooks.push([hook, Hooks.on(hook, () => validate())]);

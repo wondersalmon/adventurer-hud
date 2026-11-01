@@ -69,6 +69,7 @@ export function syncHeaderEditControl({
 }
 
 export function createHudApplicationClass({
+  ApplicationV2,
   DialogV2,
   document,
   getPinLabel,
@@ -77,7 +78,41 @@ export function createHudApplicationClass({
   allowCloseOnEscape = () => false,
   shouldSlide = () => false
 }) {
-  return class AdventurerHudDialog extends DialogV2 {
+  // A persistent HUD is not a pending choice: DialogV2 makes SC wait for it
+  // before advancing a completed phase. Actual confirmation dialogs stay native.
+  return class AdventurerHudApplication extends ApplicationV2 {
+    static DEFAULT_OPTIONS = {
+      tag: "div",
+      classes: ["dialog"],
+      window: { minimizable: false }
+    };
+
+    async _renderHTML() {
+      const layout = document.createElement("div");
+      layout.className = "dialog-form standard-form";
+      const content = document.createElement("div");
+      content.className = "dialog-content standard-form";
+      const source = this.options.content;
+      if (typeof source === "string")
+        content.innerHTML = foundry.utils.cleanHTML(source);
+      else if (source) content.append(...source.cloneNode(true).childNodes);
+      const footer = document.createElement("footer");
+      footer.className = "form-footer";
+      for (const { action, label } of this.options.buttons ?? []) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.action = action;
+        button.textContent = label;
+        footer.append(button);
+      }
+      layout.append(content, footer);
+      return layout;
+    }
+
+    _replaceHTML(result, content) {
+      content.replaceChildren(result);
+    }
+
     _onRender(context, options) {
       super._onRender(context, options);
       this.updatePinControl();

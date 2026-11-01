@@ -3,7 +3,8 @@ import { MODULE_ID } from "./module-id.js";
 import {
   SETTINGS,
   getSettingDefinitions,
-  normalizeHudTheme
+  normalizeHudTheme,
+  normalizeFooterMode
 } from "./settings-schema.js";
 import {
   getSetting,
@@ -19,7 +20,9 @@ import {
 
 const backupKeys = () => [
   ...Object.keys(getSettingDefinitions()).filter(
-    key => key !== SETTINGS.hudClosed
+    key =>
+      key !== SETTINGS.hudClosed &&
+      getSettingDefinitions()[key].scope !== "world"
   ),
   SETTINGS.proficientSkillsOnly,
   SETTINGS.windowGeometry,
@@ -80,6 +83,16 @@ export function settingsBackupEntries(text) {
     /** @type {Record<string, unknown>} */ (data.settings)
   ).filter(([key]) => keys.includes(key));
   if (!entries.length) throw new Error("backup-invalid");
+  for (const entry of entries)
+    if (
+      (entry[0] === SETTINGS.explorationFooterMode ||
+        entry[0] === SETTINGS.combatFooterMode) &&
+      entry[1] === "checks"
+    )
+      entry[1] = normalizeFooterMode(
+        entry[1],
+        entry[0] === SETTINGS.combatFooterMode
+      );
   const importedKeys = new Set(entries.map(([key]) => key));
   if (
     importedKeys.has(SETTINGS.twoColumnWidth) &&

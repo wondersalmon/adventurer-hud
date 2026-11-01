@@ -9,6 +9,9 @@ import {
 const ROLL_ACTIONS = [
   "initiative",
   "endturn",
+  "scdone",
+  "scundo",
+  "companionscturn",
   "gmprevious",
   "gmnext",
   "gmremove",

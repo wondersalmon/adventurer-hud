@@ -8,6 +8,10 @@ import {
 } from "../scripts/hud/items/item-layout.js";
 import { bindItemLayoutInteractions } from "../scripts/hud/items/item-layout-interactions.js";
 import { restoreSettingsBackup } from "../scripts/settings-backup.js";
+import {
+  completeScTurn,
+  scTurnLabel
+} from "../scripts/compatibility/sc-venaerys-initiative.js";
 import type {
   ActorOpenContext,
   EmptyGmOpenContext,
@@ -40,6 +44,10 @@ void invalidEntry;
 declare const actor: ActorOpenContext;
 declare const emptyGm: EmptyGmOpenContext;
 declare const adapter: HudAdapter;
+// @ts-expect-error Completion guards must return a boolean, not a pending choice.
+completeScTurn({}, {}, async () => true);
+// @ts-expect-error Phase states require the complete typed status contract.
+scTurnLabel({ half: "movement" }, key => key);
 declare const state: import("../types/hud.js").HudState;
 declare const element: HTMLElement;
 // @ts-expect-error Activity identities must be strings, never document objects.

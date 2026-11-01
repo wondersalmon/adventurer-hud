@@ -307,6 +307,7 @@ export function registerSettingsMenus() {
         if (
           ![
             SETTINGS.showCompanions,
+            SETTINGS.playerFooter,
             SETTINGS.gmEnabled,
             SETTINGS.accentPreset,
             SETTINGS.twoColumnMode

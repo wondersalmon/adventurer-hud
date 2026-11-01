@@ -2,6 +2,7 @@
 /** Saved layout model; no DOM, native documents or storage writes. */
 /** @type {[string, string, string][]} */
 export const HUD_LAYOUT_BLOCKS = [
+  ["sc-phase", ".ws-sc-phase", "SC.Tracker"],
   ["shared-senses", ".ws-familiar-vision", "Companions.VisionAction"],
   ["identity", ".ws-actor-header, .ws-gm-identity", "HudLayout.Identity"],
   ["token-controls", ".ws-gm-identity-actions", "GM.CreatureControls"],
@@ -9,7 +10,12 @@ export const HUD_LAYOUT_BLOCKS = [
   ["hp", ".ws-regular-health, .ws-health-stack", "Combat.HP"],
   ["rests", ".ws-exploration-rests", "Labels.Rests"],
   ["weight", ".ws-inventory-summary", "Inventory.Summary"],
-  ["recent-actions", ".ws-footer-recent", "Recent.Title"],
+  // Keep the released center-slot key and saved placement in both modes.
+  [
+    "recent-actions",
+    ".ws-footer-recent, .ws-footer-target, .ws-footer-empty",
+    "Recent.Title"
+  ],
   ["footer-controls", ".ws-footer-controls", "HudLayout.FooterControls"],
   ["end-turn", ".ws-footer-turn", "Combat.EndTurn"],
   ["effects", ".ws-combat-statuses", "HudLayout.Effects"],

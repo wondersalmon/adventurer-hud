@@ -5,7 +5,8 @@ import { createHudComponents, diceTrayButton } from "./components.js";
 import { createItemPanelRenderer } from "./items/item-panels.js";
 import { createCombatRenderer } from "./combat.js";
 import { createRegularRenderer } from "./regular.js";
-import { renderRecentActions } from "./recent-actions.js";
+import { renderHudTarget } from "./target.js";
+import { renderFooterCenter, footerCenterMode } from "./footer-center.js";
 import { renderInventorySummary } from "./items/inventory-summary.js";
 import { hudSceneTokens } from "./token-focus.js";
 import {
@@ -201,13 +202,26 @@ export function createHudPresentation({
   });
 
   const { availableViews } = regularRenderer;
-  const frame = body => {
+  const targetHTML = () => renderHudTarget({ actorContext, t, escapeHTML });
+  const footerCenterHTML = combat =>
+    renderFooterCenter({
+      actorContext,
+      adapter,
+      toolState,
+      t,
+      escapeHTML,
+      mode: footerCenterMode({
+        visibility,
+        currentMode: () => (combat ? "combat" : "regular")
+      })
+    });
+  const frame = (body, combat = false) => {
     return !gmActive && visibility.playerFooter
-      ? `<div class="ws-player-frame">${body}<footer class="ws-player-footer"><div class="ws-footer-effects" data-hud-block="effects"></div>${renderRecentActions({ actor, adapter, toolState, t, escapeHTML })}<div class="ws-footer-turn"></div><div class="ws-footer-controls">${diceTrayButton(t)}<button type="button" class="ws-button" data-action="actorping" title="${t("Ping.Hint")}" aria-label="${t("GM.Ping")}" ${actor.isOwner && hudSceneTokens(actorContext).length ? "" : "disabled"}><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i></button></div></footer></div>`
+      ? `<div class="ws-player-frame">${body}<footer class="ws-player-footer"><div class="ws-footer-effects" data-hud-block="effects"></div>${footerCenterHTML(combat)}<div class="ws-footer-turn"></div><div class="ws-footer-controls">${diceTrayButton(t)}<button type="button" class="ws-button" data-action="actorping" title="${t("Ping.Hint")}" aria-label="${t("GM.Ping")}" ${actor.isOwner && hudSceneTokens(actorContext).length ? "" : "disabled"}><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i></button></div></footer></div>`
       : body;
   };
   const combatHTML = () =>
-    itemPanels.withUsageTargets(() => frame(combatRenderer.combatHTML()));
+    itemPanels.withUsageTargets(() => frame(combatRenderer.combatHTML(), true));
   const combatActions = () =>
     itemPanels.withUsageTargets(itemPanels.combatActions);
   const normalHTML = () =>
@@ -247,6 +261,7 @@ export function createHudPresentation({
     canRollDeathSave,
     currentMode,
     combatHTML,
+    targetHTML,
     combatActions,
     globalSearchPanel: () =>
       itemPanels.withUsageTargets(itemPanels.globalSearchPanel),

@@ -7,6 +7,8 @@ export function readHudVisibility() {
     hiddenEffects: getSetting(SETTINGS.hiddenEffects),
     spellPreparation: getSetting(SETTINGS.showSpellPreparation),
     playerFooter: getSetting(SETTINGS.playerFooter),
+    explorationFooterMode: getSetting(SETTINGS.explorationFooterMode),
+    combatFooterMode: getSetting(SETTINGS.combatFooterMode),
     itemDetails: getSetting(SETTINGS.showItemDetails),
     cardDetailFields: cardDetailFields(
       getSetting(SETTINGS.cardDetails),

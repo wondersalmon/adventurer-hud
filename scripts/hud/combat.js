@@ -11,6 +11,8 @@ import {
   renderGmEndCombatButton
 } from "./gm/gm-combat.js";
 import { getSetting, SETTINGS } from "../settings-access.js";
+import { scTurnActionLabel } from "../compatibility/sc-venaerys-initiative.js";
+import { renderScPhaseStatus } from "./combat-initiative.js";
 
 export function createCombatRenderer(context) {
   const {
@@ -69,7 +71,7 @@ export function createCombatRenderer(context) {
 
   const combatInitiative = (always = false) => {
     if (visibility.initiative === false) return "";
-    const { combatant } = getCombatState();
+    const { combatant, sc } = getCombatState();
 
     if (!combatant && !showInitiative && !always) {
       return "";
@@ -82,11 +84,11 @@ export function createCombatRenderer(context) {
           type="button"
           class="ws-header-initiative ws-button ${rolled ? "" : "ws-unrolled"}"
           data-action="initiative"
-          title="${!combatant ? t("Initiative.NotCombatant") : rolled ? t("Initiative.Rolled") : t("Initiative.Roll")}"
-          ${!combatant || rolled || !canAct() ? "disabled" : ""}
+          title="${sc ? t("SC.RollInTracker") : !combatant ? t("Initiative.NotCombatant") : rolled ? t("Initiative.Rolled") : t("Initiative.Roll")}"
+          ${!combatant || rolled || !canAct() || sc ? "disabled" : ""}
         >
           <span>${initiativeLabel()}</span>
-          <strong>${rolled ? combatant.initiative : "—"}</strong>
+          <strong>${sc && !sc.usesInitiative ? "—" : rolled ? combatant.initiative : "—"}</strong>
         </button>
       `;
   };
@@ -126,7 +128,8 @@ export function createCombatRenderer(context) {
     </div>`;
   };
   function combatHTML() {
-    const { isTurn, canEndTurn } = getCombatState();
+    const { isTurn, canEndTurn, sc } = getCombatState();
+    const endLabel = sc ? scTurnActionLabel(sc, t) : t("Combat.EndTurn");
     const { hp } = adapter.combatStats(actor);
     const legendaryResistance = gmHeader
       ? adapter.npcResource(actor, "legres")
@@ -191,7 +194,7 @@ export function createCombatRenderer(context) {
           <section class="ws-gm-action-column">${combatActions()}</section>
         </div>
         </div>
-        <div class="ws-gm-tools">${diceTrayButton(t)}${gmTurnControls?.() ?? ""}<button type="button" class="ws-end-turn ws-button" data-action="endturn" ${getCombatState().combat?.started && getCombatState().combat?.combatant ? "" : "disabled"}><i class="fa-solid fa-forward-step" aria-hidden="true"></i>${t("Combat.EndTurn")}</button><div class="ws-gm-more"><button type="button" class="ws-gm-more-toggle" data-action="togglegmtools" aria-expanded="false" aria-controls="ws-gm-more-actions" id="ws-gm-more-toggle" title="${t("GM.MoreActions")}" aria-label="${t("GM.MoreActions")}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button><div class="ws-gm-more-actions" id="ws-gm-more-actions">${renderGmRevealButton(getCombatState().combat, t)}${gmInitiativeButtons?.() ?? ""}${gmRemovalButton?.() ?? ""}${renderGmEndCombatButton(getCombatState().combat, t)}</div></div></div>
+        <div class="ws-gm-tools">${diceTrayButton(t)}${gmTurnControls?.() ?? ""}<button type="button" class="ws-end-turn ws-button" data-action="endturn" ${getCombatState().combat?.started && getCombatState().combat?.combatant && (!sc || sc.valid) ? "" : "disabled"}><i class="fa-solid fa-forward-step" aria-hidden="true"></i>${t(sc ? "SC.NextPhase" : "Combat.EndTurn")}</button><div class="ws-gm-more"><button type="button" class="ws-gm-more-toggle" data-action="togglegmtools" aria-expanded="false" aria-controls="ws-gm-more-actions" id="ws-gm-more-toggle" title="${t("GM.MoreActions")}" aria-label="${t("GM.MoreActions")}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button><div class="ws-gm-more-actions" id="ws-gm-more-actions">${renderGmRevealButton(getCombatState().combat, t)}${gmInitiativeButtons?.() ?? ""}${gmRemovalButton?.() ?? ""}${renderGmEndCombatButton(getCombatState().combat, t)}</div></div></div>
       </div>`;
     }
 
@@ -203,7 +206,8 @@ export function createCombatRenderer(context) {
           ${modeNavigation("combat")}
           <section class="ws-player-info">
           ${globalSearchPanel?.() ?? ""}
-          ${actorHeader(`${inspirationControl()}${isTurn ? `<button type="button" class="ws-header-control ws-header-end-turn ws-button ws-active" data-action="endturn" title="${t("Combat.YourTurn")} · ${t("Combat.EndTurn")}" aria-label="${t("Combat.EndTurn")}" ${canEndTurn ? "" : "disabled"}><i class="fa-solid fa-forward-step" aria-hidden="true"></i><span>${t("Combat.EndTurn")}</span></button>` : ""}`)}
+          ${renderScPhaseStatus(sc, t, escapeHTML)}
+          ${actorHeader(`${inspirationControl()}${(sc ? sc.isTurn : isTurn) ? `<button type="button" class="ws-header-control ws-header-end-turn ws-button ws-active" data-action="${sc?.marked ? "scundo" : "endturn"}" ${sc ? `data-sc-round="${getCombatState().combat.round}" data-sc-phase="${escapeHTML(sc.currentPhaseId)}" data-sc-half="${sc.half ?? ""}"` : ""} aria-pressed="${Boolean(sc?.marked)}" title="${t("Combat.YourTurn")} · ${endLabel}" aria-label="${endLabel}" ${canEndTurn ? "" : "disabled"}><i class="fa-solid fa-forward-step" aria-hidden="true"></i><span>${endLabel}</span></button>` : ""}`)}
 
           ${companionNavigation?.() ?? ""}
 
