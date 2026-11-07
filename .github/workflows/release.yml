@@ -78,7 +78,6 @@ jobs:
           name: release-diagnostics-${{ inputs.tag || github.ref_name }}
           path: |
             dev/coverage
-            dev/benchmarks
             dev/playwright-report
             dev/test-results
           if-no-files-found: ignore
@@ -126,6 +125,11 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 22
+
+      - name: Test the pinned Foundry publisher with mocked requests
+        env:
+          FOUNDRY_TEST_PINNED_PUBLISHER: "1"
+        run: node --test tests/release-workflow.test.mjs
 
       - name: Verify release assets and publish to Foundry
         env:

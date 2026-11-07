@@ -712,6 +712,10 @@
   padding: 3px;
 }
 
+.ws-rolls-dialog .ws-recent-unavailable {
+  filter: grayscale(1);
+}
+
 .ws-rolls-dialog .ws-recent-action img {
   width: 24px;
   height: 24px;

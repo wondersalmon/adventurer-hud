@@ -17,7 +17,7 @@ import {
   renderGmTurnControls
 } from "./gm/gm-combat.js";
 
-/** @param {{actorContext: import('../../types/hud.js').ActorContext, adapter: import('../../types/hud.js').HudAdapter, gmActive: boolean, gmCombatant: any, gmController: import('../../types/hud.js').GmController | null, hudState: import('../../types/hud.js').HudState, visibility: ReturnType<typeof import('./visibility.js').readHudVisibility>, toolState: Awaited<ReturnType<typeof import('./tool-state.js').createHudToolState>>['toolState'], t: import('../../types/hud.js').Translate, tf: import('../../types/hud.js').Format, companions?: any, companion?: boolean}} options */
+/** @param {{actorContext: import('../../types/hud.js').ActorContext, adapter: import('../../types/hud.js').HudAdapter, gmActive: boolean, gmCombatant: any, gmController: import('../../types/hud.js').GmController | null, hudState: import('../../types/hud.js').HudState, visibility: ReturnType<typeof import('./visibility.js').readHudVisibility>, toolState: Awaited<ReturnType<typeof import('./tool-state.js').createHudToolState>>['toolState'], language?: string, t: import('../../types/hud.js').Translate, tf: import('../../types/hud.js').Format, companions?: any, companion?: boolean}} options */
 export function createHudPresentation({
   actorContext,
   companions = null,
@@ -29,11 +29,12 @@ export function createHudPresentation({
   hudState,
   visibility,
   toolState,
+  language = game.i18n.lang,
   t,
   tf
 }) {
   const { actor, getCombatState } = actorContext;
-  const inventoryNumberFormat = new Intl.NumberFormat(game.i18n.lang, {
+  const inventoryNumberFormat = new Intl.NumberFormat(language, {
     maximumFractionDigits: 2
   });
   const canRollActor = actor.isOwner;
@@ -202,14 +203,17 @@ export function createHudPresentation({
   });
 
   const { availableViews } = regularRenderer;
-  const targetHTML = () => renderHudTarget({ actorContext, t, escapeHTML });
+  const targetHTML = () =>
+    renderHudTarget({ actorContext, language, t, escapeHTML });
   const footerCenterHTML = combat =>
     renderFooterCenter({
       actorContext,
       adapter,
       toolState,
+      language,
       t,
       escapeHTML,
+      dimSpellsWithoutSlots: visibility.dimSpellsWithoutSlots,
       mode: footerCenterMode({
         visibility,
         currentMode: () => (combat ? "combat" : "regular")

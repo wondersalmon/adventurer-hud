@@ -19,16 +19,34 @@ function fixture() {
   const calls = [];
   let current = true;
   let combat = { id: "selected" };
+  let confirm = true;
+  const skipped = new Set();
   let placement = async (data, options) => {
     assert.equal(options.createOptions.controlObject, false);
-    assert.equal(await options.preConfirm(), true);
-    assert.equal(await options.preCommit(), true);
-    return data.map((item, index) => {
+    const documents = data.flatMap((item, index) => {
       assert.equal(item._id, undefined);
+      if (skipped.has(index)) return [];
+      const document = {
+        actorId: item.actorId,
+        x: 320,
+        y: 480,
+        rotation: 90,
+        updateSource: changes => Object.assign(document, changes)
+      };
+      assert.equal(options.preConfirm({ document, index }), true);
+      return [document];
+    });
+    assert.equal(await options.preCommit(documents), true);
+    return documents.map((item, index) => {
       const token = {
         id: `token-${index}`,
         parent: scene,
         actor: actors.get(item.actorId),
+        actorLink: item.actorLink,
+        texture: item.texture,
+        x: item.x,
+        y: item.y,
+        rotation: item.rotation,
         isOwner: true
       };
       scene.tokens.set(token.id, token);
@@ -50,8 +68,13 @@ function fixture() {
       return { id: "new" };
     }
   };
-  foundry.utils = {
-    getDocumentClass: type => ({ Actor, Token, Combat, Folder: Actor })[type]
+  foundry.utils.getDocumentClass = type =>
+    ({ Actor, Token, Combat, Folder: Actor })[type];
+  foundry.applications.api.DialogV2 = {
+    confirm: async options => {
+      calls.push(["preview", options]);
+      return confirm;
+    }
   };
   globalThis.CONFIG = { Token: { documentClass: Token } };
   globalThis.canvas = {
@@ -72,6 +95,7 @@ function fixture() {
   const actor = (id, options = {}) => {
     const document = {
       id,
+      name: id,
       uuid: `Actor.${id}`,
       documentName: "Actor",
       type: "npc",
@@ -102,6 +126,7 @@ function fixture() {
   });
   return {
     settings,
+    skipped,
     scene,
     actors,
     sources,
@@ -120,6 +145,9 @@ function fixture() {
     },
     setPlacement: value => {
       placement = value;
+    },
+    setConfirm: value => {
+      confirm = value;
     }
   };
 }
@@ -162,7 +190,10 @@ test("folders include nested NPCs once and resolve compendium folder indexes nat
   };
   f.sources.set("Folder.monsters", folder);
   const data = { type: "Folder", uuid: "Folder.monsters" };
-  assert.deepEqual(await actorsFromDrop(data), [one, two]);
+  assert.deepEqual(
+    (await actorsFromDrop(data)).map(entry => entry.actor),
+    [one, two]
+  );
   await f.drop.drop(data);
   assert.equal(f.calls.find(call => call[0] === "combatants")[1].length, 2);
   assert.deepEqual(f.calls.find(call => call[0] === "import").slice(1), [
@@ -179,7 +210,7 @@ test("Encounter drops expand native quantities without placing the Encounter's o
   const encounter = f.actor("encounter", {
     type: "encounter",
     system: {
-      getPlaceableMembers: async () => {
+      getMembers: async () => {
         resolutions++;
         return [
           { actor: one, quantity: { value: 3, formula: "1d4" } },
@@ -220,7 +251,7 @@ test("folders expand Encounter members and import repeated compendium NPCs only 
   const encounter = f.actor("encounter", {
     type: "encounter",
     system: {
-      getPlaceableMembers: async () => [{ actor: npc, quantity: { value: 3 } }]
+      getMembers: async () => [{ actor: npc, quantity: { value: 3 } }]
     }
   });
   f.sources.set("Folder.encounters", {
@@ -228,9 +259,44 @@ test("folders expand Encounter members and import repeated compendium NPCs only 
     contents: [encounter],
     getSubfolders: () => []
   });
+  f.Actor.fetchExisting = async uuid => {
+    assert.equal(uuid, npc.uuid);
+    return game.actors.importDocument(npc, { renderSheet: false });
+  };
   await f.drop.drop({ type: "Folder", uuid: "Folder.encounters" });
   assert.equal(f.calls.filter(call => call[0] === "import").length, 1);
   assert.equal(f.calls.find(call => call[0] === "combatants")[1].length, 3);
+});
+
+test("Encounter placement uses the reused world Actor prototype at the confirmed position", async () => {
+  const f = fixture();
+  const npc = f.actor("packed", {
+    compendium: {},
+    uuid: "Compendium.test.packed"
+  });
+  const world = f.actor("world", {
+    async getTokenDocument(placement) {
+      return {
+        toObject: () => ({
+          actorId: this.id,
+          actorLink: false,
+          texture: { src: "world.webp" },
+          ...placement
+        })
+      };
+    }
+  });
+  const encounter = f.actor("encounter", {
+    type: "encounter",
+    system: { getMembers: async () => [{ actor: npc, quantity: { value: 1 } }] }
+  });
+  f.Actor.fetchExisting = async () => world;
+  await f.drop.drop({ type: "Actor", uuid: encounter.uuid });
+  const token = f.scene.tokens.get("token-0");
+  assert.equal(token.actor, world);
+  assert.equal(token.actorLink, false);
+  assert.deepEqual(token.texture, { src: "world.webp" });
+  assert.deepEqual([token.x, token.y, token.rotation], [320, 480, 90]);
 });
 
 test("stale drop resolution cannot invoke Encounter imports or quantity rolls", async () => {
@@ -238,7 +304,7 @@ test("stale drop resolution cannot invoke Encounter imports or quantity rolls", 
   const encounter = f.actor("encounter", {
     type: "encounter",
     system: {
-      getPlaceableMembers: () => assert.fail("stale Encounter must not resolve")
+      getMembers: () => assert.fail("stale Encounter must not resolve")
     }
   });
   f.Actor.fromDropData = async () => {
@@ -269,10 +335,77 @@ test("cancelled native placement creates neither an encounter nor participants",
   const f = fixture();
   f.setCombat(null);
   f.setPlacement(async () => []);
-  await f.drop.drop({ type: "Actor", uuid: f.actor("one").uuid });
+  const actor = f.actor("packed", { compendium: {} });
+  await f.drop.drop({ type: "Actor", uuid: actor.uuid });
   assert.equal(
-    f.calls.some(call => ["create-combat", "combatants"].includes(call[0])),
+    f.calls.some(call =>
+      ["import", "create-combat", "combatants"].includes(call[0])
+    ),
     false
+  );
+});
+
+test("Encounter preview rolls counts once and cancels before any import or placement", async () => {
+  const f = fixture();
+  const npc = f.actor("packed", { name: "<Goblin>", compendium: {} });
+  const encounter = f.actor("encounter", {
+    type: "encounter",
+    system: {
+      getMembers: async () => [
+        { actor: npc, quantity: { value: null, formula: "1d4" } }
+      ],
+      getPlaceableMembers: () =>
+        assert.fail("preview must not invoke native imports")
+    }
+  });
+  let rolls = 0;
+  foundry.dice = {
+    Roll: class {
+      constructor(formula) {
+        assert.equal(formula, "1d4");
+      }
+      async evaluate() {
+        rolls++;
+        return { total: 3 };
+      }
+    }
+  };
+  f.setConfirm(false);
+  await f.drop.drop({ type: "Actor", uuid: encounter.uuid });
+  assert.equal(rolls, 1);
+  assert.deepEqual(
+    f.calls.map(call => call[0]),
+    ["preview"]
+  );
+  assert.match(f.calls[0][1].content, /&lt;Goblin&gt; × 3/);
+});
+
+test("native placement imports only confirmed compendium actors and enrolls their exact tokens", async () => {
+  const f = fixture();
+  const skipped = f.actor("skip", {
+    compendium: {},
+    uuid: "Compendium.test.skip"
+  });
+  const placed = f.actor("placed", {
+    compendium: {},
+    uuid: "Compendium.test.placed"
+  });
+  f.skipped.add(0);
+  f.sources.set("Folder.creatures", {
+    type: "Actor",
+    contents: [skipped, placed],
+    getSubfolders: () => []
+  });
+  await f.drop.drop({ type: "Folder", uuid: "Folder.creatures" });
+  assert.deepEqual(
+    f.calls.filter(call => call[0] === "import").map(call => call[1]),
+    [placed]
+  );
+  assert.deepEqual(
+    f.calls
+      .find(call => call[0] === "combatants")[1]
+      .map(token => token.actor.id),
+    ["imported-placed"]
   );
 });
 
@@ -313,7 +446,7 @@ for (const reason of [
       if (reason === "actor") f.actors.set(actor.id, { ...actor });
       if (reason === "rights") actor.isOwner = false;
       if (reason === "setting") f.settings.current.set("gmActorDrop", false);
-      assert.equal(await options.preCommit(), false);
+      assert.equal(await options.preCommit([]), false);
       return [];
     });
     await f.drop.drop({ type: "Actor", uuid: actor.uuid });

@@ -1,4 +1,8 @@
-<div class="ws-settings-form" data-settings-theme="{{theme}}">
+<div
+  class="ws-settings-form"
+  lang="{{language}}"
+  data-settings-theme="{{theme}}"
+>
   <nav class="ws-settings-nav" aria-label="{{navigationLabel}}">
     <div
       class="ws-settings-tabs"
@@ -92,8 +96,10 @@
             <div
               class="form-group"
               data-setting-key="{{key}}"
+              data-advanced-heading="{{advancedHeading}}"
               data-animation-detail="{{animationDetail}}"
               {{appearanceHidden}}
+              {{customFieldsHidden}}
             >
               {{#if detailGroups}}<span
                   class="ws-settings-field-label"

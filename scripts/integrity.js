@@ -1,6 +1,7 @@
 import { MODULE_ID } from "./module-id.js";
 import {
   getSettingDefinitions,
+  HUD_LANGUAGE_NAMES,
   SETTINGS,
   normalizeHudTheme,
   validCardDetailFields,
@@ -12,7 +13,10 @@ import { dnd5eAdapter } from "./dnd5e/index.js";
 import { saveChangedSettings } from "./settings-access.js";
 import { flushWindowGeometry } from "./window-geometry.js";
 import { replacePanelPreferences } from "./hud/panel-preferences.js";
-import { HUD_LAYOUT_BLOCKS } from "./hud/window/hud-layout-model.js";
+import {
+  BLOCK_VISIBILITY_SCOPE,
+  HUD_LAYOUT_BLOCKS
+} from "./hud/window/hud-layout-model.js";
 
 const queue = createTaskQueue();
 const isRecord = value =>
@@ -65,6 +69,7 @@ function inspectHudLayoutMeaning(layouts, uuid, issues) {
   // Released layouts may still hide coins through this supported alias.
   blocks.add("currency");
   for (const [scope, preference] of Object.entries(layouts ?? {})) {
+    if (scope === BLOCK_VISIBILITY_SCOPE) continue;
     // The former dock lane is now the footer; preserve its supported choices.
     if (/^(regular|combat):dock$/.test(scope)) {
       const footer = scope.replace(/:dock$/, ":footer");
@@ -296,8 +301,9 @@ async function checkFiles() {
     const paths = [
       ...manifest.esmodules,
       ...manifest.styles,
-      "lang/en.json",
-      "lang/ru.json",
+      ...Object.keys(HUD_LANGUAGE_NAMES).map(
+        language => `lang/${language}.json`
+      ),
       "templates/rolls-hud.hbs",
       "templates/settings.hbs",
       "templates/reset-settings.hbs",

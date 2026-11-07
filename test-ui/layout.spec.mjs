@@ -1,15 +1,12 @@
 import { bindPlayerDivider } from "../scripts/hud/window/column-divider.js";
-import { synchronizeStatusLayout } from "../scripts/hud/window/status-layout.js";
 import {
   expandedHudSection,
   revealHudSection
 } from "../scripts/hud/window/section-reveal.js";
 import { test, expect } from "@playwright/test";
 import { layoutFixture } from "./layout-fixture.mjs";
-import {
-  applyPlayerLayout,
-  synchronizePlayerLayout
-} from "../scripts/hud/window/responsive-layout.js";
+import { loadHudModules } from "./module-fixture.mjs";
+import { synchronizePlayerLayout } from "../scripts/hud/window/responsive-layout.js";
 import {
   captureHudDomState,
   restoreHudDomState
@@ -1026,8 +1023,26 @@ async function showPanel(
 ) {
   const { css, baseline, bodies } = fixtures[language];
   await page.setContent(
-    `<style>${baseline}\n${css}</style><section class="ws-rolls-dialog ws-theme-${theme} ws-font-${font}" style="width:${width}px"><div class="window-content" style="height:${height}px;padding:0"><form><div class="dialog-content standard-form"><div class="ws-shell">${bodies[scenario]}</div></div></form></div></section><script>${synchronizeStatusLayout.toString()};${applyPlayerLayout.toString()};${synchronizePlayerLayout.toString()};window.hudLayoutObserver?.disconnect();window.hudLayoutThreshold=${threshold};window.hudLayoutObserver=new ResizeObserver(() => synchronizePlayerLayout(document,window.hudLayoutThreshold));window.hudLayoutObserver.observe(document.querySelector('.ws-rolls-dialog'));synchronizePlayerLayout(document,window.hudLayoutThreshold);</script>`
+    `<style>${baseline}\n${css}</style><section class="ws-rolls-dialog ws-theme-${theme} ws-font-${font}" style="width:${width}px"><div class="window-content" style="height:${height}px;padding:0"><form><div class="dialog-content standard-form"><div class="ws-shell">${bodies[scenario]}</div></div></form></div></section>`
   );
+  await loadHudModules(page, {
+    "hud/window/responsive-layout.js": [
+      "synchronizePlayerLayout",
+      "applyPlayerLayout"
+    ],
+    "hud/window/status-layout.js": ["synchronizeStatusLayout"]
+  });
+  await page.evaluate(threshold => {
+    window.hudLayoutObserver?.disconnect();
+    window.hudLayoutThreshold = threshold;
+    window.hudLayoutObserver = new ResizeObserver(() =>
+      window.synchronizePlayerLayout(document, window.hudLayoutThreshold)
+    );
+    window.hudLayoutObserver.observe(
+      document.querySelector(".ws-rolls-dialog")
+    );
+    window.synchronizePlayerLayout(document, window.hudLayoutThreshold);
+  }, threshold);
 }
 
 async function expectReadableControls(page, description) {

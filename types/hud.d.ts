@@ -88,7 +88,7 @@ export interface HudActorRecovery {
   hudState: HudState;
   isCurrent(): boolean;
 }
-export type RefreshRegion = "full" | "actions" | "search";
+export type RefreshRegion = "full" | "actions" | "search" | "target";
 export interface RefreshScheduler {
   schedule(region?: RefreshRegion): void;
   flush(): void;
@@ -105,6 +105,7 @@ export interface HudOpenContext {
   reusedApp: any;
   gmActive: boolean;
   DialogV2: any;
+  language: string;
   t: Translate;
   tf: Format;
   adapter: HudAdapter;

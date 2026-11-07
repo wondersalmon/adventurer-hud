@@ -195,33 +195,41 @@ test("Apply commits a draft without closing; close offers stay, discard and save
   }
 });
 
-test("applying HUD language refreshes the open settings menu and retains its section", async t => {
-  const { app, root, f } = await form(false, { language: "en" });
-  foundry.utils.getRoute = route => route;
-  t.mock.method(globalThis, "fetch", async route => ({
-    ok: true,
-    json: async () =>
-      JSON.parse(
-        await readFile(
-          new URL(`../lang/${route.split("/").at(-1)}`, import.meta.url),
-          "utf8"
+for (const locale of ["ru", "pt-BR", "pt-PT"])
+  test(`applying ${locale} refreshes the open settings menu and retains its section`, async t => {
+    const { app, root, f } = await form(false, { language: "en" });
+    foundry.utils.getRoute = route => route;
+    t.mock.method(globalThis, "fetch", async route => ({
+      ok: true,
+      json: async () =>
+        JSON.parse(
+          await readFile(
+            new URL(`../lang/${route.split("/").at(-1)}`, import.meta.url),
+            "utf8"
+          )
         )
-      )
-  }));
-  app.selectSettingsTab("behavior");
-  const section = app.activeSettingsTab;
-  const language = root.querySelector('[name="language"]');
-  language.value = "ru";
-  app.dependencyListener({ target: language });
-  await app.saveDraft();
-  assert.equal(f.current.get("language"), "ru");
-  assert.equal(app.settingsLanguage, "ru");
-  assert.equal(app.context.closeLabel, "Закрыть");
-  assert.equal(app.activeSettingsTab, section);
-  assert.equal(app.rendered, true);
-  assert.equal(app.draftController.dirty, false);
-  app._onClose({});
-});
+    }));
+    app.selectSettingsTab("behavior");
+    const section = app.activeSettingsTab;
+    const language = root.querySelector('[name="language"]');
+    const translations = JSON.parse(
+      await readFile(new URL(`../lang/${locale}.json`, import.meta.url), "utf8")
+    );
+    language.value = locale;
+    app.dependencyListener({ target: language });
+    await app.saveDraft();
+    assert.equal(f.current.get("language"), locale);
+    assert.equal(app.settingsLanguage, locale);
+    assert.equal(app.context.language, locale);
+    assert.equal(
+      app.context.closeLabel,
+      translations["ADVENTURER_HUD.Settings.Close"]
+    );
+    assert.equal(app.activeSettingsTab, section);
+    assert.equal(app.rendered, true);
+    assert.equal(app.draftController.dirty, false);
+    app._onClose({});
+  });
 
 test("failed saving retains the draft and changing a form during save cannot mark new values saved", async () => {
   const { app, root, f } = await form();
@@ -254,6 +262,16 @@ test("failed saving retains the draft and changing a form during save cannot mar
   app._onClose({});
 });
 
+test("spell slot dimming is an enabled by default personal item setting", async () => {
+  const { root } = await form();
+  const control = root.querySelector('[name="dimSpellsWithoutSlots"]');
+  assert.equal(control.checked, true);
+  assert.equal(
+    control.closest("[data-settings-panel]").dataset.settingsPanel,
+    "panelItems"
+  );
+});
+
 test("language belongs to Behavior and search retains one editable language control", async () => {
   const { app, root } = await form();
   const entry = app.searchController.entries.find(
@@ -270,20 +288,13 @@ test("language belongs to Behavior and search retains one editable language cont
     "panelSections"
   );
   assert.equal(root.querySelector('[name="showFavoriteMode"]'), null);
-  assert.equal(
-    root.querySelectorAll('[name="showInventorySummary"]').length,
-    1
-  );
-  assert.equal(
-    root.querySelector('[name="showInventorySummary"]').checked,
-    true
-  );
-  assert.equal(
-    root
-      .querySelector('[name="showInventorySummary"]')
-      .closest("[data-settings-panel]").dataset.settingsPanel,
-    "panelSections"
-  );
+  for (const key of [
+    "showSearch",
+    "showFavorites",
+    "showInventorySummary",
+    "showShortcuts"
+  ])
+    assert.equal(root.querySelector(`[name="${key}"]`), null);
   assert.equal(root.querySelectorAll('[name="language"]').length, 1);
   assert.equal(root.querySelector('.ws-settings-nav [name="language"]'), null);
   assert.equal(

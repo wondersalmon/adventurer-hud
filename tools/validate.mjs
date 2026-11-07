@@ -13,6 +13,7 @@ import {
   readLocalizationCatalogs,
   localeForLanguage
 } from "./localization.mjs";
+import { HUD_LANGUAGE_NAMES } from "../scripts/settings-schema.js";
 
 const root = process.cwd();
 const readJson = async file =>
@@ -21,44 +22,43 @@ const readJson = async file =>
 const manifest = await readJson("module.json");
 const packageJson = await readJson("package.json");
 const catalogs = await readLocalizationCatalogs(manifest);
-{
-  const russian = localeForLanguage(catalogs, "ru");
-  const english = localeForLanguage(catalogs, "en");
-  assert.ok(Object.keys(english).length, `Empty English catalog for languages`);
-  for (const catalog of [english, russian]) {
-    for (const key of Object.keys(catalog)) {
-      const parts = key.split(".");
-      for (let index = 1; index < parts.length; index++) {
-        const parent = parts.slice(0, index).join(".");
-        assert.ok(
-          !Object.hasOwn(catalog, parent),
-          `Localization key is also a parent: ${parent}`
-        );
-      }
+assert.deepEqual(
+  manifest.languages,
+  Object.entries(HUD_LANGUAGE_NAMES).map(([lang, name]) => ({
+    lang,
+    name,
+    path: `lang/${lang}.json`
+  }))
+);
+const english = localeForLanguage(catalogs, "en");
+const keys = Object.keys(english).sort();
+const placeholders = value =>
+  [...value.matchAll(/\{([^{}]+)\}/g)].map(([, name]) => name).sort();
+assert.ok(keys.length, "Empty English catalog");
+for (const { lang, translations } of catalogs) {
+  assert.deepEqual(
+    Object.keys(translations).sort(),
+    keys,
+    `${lang}: localization keys differ`
+  );
+  for (const [key, value] of Object.entries(translations)) {
+    assert.equal(typeof value, "string", `${lang}: ${key} must be a string`);
+    assert.ok(value.trim(), `${lang}: ${key} must not be empty`);
+    assert.deepEqual(
+      placeholders(value),
+      placeholders(english[key]),
+      `${lang}: ${key} placeholders differ`
+    );
+    const parts = key.split(".");
+    for (let index = 1; index < parts.length; index++) {
+      const parent = parts.slice(0, index).join(".");
+      assert.ok(
+        !Object.hasOwn(translations, parent),
+        `${lang}: localization key is also a parent: ${parent}`
+      );
     }
   }
-  for (const [key, value] of Object.entries(english)) {
-    assert.equal(typeof value, "string", `${key} must be a string`);
-    assert.ok(value.trim(), `${key} must not be empty`);
-  }
-  assert.deepEqual(
-    Object.keys(russian).sort(),
-    Object.keys(english).sort(),
-    `Localization keys differ for languages`
-  );
 }
-const russian = Object.assign(
-  {},
-  ...catalogs
-    .filter(entry => entry.lang === "ru")
-    .map(entry => entry.translations)
-);
-const english = Object.assign(
-  {},
-  ...catalogs
-    .filter(entry => entry.lang === "en")
-    .map(entry => entry.translations)
-);
 
 assert.equal(manifest.id, "adventurer-hud");
 assert.equal(manifest.type, "module");
@@ -69,10 +69,6 @@ assert.equal(manifest.manifest, releaseUrls.manifest);
 assert.equal(manifest.download, releaseUrls.download);
 for (const key of ["readme", "changelog", "bugs", "license"])
   assert.ok(manifest[key], `Missing manifest ${key}`);
-assert.equal(
-  manifest.languages.find(entry => entry.lang === "en" && !entry.system)?.path,
-  "lang/en.json"
-);
 assert.deepEqual(manifest.styles, [
   "styles/dialogs.css",
   "styles/adventurer-hud.css",
@@ -127,7 +123,6 @@ for (const file of sourceFiles) {
 }
 
 for (const key of referencedKeys) {
-  assert.ok(russian[key], `Missing Russian localization key: ${key}`);
   assert.ok(english[key], `Missing English localization key: ${key}`);
 }
 

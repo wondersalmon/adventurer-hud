@@ -1,4 +1,9 @@
 // @ts-check
+import {
+  itemAvailabilityLabel,
+  itemPresentationAvailability
+} from "./items/quick-access.js";
+
 /** @typedef {{action: "useitem" | "useactivity" | "ability" | "skill" | "tool", itemId?: string, activityId?: string, key?: string, type?: string}} RecentAction */
 
 // Tab-local history contains identifiers only, never documents or old roll options.
@@ -44,13 +49,14 @@ export function performRecentRoll(actor, performRoll, entry, callback) {
   });
 }
 
-/** @param {{actor: any, adapter: import('../../types/hud.js').HudAdapter, toolState: {tools?: {id: string, name: string, img?: string}[]}, t: import('../../types/hud.js').Translate, escapeHTML: (value: unknown) => string}} options */
+/** @param {{actor: any, adapter: import('../../types/hud.js').HudAdapter, toolState: {tools?: {id: string, name: string, img?: string}[]}, t: import('../../types/hud.js').Translate, escapeHTML: (value: unknown) => string, dimSpellsWithoutSlots?: boolean}} options */
 export function renderRecentActions({
   actor,
   adapter,
   toolState,
   t,
-  escapeHTML
+  escapeHTML,
+  dimSpellsWithoutSlots = false
 }) {
   const entries = history().get(actor.uuid) ?? [];
   const buttons = entries
@@ -60,7 +66,7 @@ export function renderRecentActions({
         img,
         icon = "fa-dice-d20",
         blocked = false,
-        reason = !actor.isOwner ? "Warnings.NoPermission" : null;
+        reason = !actor.isOwner ? t("Warnings.NoPermission") : "";
       if (itemId) {
         const item = actor.items.get(itemId);
         if (!item) return "";
@@ -70,19 +76,30 @@ export function renderRecentActions({
         if (activityId && !activity) return "";
         label = activity ? `${item.name}: ${activity.name}` : item.name;
         img = activity?.img ?? item.img;
-        const state = adapter.itemUseState?.(item, activityId);
-        blocked = Boolean(state?.blocked || activity?.canUse === false);
+        const state = itemPresentationAvailability(
+          adapter,
+          actor,
+          item,
+          activityId,
+          {
+            dimSpellsWithoutSlots
+          }
+        );
+        blocked = Boolean(state.blocked || activity?.canUse === false);
         if (!reason && blocked) {
           const preparation =
             item.type === "spell" ? adapter.spellPreparation?.(item) : null;
           reason =
             preparation?.canPrepare && !preparation.prepared
-              ? "Combat.UnpreparedSpell"
-              : (state?.reason ??
-                (activity?.canUse === false
-                  ? "Quick.ActivityUnavailable"
-                  : "Recent.Unavailable"));
+              ? t("Combat.UnpreparedSpell")
+              : itemAvailabilityLabel(t, state) ||
+                t(
+                  activity?.canUse === false
+                    ? "Quick.ActivityUnavailable"
+                    : "Recent.Unavailable"
+                );
         }
+        reason ||= itemAvailabilityLabel(t, state);
       } else if (action === "ability") {
         if (!key || !Object.keys(adapter.abilityData(actor, key)).length)
           return "";
@@ -102,8 +119,8 @@ export function renderRecentActions({
         label = tool.name;
         img = tool?.img;
       }
-      const title = `${t("Recent.Repeat")}: ${label}${reason ? ` — ${t(reason)}` : ""}`;
-      return `<button type="button" class="ws-button ws-recent-action" data-recent-action="true" ${Object.entries(
+      const title = `${t("Recent.Repeat")}: ${label}${reason ? ` — ${reason}` : ""}`;
+      return `<button type="button" class="ws-button ws-recent-action${reason ? " ws-recent-unavailable" : ""}" data-recent-action="true" ${Object.entries(
         entry
       )
         .map(

@@ -210,6 +210,50 @@ test("footer blocks move between lanes, retain native controls and hide an empty
   }
 });
 
+test("the editor restores blocks hidden by legacy settings and remembers the choice", async () => {
+  const f = await hudFixture({
+    values: {
+      showSearch: false,
+      showFavorites: false,
+      showInventorySummary: false,
+      showShortcuts: false
+    }
+  });
+  await f.api.open(f.actor);
+  let app = __adventurerHud.app;
+  assert.equal(app.element.querySelector(".ws-global-search"), null);
+  await app.hudActions.togglehudedit();
+  for (const key of ["search", "favorites", "weight", "hints"]) {
+    const button = app.element.querySelector(
+      `[data-action="hudblockhide"][data-hud-key="${key}"]`
+    );
+    assert.ok(button, key);
+    await app.hudActions.hudblockhide(null, button);
+  }
+  await app.hudActions.togglehudedit();
+  await flushPanelPreferences();
+  await app.close();
+  await f.api.open(f.actor);
+  app = __adventurerHud.app;
+  assert.ok(app.element.querySelector(".ws-global-search"));
+  assert.equal(
+    app.element
+      .querySelector(".ws-player-favorites")
+      .classList.contains("ws-hud-block-hidden"),
+    false
+  );
+  assert.ok(app.element.querySelector("[data-hud-hints]"));
+  await app.hudActions.view(null, { dataset: { view: "inventory" } });
+  assert.equal(
+    app.element
+      .querySelector(".ws-inventory-summary")
+      .classList.contains("ws-hud-block-hidden"),
+    false
+  );
+  assert.equal(f.current.get("showSearch"), false);
+  await app.close();
+});
+
 test("inventory summary stays in Inventory and can be hidden and restored with Inventory closed", async () => {
   const f = await hudFixture();
   f.actor.system.currency = { gp: 37 };

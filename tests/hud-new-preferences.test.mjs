@@ -138,16 +138,32 @@ test("edge snapping catches nearby edges and preserves freely positioned axes an
 });
 
 test("slide mode stows the same window, disposes its session and restores it on reopening", async () => {
-  const f = await hudFixture({ values: { slidePanel: true } });
+  const f = await hudFixture({
+    values: { slidePanel: true, twoColumnWidth: 450, playerColumnRatio: 0.56 }
+  });
   await f.api.open(f.actor);
   const app = __adventurerHud.app;
   const position = { ...app.position };
+  const columnWidth = () =>
+    app.element
+      .querySelector(".ws-player-layout")
+      .style.getPropertyValue("--ws-player-left-width");
+  const savedWidth = columnWidth();
+  assert.ok(savedWidth);
   await app.close();
   assert.equal(app.rendered, true);
   assert.equal(app.element.hidden, true);
   assert.equal(app.hudStowed, true);
   assert.equal(f.current.get("hudClosed"), true);
+  app.element
+    .querySelector(".ws-player-layout")
+    .style.removeProperty("--ws-player-left-width");
+  let openingWidth;
+  app.slideHud = async opening => {
+    if (opening) openingWidth = columnWidth();
+  };
   await f.api.open(f.actor);
+  assert.equal(openingWidth, savedWidth);
   assert.equal(__adventurerHud.app, app);
   assert.equal(app.element.hidden, false);
   assert.equal(app.hudStowed, false);

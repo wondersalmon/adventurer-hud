@@ -8,6 +8,31 @@ import {
   synchronizeHudTypography
 } from "./hud/theme.js";
 
+export function groupAdvancedSettings(root) {
+  for (const row of root.querySelectorAll(
+    '[data-advanced-heading]:not([data-advanced-heading=""])'
+  )) {
+    if (row.closest(".ws-settings-advanced")) continue;
+    const heading = row.dataset.advancedHeading;
+    const details = row.ownerDocument.createElement("details");
+    details.className = "ws-settings-advanced";
+    const summary = row.ownerDocument.createElement("summary");
+    summary.textContent = heading;
+    details.append(summary);
+    row.before(details);
+    let sibling = row;
+    while (
+      sibling &&
+      (sibling.dataset.advancedHeading === heading ||
+        sibling.matches("[data-theme-colors]"))
+    ) {
+      const next = sibling.nextElementSibling;
+      details.append(sibling);
+      sibling = next;
+    }
+  }
+}
+
 /** Form-local appearance draft and illustrative effects. No world documents. */
 export class AppearanceSettingsController {
   constructor(root) {
@@ -77,9 +102,15 @@ export class AppearanceSettingsController {
       !this.read(SETTINGS.customThemeInitialized)
     )
       this.seed(this.previousTheme);
-    this.previousTheme = theme;
     const custom = this.root.querySelector("[data-theme-colors]");
-    if (custom) custom.hidden = theme !== "custom";
+    if (custom) {
+      custom.hidden = theme !== "custom";
+      if (theme === "custom" && this.previousTheme !== "custom") {
+        const disclosure = custom.closest("details");
+        if (disclosure) disclosure.open = true;
+      }
+    }
+    this.previousTheme = theme;
     for (const key of [SETTINGS.accentPreset, SETTINGS.accentColor]) {
       const group = this.root.querySelector(`[data-setting-key="${key}"]`);
       if (group)

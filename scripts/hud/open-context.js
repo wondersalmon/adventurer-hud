@@ -10,6 +10,7 @@ import {
   worldDocument
 } from "./companions/companions.js";
 import { flushWindowGeometry } from "../window-geometry.js";
+import { flushPanelPreferences } from "./panel-preferences.js";
 import { getSetting, setSetting, SETTINGS } from "../settings-access.js";
 
 /**
@@ -141,6 +142,7 @@ export async function prepareHudOpenContext({
     if (recovery && !recovery.isCurrent()) return null;
     await state.app.close({ hudForce: true });
   }
+  if (recovery && reusedApp && !recovery.isCurrent()) return null;
 
   recordDiagnostic(
     "hud.session.transition",
@@ -153,6 +155,7 @@ export async function prepareHudOpenContext({
     { detailed: true }
   );
   state.session = session;
+  await flushPanelPreferences();
   state.actorUuid = actorContext?.actorUuid ?? null;
   state.actor = actorContext?.actor ?? null;
   state.tokenUuid = actorContext?.tokenUuid ?? null;
@@ -179,6 +182,7 @@ export async function prepareHudOpenContext({
     reusedApp,
     gmActive,
     DialogV2,
+    language,
     t,
     tf,
     adapter,

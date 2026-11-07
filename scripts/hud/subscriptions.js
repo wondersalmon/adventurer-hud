@@ -29,6 +29,7 @@ export function subscribeHudDocuments({
   onInitiativeRolled,
   onTurnStart,
   onToolsChange,
+  onItemLayoutChange,
   onStatusChange,
   onCombatChange,
   isCurrentCombatant,
@@ -100,6 +101,7 @@ export function subscribeHudDocuments({
       (effect?.parent?.uuid === actor.uuid ||
         effect?.parent?.parent?.uuid === actor.uuid)
     ) {
+      onItemLayoutChange?.();
       scheduleRefresh();
       void onStatusChange?.();
     }
@@ -108,6 +110,12 @@ export function subscribeHudDocuments({
   const refreshActorItem = (item, changes, structural = false) => {
     if (recoverActor()) return;
     if (actor && item?.parent?.uuid === actor.uuid) {
+      if (
+        structural ||
+        changesPath(changes, "system.activities") ||
+        changesPath(changes, "effects")
+      )
+        onItemLayoutChange?.();
       scheduleRefresh();
       if (
         structural ||
@@ -149,6 +157,8 @@ export function subscribeHudDocuments({
         )
           onCombatChange?.({ follow: false });
         if (!actor || updatedActor.uuid !== actor.uuid) return;
+        if (changesPath(changes, "items") || changesPath(changes, "effects"))
+          onItemLayoutChange?.();
         const nextHp = readHp?.() ?? null;
         const change = hpChange(previousHp, nextHp);
         if (change) onHpChange?.(change);

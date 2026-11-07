@@ -38,11 +38,33 @@ export async function actorsFromDrop(data, canExecute = () => true) {
   );
   for (const actor of unique.values()) {
     if (!canExecute()) return [];
-    if (actor.type === "npc") creatures.push(actor);
+    if (actor.type === "npc") creatures.push({ actor, encounter: null });
     else if (actor.type === "encounter")
-      creatures.push(...(await encounterActors(actor)));
+      for (const member of await encounterActors(actor, canExecute))
+        creatures.push({ actor: member, encounter: actor });
   }
   return creatures;
+}
+
+function confirmCreatures(sources, t) {
+  const counts = new Map();
+  for (const { actor } of sources) {
+    const entry = counts.get(actor.uuid) ?? { name: actor.name, count: 0 };
+    entry.count++;
+    counts.set(actor.uuid, entry);
+  }
+  const { escapeHTML } = foundry.utils;
+  const summary = t("GM.DropPreviewCount").replace(
+    "{count}",
+    String(sources.length)
+  );
+  const list = [...counts.values()]
+    .map(({ name, count }) => `<li>${escapeHTML(name)} × ${count}</li>`)
+    .join("");
+  return foundry.applications.api.DialogV2.confirm({
+    window: { title: t("GM.DropPreview") },
+    content: `<p>${escapeHTML(summary)}</p><ul>${list}</ul>`
+  });
 }
 
 /** Native cursor placement, followed by native enrollment in the selected encounter. */
@@ -97,48 +119,100 @@ export function createGmActorDrop({
             ui.notifications.warn(t("GM.DropNoCreatures"));
             return;
           }
-          const actors = [];
+          const Actor = foundry.utils.getDocumentClass("Actor");
+          const available = actor =>
+            actor?.isOwner && game.actors.get(actor.id) === actor;
           const imported = new Map();
-          for (const source of sources) {
-            if (!scope() || !source.isOwner) return;
-            const Actor = foundry.utils.getDocumentClass("Actor");
-            if (source.compendium && !Actor.canUserCreate(game.user)) return;
-            const actor =
-              imported.get(source.uuid) ??
-              (source.compendium
-                ? await game.actors.importDocument(source, {
-                    renderSheet: false
-                  })
-                : source);
-            if (!scope() || !actor?.isOwner) return;
-            imported.set(source.uuid, actor);
-            actors.push(actor);
-          }
-          const valid = () =>
+          const actors = new Set(sources.map(entry => entry.actor));
+          const encounters = new Set(sources.map(entry => entry.encounter));
+          const validActor = actor =>
+            actor.compendium
+              ? actor.isOwner && Actor.canUserCreate(game.user)
+              : available(actor);
+          const active = () =>
             scope() &&
             canvas.tokens === layer &&
-            CONFIG.Token?.documentClass?.canUserCreate?.(game.user) &&
-            actors.every(
-              actor => actor.isOwner && game.actors.get(actor.id) === actor
-            );
+            CONFIG.Token?.documentClass?.canUserCreate?.(game.user);
+          const validSource = ({ actor, encounter }) =>
+            active() && (!encounter || encounter.isOwner) && validActor(actor);
+          const valid = () =>
+            active() &&
+            [...actors].every(validActor) &&
+            [...encounters].every(
+              encounter => !encounter || encounter.isOwner
+            ) &&
+            [...imported.values()].every(available);
+          if (!valid()) return;
+          if (
+            (data.type === "Folder" ||
+              sources.some(entry => entry.encounter)) &&
+            !(await confirmCreatures(sources, t))
+          )
+            return;
           const documents = [];
-          for (const actor of actors) {
-            if (!valid()) return;
+          for (const source of sources) {
+            if (!validSource(source)) return;
+            const { actor } = source;
             const token = await actor.getTokenDocument(
               { level: canvas.level?.id },
               { parent: scene }
             );
             const tokenData = token.toObject();
             delete tokenData._id;
+            // A compendium ID can match an unrelated world Actor in the preview.
+            if (actor.compendium) tokenData.actorId = null;
             documents.push(tokenData);
           }
           if (!valid()) return;
           layer.activate();
           captured.preview = true;
+          const confirmed = new Map();
           const tokens = await layer.placeTokens(documents, {
             createOptions: { controlObject: false },
-            preConfirm: valid,
-            preCommit: valid
+            preConfirm: ({ document, index }) => {
+              if (!validSource(sources[index])) return false;
+              confirmed.set(document, sources[index]);
+              return true;
+            },
+            preCommit: async placed => {
+              captured.preview = false;
+              if (!valid() || placed.some(document => !confirmed.get(document)))
+                return false;
+              for (const document of placed) {
+                const entry = confirmed.get(document);
+                if (!validSource(entry)) return false;
+                const { actor: source, encounter } = entry;
+                let actor = imported.get(source.uuid);
+                if (!actor) {
+                  if (encounter && Actor.fetchExisting)
+                    actor = await Actor.fetchExisting(source.uuid, {
+                      folderId: encounter.folder?.id ?? null
+                    });
+                  else if (source.compendium)
+                    actor = await game.actors.importDocument(source, {
+                      renderSheet: false
+                    });
+                  else actor = source;
+                  if (!available(actor) || !validSource(entry)) return false;
+                  imported.set(source.uuid, actor);
+                }
+                if (actor !== source) {
+                  const placement = Object.fromEntries(
+                    ["x", "y", "elevation", "rotation", "level"]
+                      .filter(key => document[key] !== undefined)
+                      .map(key => [key, document[key]])
+                  );
+                  const token = await actor.getTokenDocument(placement, {
+                    parent: scene
+                  });
+                  if (!available(actor) || !validSource(entry)) return false;
+                  const data = token.toObject();
+                  delete data._id;
+                  document.updateSource(data, { recursive: false });
+                }
+              }
+              return valid();
+            }
           });
           captured.preview = false;
           if (!valid() || !tokens?.length) return;

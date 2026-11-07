@@ -10,8 +10,8 @@ import {
 
 const readManifest = () => readJson("module.json");
 
-test("Foundry can expand both dotted catalogs without replacing a parent string", async () => {
-  for (const language of ["en", "ru"]) {
+test("Foundry can expand every dotted catalog without replacing a parent string", async () => {
+  for (const { lang: language } of (await readManifest()).languages) {
     const catalog = await readJson(`lang/${language}.json`);
     const expanded = {};
     for (const [key, value] of Object.entries(catalog)) {
@@ -72,14 +72,16 @@ test("automatic language delegates to Foundry without fetching HUD catalogs", as
   assert.equal(translator.tf("Window.Title", { actor: "Рук" }), "Рук");
 });
 
-test("both catalogs contain all D&D translations", async () => {
+test("all registered catalogs are available to the module translator", async () => {
   const manifest = await readManifest();
   assert.deepEqual(manifest.languages.map(entry => entry.path).sort(), [
     "lang/en.json",
+    "lang/pt-BR.json",
+    "lang/pt-PT.json",
     "lang/ru.json"
   ]);
   const catalogs = await readLocalizationCatalogs(manifest);
-  for (const language of ["en", "ru"]) {
+  for (const { lang: language } of manifest.languages) {
     const catalog = localeForLanguage(catalogs, language);
     const translator = await createModuleTranslator({
       language,
@@ -88,6 +90,28 @@ test("both catalogs contain all D&D translations", async () => {
     });
     for (const [key, value] of Object.entries(catalog))
       assert.equal(translator.t(key.slice("ADVENTURER_HUD.".length)), value);
+  }
+});
+
+test("automatic Portuguese resolves legacy IDs and delegates registered locales to Foundry", async () => {
+  for (const [lang, expected, fetches] of [
+    ["pt", "pt-BR", ["en", "pt-BR"]],
+    ["pt-pt", "pt-PT", ["en", "pt-PT"]],
+    ["pt-BR", "pt-BR", []],
+    ["pt-PT", "pt-PT", []]
+  ]) {
+    const requested = [];
+    const translator = await createModuleTranslator({
+      language: "auto",
+      i18n: { lang, localize: () => lang },
+      fetchCatalog: async locale => {
+        requested.push(locale);
+        return { "ADVENTURER_HUD.Example": locale };
+      }
+    });
+    assert.equal(translator.language, expected);
+    assert.equal(translator.t("Example"), expected);
+    assert.deepEqual(requested, fetches);
   }
 });
 

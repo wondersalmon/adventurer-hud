@@ -8,9 +8,10 @@ import {
 } from "../diagnostics.js";
 
 const REFRESH_PRIORITY = Object.freeze({
-  actions: 1,
-  search: 2,
-  full: 3
+  target: 1,
+  actions: 2,
+  search: 3,
+  full: 4
 });
 const renderedMarkup = new WeakMap();
 
@@ -26,6 +27,32 @@ export function refreshHudShell(shell, body, { syncLayout } = {}) {
   renderedMarkup.set(shell, body);
   syncLayout?.();
   restoreHudDomState(shell, domState, { layoutApplied: Boolean(syncLayout) });
+}
+
+export function refreshHudTarget(app, render) {
+  if (!app?.rendered) return;
+  const shell = app.element.querySelector(".ws-shell");
+  const target = shell?.querySelector(".ws-footer-target");
+  if (!target) return;
+  const markup = render();
+  if (renderedMarkup.get(target) === markup) return;
+  const template = target.ownerDocument.createElement("template");
+  template.innerHTML = markup;
+  const state = captureHudDomState(target);
+  target.replaceChildren(...template.content.firstElementChild.childNodes);
+  renderedMarkup.set(target, markup);
+  const previous = renderedMarkup.get(shell);
+  const start = previous?.indexOf("<!--hud-target-->");
+  const end = previous?.indexOf("<!--/hud-target-->");
+  if (start >= 0 && end > start)
+    renderedMarkup.set(
+      shell,
+      previous.slice(0, start + "<!--hud-target-->".length) +
+        markup +
+        previous.slice(end)
+    );
+  else renderedMarkup.delete(shell);
+  restoreHudDomState(target, state, { layoutApplied: true });
 }
 
 export function createRefreshScheduler(
@@ -62,7 +89,16 @@ export function createRefreshScheduler(
       { detailed: true }
     );
     const requested = REFRESH_PRIORITY[region] ? region : "full";
-    if (!pending || REFRESH_PRIORITY[requested] > REFRESH_PRIORITY[pending]) {
+    if (
+      pending &&
+      pending !== requested &&
+      [pending, requested].includes("target")
+    ) {
+      pending = "full";
+    } else if (
+      !pending ||
+      REFRESH_PRIORITY[requested] > REFRESH_PRIORITY[pending]
+    ) {
       pending = requested;
     }
 
@@ -158,67 +194,57 @@ export function refreshHudView({
   if (mode === "combat" && region === "actions") {
     const current = shell.querySelector(".ws-combat-actions");
     if (current) {
-      const template = document.createElement("template");
       const markup = renderers.actions();
       if (renderedMarkup.get(current) === markup) return;
+      const previous = [
+        ...shell.querySelectorAll(".ws-combat-category-section")
+      ];
+      if (!previous.length) {
+        beforeReplace?.();
+        current.outerHTML = markup.trim();
+        const next = shell.querySelector(".ws-combat-actions");
+        if (next) renderedMarkup.set(next, markup);
+        renderedMarkup.delete(shell);
+        restore();
+        return;
+      }
+      const template = document.createElement("template");
       template.innerHTML = markup;
       const sections = [
         ...template.content.querySelectorAll(".ws-combat-category-section")
       ];
-      const previous = [
-        ...shell.querySelectorAll(".ws-combat-category-section")
-      ];
-      if (previous.length) {
-        const updates = sections
-          .map(next => ({
-            next,
-            old: previous.find(
-              node =>
-                node.getAttribute("data-hud-block") ===
-                next.getAttribute("data-hud-block")
-            )
-          }))
-          .filter(
-            ({ next, old }) =>
-              !old || renderedMarkup.get(old) !== next.outerHTML
-          );
-        const removed = previous.filter(
-          old =>
-            !sections.some(
-              next =>
-                next.getAttribute("data-hud-block") ===
-                old.getAttribute("data-hud-block")
-            )
-        );
-        if (updates.length || removed.length) {
-          beforeReplace?.();
-          for (const { next, old } of updates) {
-            renderedMarkup.set(next, next.outerHTML);
-            if (old) old.replaceWith(next);
-            else
-              (
-                current.querySelector(".ws-combat-category-sections") ?? current
-              ).append(next);
-          }
-          for (const old of removed) old.remove();
-          if (!sections.length) {
-            const next = template.content.firstElementChild;
-            if (next) current.replaceWith(next);
-            else current.remove();
-          }
-          renderedMarkup.delete(shell);
-        }
-        renderedMarkup.set(current, markup);
-        restore();
-        return;
+      const byKey = new Map(
+        previous.map(node => [node.dataset.hudBlock, node])
+      );
+      const updates = [];
+      for (const next of sections) {
+        const key = next.dataset.hudBlock;
+        const old = byKey.get(key);
+        byKey.delete(key);
+        const html = next.outerHTML;
+        if (!old || renderedMarkup.get(old) !== html)
+          updates.push({ next, old, html });
       }
-      beforeReplace?.();
-      const next = template.content.firstElementChild;
-      if (next) {
-        current.replaceWith(next);
-        renderedMarkup.set(next, markup);
-      } else current.remove();
-      renderedMarkup.delete(shell);
+      const removed = [...byKey.values()];
+      if (updates.length || removed.length) {
+        beforeReplace?.();
+        for (const { next, old, html } of updates) {
+          renderedMarkup.set(next, html);
+          if (old) old.replaceWith(next);
+          else
+            (
+              current.querySelector(".ws-combat-category-sections") ?? current
+            ).append(next);
+        }
+        for (const old of removed) old.remove();
+        if (!sections.length) {
+          const next = template.content.firstElementChild;
+          if (next) current.replaceWith(next);
+          else current.remove();
+        }
+        renderedMarkup.delete(shell);
+      }
+      renderedMarkup.set(current, markup);
       restore();
       return;
     }

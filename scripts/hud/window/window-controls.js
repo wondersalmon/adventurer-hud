@@ -215,12 +215,13 @@ export function createHudApplicationClass({
       await animation.finished.catch(() => {});
     }
 
-    async revealHud() {
+    async revealHud(prepare) {
       if (!this.hudStowed) return;
       await this.hudSlideTask;
       this.element.hidden = false;
       this.element.inert = false;
       this.hudStowed = false;
+      prepare?.();
       await this.slideHud(true);
     }
   };

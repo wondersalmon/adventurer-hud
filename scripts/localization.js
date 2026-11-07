@@ -1,5 +1,6 @@
 import { MODULE_ID } from "./module-id.js";
 import { reportFailure } from "./diagnostics.js";
+import { HUD_LANGUAGE_NAMES } from "./settings-schema.js";
 
 const catalogsByFetcher = new WeakMap();
 
@@ -44,7 +45,15 @@ export async function createModuleTranslator({
   i18n,
   fetchCatalog = fetchModuleCatalog
 }) {
-  if (language !== "en" && language !== "ru") {
+  if (!Object.hasOwn(HUD_LANGUAGE_NAMES, language)) {
+    // Regional catalogs are registered with Foundry. Legacy or noncanonical
+    // Portuguese identifiers can still use the corresponding HUD catalog.
+    const active = i18n.lang?.toLowerCase();
+    if (active === "pt" || (active === "pt-br" && i18n.lang !== "pt-BR"))
+      language = "pt-BR";
+    else if (active === "pt-pt" && i18n.lang !== "pt-PT") language = "pt-PT";
+  }
+  if (!Object.hasOwn(HUD_LANGUAGE_NAMES, language)) {
     return {
       language: i18n.lang,
       t: key => i18n.localize(`ADVENTURER_HUD.${key}`),

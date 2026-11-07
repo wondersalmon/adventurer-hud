@@ -26,7 +26,10 @@ test.after(async () => {
 const token = "fvttp_test-token";
 const tag = "v" + manifest.version;
 const versioned = manifest.url + "/releases/download/" + tag;
-const runPublication = async (post, { asset } = {}) => {
+const runPublication = async (
+  post,
+  { asset, publish = publishFoundryRelease } = {}
+) => {
   const requests = [],
     delays = [],
     messages = [];
@@ -51,7 +54,7 @@ const runPublication = async (post, { asset } = {}) => {
   };
   let error;
   try {
-    await publishFoundryRelease({
+    await publish({
       root: publicationRoot,
       tag,
       token,
@@ -90,9 +93,10 @@ test("release workflow invokes the tested publisher with scoped secret and same-
   assert.match(source, /cancel-in-progress: false/);
 });
 
-test("publisher sends exact versioned assets and compatibility to Foundry", async () => {
-  const result = await runPublication(() =>
-    Response.json({ status: "success" })
+async function assertSuccessfulPublication(publish) {
+  const result = await runPublication(
+    () => Response.json({ status: "success" }),
+    { publish }
   );
   assert.equal(result.error, undefined);
   const post = result.requests.find(row => row.method === "POST");
@@ -102,7 +106,23 @@ test("publisher sends exact versioned assets and compatibility to Foundry", asyn
   assert.equal(payload.release.version, manifest.version);
   assert.equal(payload.release.manifest, versioned + "/module.json");
   assert.deepEqual(payload.release.compatibility, manifest.compatibility);
+}
+
+test("publisher sends exact versioned assets and compatibility to Foundry", async () => {
+  await assertSuccessfulPublication(publishFoundryRelease);
 });
+
+test(
+  "pinned toolkit publisher sends exact versioned assets and compatibility",
+  {
+    skip: process.env.FOUNDRY_TEST_PINNED_PUBLISHER !== "1"
+  },
+  async () => {
+    const { publishFoundryRelease: publish } =
+      await import("../dev/release-tools/src/publish-foundry.mjs");
+    await assertSuccessfulPublication(publish);
+  }
+);
 
 test("publisher accepts an already registered version without further requests", async () => {
   const result = await runPublication(() =>

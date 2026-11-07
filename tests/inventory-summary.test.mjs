@@ -44,7 +44,7 @@ test("money and weight are rendered only inside the open inventory in both modes
   }
 });
 
-test("inventory visibility preference hides only the summary and restores it on settings refresh", async () => {
+test("the editor restores a legacy hidden inventory summary without changing the inventory filters", async () => {
   for (const combat of [false, true]) {
     const f = await hudFixture({
       combat,
@@ -57,12 +57,16 @@ test("inventory visibility preference hides only the summary and restores it on 
         dataset: { category: "inventory" }
       });
     else await app.hudActions.view(null, { dataset: { view: "inventory" } });
-    assert.equal(app.element.querySelector(".ws-inventory-summary"), null);
+    const summary = () => app.element.querySelector(".ws-inventory-summary");
+    assert.ok(summary().classList.contains("ws-hud-block-hidden"));
     assert.ok(app.element.querySelector(".ws-inventory-filters"));
     await app.hudActions.togglehudedit();
-    assert.equal(app.element.querySelector(".ws-inventory-summary"), null);
-    f.current.set("showInventorySummary", true);
-    app.refreshFromSettings();
+    const toggle = app.element.querySelector(
+      '[data-action="hudblockhide"][data-hud-key="weight"]'
+    );
+    assert.ok(toggle);
+    await app.hudActions.hudblockhide(null, toggle);
+    assert.equal(summary().classList.contains("ws-hud-block-hidden"), false);
     assert.equal(
       app.element.querySelectorAll(".ws-inventory-summary").length,
       1

@@ -4,6 +4,7 @@ import { layoutFixture } from "./layout-fixture.mjs";
 import { fragment, itemRendererFixture } from "../tests/helpers/rendering.mjs";
 import { createItemPreview } from "../scripts/hud/items/item-preview.js";
 import { bindItemDescriptionInteractions } from "../scripts/hud/items/item-interactions.js";
+import { dnd5eAdapter } from "../scripts/dnd5e/index.js";
 
 test("unprepared favorites block native clicks but retain their star and sheet gesture", async ({
   page
@@ -38,6 +39,63 @@ test("unprepared favorites block native clicks but retain their star and sheet g
     button: "right"
   });
   expect(await page.evaluate(() => window.calls)).toEqual(["sheet"]);
+});
+
+test("missing eligible slots mute the cast button while leaving rituals and side controls available", async ({
+  page
+}) => {
+  const fixture = await layoutFixture("en");
+  const f = itemRendererFixture({
+    actor: {
+      isOwner: true,
+      system: {
+        spells: { spell1: { value: 1, max: 3 }, spell3: { value: 0, max: 2 } }
+      },
+      items: new Map()
+    },
+    visibility: {
+      dimSpellsWithoutSlots: true,
+      favorites: true,
+      cardDetailFields: []
+    },
+    adapter: { ...dnd5eAdapter, spellPreparation: () => null }
+  });
+  const spell = {
+    id: "spell",
+    type: "spell",
+    name: "Slot spell",
+    system: {
+      level: 3,
+      properties: new Set(),
+      activities: [
+        {
+          id: "cast",
+          requiresSpellSlot: true,
+          consumption: { spellSlot: true },
+          use() {}
+        }
+      ]
+    }
+  };
+  const ritual = {
+    ...spell,
+    id: "ritual",
+    name: "Ritual spell",
+    system: { ...spell.system, properties: new Set(["ritual"]) }
+  };
+  await page.setContent(
+    `<style>${fixture.baseline}${fixture.css}</style><main class="ws-rolls-dialog ws-theme-dark" style="width:300px"><div class="ws-shell">${f.renderer.combatItemButton(spell)}${f.renderer.combatItemButton(ritual)}</div></main>`
+  );
+  const cast = page.getByRole("button", { name: "Slot spell", exact: true });
+  await expect(cast).toHaveCSS("filter", "grayscale(1)");
+  await expect(cast).toBeEnabled();
+  await expect(page.locator(".ws-item-favorite").first()).toHaveCSS(
+    "filter",
+    "none"
+  );
+  await expect(
+    page.getByRole("button", { name: "Ritual spell", exact: true })
+  ).toHaveCSS("filter", "none");
 });
 
 test("portrait, identity and inspiration share height in both modes and fonts", async ({

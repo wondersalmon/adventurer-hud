@@ -6,6 +6,7 @@ export function readHudVisibility() {
     statusFilter: getSetting(SETTINGS.statusFilter),
     hiddenEffects: getSetting(SETTINGS.hiddenEffects),
     spellPreparation: getSetting(SETTINGS.showSpellPreparation),
+    dimSpellsWithoutSlots: getSetting(SETTINGS.dimSpellsWithoutSlots),
     playerFooter: getSetting(SETTINGS.playerFooter),
     explorationFooterMode: getSetting(SETTINGS.explorationFooterMode),
     combatFooterMode: getSetting(SETTINGS.combatFooterMode),
@@ -27,6 +28,7 @@ export function readHudVisibility() {
     inventorySummary: getSetting(SETTINGS.showInventorySummary),
     activityPicker: getSetting(SETTINGS.showActivityPicker),
     favorites: getSetting(SETTINGS.showFavorites),
+    favoriteControls: /** @type {(() => boolean) | undefined} */ (undefined),
     hideItemOpenButton: getSetting(SETTINGS.hideItemOpenButton),
     companions: getSetting(SETTINGS.showCompanions)
   };

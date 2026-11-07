@@ -198,8 +198,9 @@ test("opening and refreshing a real HUD saves cleanup against its full Actor inv
     [keep]
   );
   const app = __adventurerHud.app;
+  const owned = f.actor.items.get("owned");
   f.actor.items.delete("owned");
-  await app.hudActions.togglefavorites();
+  f.hooks.callAll("deleteItem", { ...owned, parent: f.actor });
   f.flushFrames();
   await waitFor(() => !f.current.get("panelStates")[f.actor.uuid].itemLayouts);
   await app.close();

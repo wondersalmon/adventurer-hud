@@ -8,7 +8,7 @@ Click the pen beside the pin to enter **Edit HUD**. Cards change their layout in
 
 - **Move:** drag a block by its handle or use arrows to change its position. Top/bottom buttons move it to either end.
 - **Columns:** left/right arrows move blocks between columns. Add an extra column from the editor toolbar if needed.
-- **Width:** unpin the window and drag the dividers to resize columns. Narrow windows stack content.
+- **Width:** unpin the window and drag the dividers to resize columns. In automatic mode, columns appear when both fit at the chosen text size and font.
 - **Cards and categories:** use their own controls to rearrange them.
 
 Weight and coins stay together inside Inventory. You can hide or show that block, but cannot move it.
@@ -16,6 +16,8 @@ Weight and coins stay together inside Inventory. You can hide or show that block
 ## Hide, restore and undo
 
 Use the eye to hide an element. Restore it from **Hidden elements**, or from the hidden-card/category controls in its list.
+
+Use the editor to show or hide Search, Favorites, the inventory summary, and shortcut hints. The inventory summary has a separate toggle in the editor toolbar.
 
 **Undo** returns the last edit during this editing session. **Reset layout** returns the current mode's layout to its defaults. Leave editing to return to normal use; your layout is kept.
 

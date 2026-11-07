@@ -833,8 +833,15 @@ test("Configure covers every editable preference once and keeps world and GM con
   const views = getSettingsViewDefinitions();
   const keys = Object.values(getConfigureSettingGroups(true)).flat();
   assert.equal(keys.length, new Set(keys).size);
+  const editorKeys = [
+    "showSearch",
+    "showFavorites",
+    "showInventorySummary",
+    "showShortcuts"
+  ];
   for (const [key, definition] of Object.entries(definitions)) {
-    if (definition.placement !== "internal") assert.ok(keys.includes(key), key);
+    if (definition.placement !== "internal" && !editorKeys.includes(key))
+      assert.ok(keys.includes(key), key);
     else assert.ok(!keys.includes(key), key);
   }
   for (const key of Object.values(getConfigureSettingGroups(false)).flat())

@@ -5,7 +5,10 @@ import {
   updateCardPreviews,
   updateMechanicsPreviews
 } from "./settings-card-preview.js";
-import { AppearanceSettingsController } from "./settings-appearance.js";
+import {
+  AppearanceSettingsController,
+  groupAdvancedSettings
+} from "./settings-appearance.js";
 import { createIntegrityApplication } from "./integrity-ui.js";
 import { MODULE_ID } from "./module-id.js";
 import { createModuleTranslator } from "./localization.js";
@@ -15,7 +18,6 @@ import {
 } from "./settings-form.js";
 import {
   getConfigureSettingGroups,
-  CARD_DETAIL_PRESETS,
   HUD_TEXT_PIXELS,
   HIDDEN_EFFECT_LIMIT
 } from "./settings-schema.js";
@@ -136,6 +138,7 @@ export function registerSettingsMenus() {
 
     _onRender(context, options) {
       super._onRender?.(context, options);
+      groupAdvancedSettings(this.element);
       this.draftController = null;
       this.dependencyElement?.removeEventListener(
         "change",
@@ -222,32 +225,18 @@ export function registerSettingsMenus() {
             target?.name
           )
         ) {
-          const selected = [
-            ...this.element.querySelectorAll(`[name="${target.name}"]`)
-          ]
-            .filter(input => input.checked)
-            .map(input => input.value);
-          const preset = Object.entries(CARD_DETAIL_PRESETS).find(
-            ([, fields]) =>
-              fields.length === selected.length &&
-              fields.every(field => selected.includes(field))
-          )?.[0];
-          this.element.querySelector(
-            `[name="${target.name === SETTINGS.cardDetailFields ? SETTINGS.cardDetails : SETTINGS.gmCardDetails}"]`
-          ).value = preset ?? "custom";
           previewCards();
           return;
         }
         if (
           [SETTINGS.cardDetails, SETTINGS.gmCardDetails].includes(target?.name)
         ) {
-          if (target.value !== "custom")
-            for (const input of this.element.querySelectorAll(
-              `[name="${target.name === SETTINGS.cardDetails ? SETTINGS.cardDetailFields : SETTINGS.gmCardDetailFields}"]`
-            ))
-              input.checked = CARD_DETAIL_PRESETS[target.value].includes(
-                input.value
-              );
+          const key =
+            target.name === SETTINGS.cardDetails
+              ? SETTINGS.cardDetailFields
+              : SETTINGS.gmCardDetailFields;
+          const row = this.element.querySelector(`[data-setting-key="${key}"]`);
+          if (row) row.hidden = target.value !== "custom";
           previewCards();
           return;
         }
@@ -630,6 +619,7 @@ export function registerSettingsMenus() {
         language
       });
       return {
+        language,
         savedLabel: t("Settings.Draft.Saved"),
         applyLabel: t("Settings.Apply"),
         saveCloseLabel: t("Settings.SaveClose"),

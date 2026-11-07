@@ -1271,7 +1271,10 @@
 
 /* Ability matrix */
 
-.ws-rolls-dialog .ws-unavailable-card .ws-combat-item {
+.ws-rolls-dialog .ws-unavailable-card .ws-combat-item,
+.ws-rolls-dialog
+  .ws-activity-option.ws-unavailable-card
+  > [data-action="useactivity"] {
   filter: grayscale(1);
   color: var(--muted);
 }

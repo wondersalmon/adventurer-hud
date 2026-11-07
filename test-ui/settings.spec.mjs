@@ -419,14 +419,7 @@ for (const language of ["en", "ru"]) {
             "cardDetails",
             "companions",
             ...(isGM
-              ? [
-                  "gm",
-                  "gmWindow",
-                  "gmSelection",
-                  "gmActions",
-                  "gmCards",
-                  "world"
-                ]
+              ? ["gm", "gmWindow", "gmSelection", "gmActions", "gmCards"]
               : []),
             "help",
             "changelog",
@@ -499,6 +492,7 @@ for (const language of ["en", "ru"]) {
           await layoutTab.click();
           await tab("quickAccess").click();
           await expect(panel("panelSections")).toBeVisible();
+          await tab("panelItems").click();
           for (const [key, defaultValue] of [
             ["explorationFooterMode", "recent"],
             ["combatFooterMode", "target"]
@@ -539,6 +533,9 @@ for (const language of ["en", "ru"]) {
             '[data-card-preview="cardDetailFields"]'
           );
           await playerMode.selectOption("off");
+          await expect(
+            page.locator('[data-setting-key="cardDetailFields"]')
+          ).toBeHidden();
           await expect(playerPreview.locator(".ws-spell-meta")).toHaveCount(0);
           await playerMode.selectOption("all");
           await expect(
@@ -552,6 +549,11 @@ for (const language of ["en", "ru"]) {
           await expect(
             playerPreview.locator(".ws-spell-components")
           ).toHaveCount(0);
+          await playerMode.selectOption("all");
+          await playerMode.selectOption("custom");
+          await expect(
+            page.locator('[name="cardDetailFields"][value="components"]')
+          ).not.toBeChecked();
           await expect(playerPreview.locator("[data-action]")).toHaveCount(0);
           if (isGM) {
             await tab("gm").click();
@@ -560,9 +562,9 @@ for (const language of ["en", "ru"]) {
             const mode = page.locator('[name="gmCardDetails"]');
             await expect(mode).toBeEnabled();
             await mode.selectOption("basic");
-            expect(
-              await page.locator('[name="gmCardDetailFields"]:checked').count()
-            ).toBe(5);
+            await expect(
+              page.locator('[data-setting-key="gmCardDetailFields"]')
+            ).toBeHidden();
             await mode.selectOption("custom");
             await page
               .locator('[name="gmCardDetailFields"][value="range"]')
@@ -629,6 +631,7 @@ for (const language of ["en", "ru"]) {
             "Foundry Dark"
           );
           const preset = page.locator('[name="accentPreset"]');
+          await preset.locator("xpath=ancestor::details/summary").click();
           const color = page.locator('[name="accentColor"]');
           await expect(preset).toHaveValue("standard");
           await expect(preset.locator("option")).toHaveCount(8);
@@ -693,6 +696,7 @@ for (const language of ["en", "ru"]) {
           await page.locator('[name="autoOpenHud"]').check();
           await tab("windowLayout").click();
           const range = page.locator('[name="twoColumnWidth"]');
+          await range.locator("xpath=ancestor::details/summary").click();
           await expect(range).toBeDisabled();
           await page.locator('[name="twoColumnMode"]').selectOption("manual");
           await expect(

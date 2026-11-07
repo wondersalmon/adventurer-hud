@@ -43,7 +43,7 @@ for (const lang of ["en", "ru"]) {
           type: "encounter",
           isOwner: true,
           system: {
-            getPlaceableMembers: async () => [
+            getMembers: async () => [
               {
                 actor: actors.get("one"),
                 quantity: { value: 2 }
@@ -75,7 +75,12 @@ for (const lang of ["en", "ru"]) {
             activate() {},
             deactivate() {},
             placeTokens: async (data, options) => {
-              if (!options.preConfirm() || !(await options.preCommit()))
+              if (
+                data.some(
+                  (document, index) => !options.preConfirm({ document, index })
+                ) ||
+                !(await options.preCommit(data))
+              )
                 return [];
               return data.map((item, index) => {
                 const token = {
@@ -101,7 +106,9 @@ for (const lang of ["en", "ru"]) {
               : actors.get(data.uuid.split(".").at(-1))
         };
         window.foundry = {
+          applications: { api: { DialogV2: { confirm: async () => true } } },
           utils: {
+            escapeHTML: String,
             getDocumentClass: type => (type === "Token" ? Token : Actor)
           }
         };

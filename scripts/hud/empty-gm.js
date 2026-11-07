@@ -17,7 +17,17 @@ import { readHudVisibility } from "./visibility.js";
  * @returns {Promise<void>}
  */
 export async function openEmptyGmHud(
-  { state, reusedApp, session, gmController, DialogV2, t, tf, adapter },
+  {
+    state,
+    reusedApp,
+    session,
+    gmController,
+    DialogV2,
+    language,
+    t,
+    tf,
+    adapter
+  },
   { openHud }
 ) {
   if (!game.user?.isGM) return;
@@ -38,6 +48,7 @@ export async function openEmptyGmHud(
     reusedApp,
     gmActive: true,
     DialogV2,
+    language,
     t,
     title: gmWindowTitle(gmController.getCombat(), null, t, tf),
     content

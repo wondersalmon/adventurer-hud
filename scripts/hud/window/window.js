@@ -43,6 +43,7 @@ export function createHudWindow({
   reusedApp,
   gmActive,
   DialogV2,
+  language = game.i18n.lang,
   t,
   title,
   content,
@@ -195,6 +196,8 @@ export function createHudWindow({
       await activateHudWindow({
         ...options,
         app,
+        beforeReveal: () => syncMode(currentMode()),
+        language,
         t,
         gmActive,
         pinned,

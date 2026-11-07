@@ -18,8 +18,8 @@ export function hudTargets() {
   });
 }
 
-/** @param {import('../../types/hud.js').ActorContext} context @param {any} target Native Token. */
-function targetDistance(context, target) {
+/** @param {import('../../types/hud.js').ActorContext} context */
+function targetOrigin(context) {
   const candidates = hudSceneTokens(context);
   const controlled = candidates.filter(document =>
     canvas.tokens?.controlled?.some(token => token.document === document)
@@ -30,29 +30,41 @@ function targetDistance(context, target) {
       : candidates.length === 1
         ? candidates[0]
         : null;
-  const start = source?.getCenterPoint?.();
+  return source?.getCenterPoint?.();
+}
+
+/** @param {any} start Native grid point. @param {any} target Native Token. @param {Intl.NumberFormat} numberFormat */
+function targetDistance(start, target, numberFormat) {
   const end = target.document.getCenterPoint?.();
   if (!start || !end || !canvas.grid?.measurePath) return "";
   const { distance } = canvas.grid.measurePath([start, end]);
   if (!Number.isFinite(distance) || distance < 0) return "";
   return [
-    new Intl.NumberFormat(game.i18n.lang, { maximumFractionDigits: 1 }).format(
-      distance
-    ),
+    numberFormat.format(distance),
     canvas.scene.grid?.units ?? canvas.grid.units
   ]
     .filter(value => value !== "" && value != null)
     .join(" ");
 }
 
-/** @param {{actorContext: import('../../types/hud.js').ActorContext, t: import('../../types/hud.js').Translate, escapeHTML: (value: unknown) => string}} options */
-export function renderHudTarget({ actorContext, t, escapeHTML }) {
+/** @param {{actorContext: import('../../types/hud.js').ActorContext, language?: string, t: import('../../types/hud.js').Translate, escapeHTML: (value: unknown) => string}} options */
+export function renderHudTarget({
+  actorContext,
+  language = game.i18n.lang,
+  t,
+  escapeHTML
+}) {
   const targets = hudTargets();
+  const numberFormat = targets.length
+    ? new Intl.NumberFormat(language, { maximumFractionDigits: 1 })
+    : null;
+  const start = numberFormat ? targetOrigin(actorContext) : null;
+  const measure = token =>
+    numberFormat ? targetDistance(start, token, numberFormat) : "";
   const target = targets[0];
   const name = target ? String(target.name ?? target.document.name ?? "") : "";
   const label = target ? t("Target.Change") : t("Target.Select");
-  const distance =
-    targets.length === 1 ? targetDistance(actorContext, target) : "";
+  const distance = targets.length === 1 ? measure(target) : "";
   const available = Boolean(canvas.ready !== false && canvas.scene);
   const names = targets
     .map(token => token.name ?? token.document.name)
@@ -62,9 +74,9 @@ export function renderHudTarget({ actorContext, t, escapeHTML }) {
     `<button type="button" class="ws-button ws-target-clear" data-action="cleartarget" data-target-entry="${listed ? "list" : "summary"}" data-target-uuid="${escapeHTML(token.document.uuid)}" title="${escapeHTML(`${t("Target.Clear")}: ${token.name}`)}" aria-label="${escapeHTML(`${t("Target.Clear")}: ${token.name}`)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`;
   const list =
     targets.length > 1
-      ? `<details class="ws-target-list"><summary class="ws-target-count" aria-label="${escapeHTML(t("Target.List"))}" title="${escapeHTML(names)}">+${targets.length - 1}</summary><div class="ws-target-list-panel"><strong>${escapeHTML(t("Target.List"))}</strong>${targets
+      ? `<details class="ws-target-list"><summary class="ws-target-count" data-target-list-toggle aria-label="${escapeHTML(t("Target.List"))}" title="${escapeHTML(names)}">+${targets.length - 1}</summary><div class="ws-target-list-panel"><strong>${escapeHTML(t("Target.List"))}</strong>${targets
           .map(token => {
-            const measurement = targetDistance(actorContext, token);
+            const measurement = measure(token);
             return `<div class="ws-target-row"><span class="ws-target-row-name">${escapeHTML(token.name ?? token.document.name)}</span>${measurement ? `<span class="ws-target-distance" title="${escapeHTML(t("Target.DistanceHint"))}">${escapeHTML(measurement)}</span>` : ""}${clearButton(token, true)}</div>`;
           })
           .join(
@@ -90,7 +102,7 @@ export function createTargetActions({
     cleartargets: () => {
       if (!available() || canvas.ready === false || !canvas.scene) return;
       canvas.tokens.setTargets([], { mode: "replace" });
-      refreshHud?.();
+      refreshHud?.("target");
     },
     selecttarget: event => {
       if (!available() || canvas.ready === false || !canvas.scene) return;
@@ -103,7 +115,7 @@ export function createTargetActions({
       );
       if (!selected) return;
       canvas.tokens.setTargets([selected.id], { mode: "release" });
-      refreshHud?.();
+      refreshHud?.("target");
     }
   };
 }
@@ -115,6 +127,8 @@ export function createTargetActions({
 export function createTargetSelection({ isCurrent }) {
   /** @type {TargetSelection | null} */
   let pending = null;
+  /** @type {TargetSelection | null} */
+  let restoring = null;
   const clear = () => {
     const selection = pending;
     if (!selection) return null;
@@ -126,30 +140,38 @@ export function createTargetSelection({ isCurrent }) {
   };
   /** @param {TargetSelection} selection */
   const targeting = selection =>
+    canvas.ready !== false &&
     canvas.scene === selection.scene &&
     game.user === selection.user &&
     ui.controls === selection.controls &&
     selection.controls.control?.name === "tokens" &&
     selection.controls.tool?.name === "target";
   /** @param {TargetSelection} selection */
+  const restoreTool = async selection => {
+    try {
+      if (targeting(selection))
+        await selection.controls.activate({
+          control: selection.control,
+          tool: selection.tool
+        });
+    } catch (error) {
+      reportFailure("hud.target.tool", error, { notify: false });
+    }
+  };
+  /** @param {TargetSelection} selection */
   const restore = selection => {
-    void Promise.resolve()
-      .then(async () => {
-        if (isCurrent() && targeting(selection))
-          await selection.controls.activate({
-            control: selection.control,
-            tool: selection.tool
-          });
-      })
-      .catch(error =>
-        reportFailure("hud.target.tool", error, { notify: false })
-      );
+    restoring = selection;
+    queueMicrotask(() => {
+      if (restoring !== selection) return;
+      restoring = null;
+      void restoreTool(selection);
+    });
   };
   return {
     /** @param {any} event Native pointer/keyboard event. */
     async select(event) {
       if (!isCurrent() || canvas.ready === false || !canvas.scene) return;
-      if (pending && targeting(pending)) return;
+      if ((pending && targeting(pending)) || restoring) return;
       clear();
       const controls = ui.controls;
       const control = controls?.control?.name;
@@ -206,38 +228,30 @@ export function createTargetSelection({ isCurrent }) {
         controls.addEventListener?.("activate", selection.onActivate);
         document.addEventListener("keydown", selection.onEscape, true);
       } catch (error) {
-        clear();
+        if (pending === selection) {
+          clear();
+          restore(selection);
+        }
         throw error;
       }
     },
     dispose() {
-      clear();
+      const selection = clear() ?? restoring;
+      restoring = null;
+      if (selection) void restoreTool(selection);
     }
   };
 }
 
-/** @param {{hooks: typeof Hooks, actorContext: import('../../types/hud.js').ActorContext, isActive: () => boolean, read: () => string, scheduleRefresh: () => void}} options */
+/** @param {{hooks: typeof Hooks, actorContext: import('../../types/hud.js').ActorContext, isActive: () => boolean, scheduleRefresh: () => void}} options */
 export function subscribeHudTarget({
   hooks,
   actorContext,
   isActive,
-  read,
   scheduleRefresh
 }) {
-  let previous = "";
   const refresh = () => {
-    if (!isActive()) {
-      previous = "";
-      return;
-    }
-    try {
-      const next = read();
-      if (next === previous) return;
-      previous = next;
-      scheduleRefresh();
-    } catch (error) {
-      reportFailure("hud.target.refresh", error, { notify: false });
-    }
+    if (isActive()) scheduleRefresh();
   };
   /** @param {any} token Native Token or TokenDocument. */
   const tokenChanged = token => {

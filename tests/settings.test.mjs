@@ -162,7 +162,7 @@ test("main and additional settings use task-based groups", async () => {
   assert.equal(registrations.get(SETTINGS.proficientSkillsOnly)?.config, false);
   assert.deepEqual(
     Object.keys(registrations.get(SETTINGS.language)?.choices ?? {}),
-    ["auto", "en", "ru"]
+    ["auto", "en", "ru", "pt-BR", "pt-PT"]
   );
   assert.equal(SETTING_DEFINITIONS[SETTINGS.language].placement, "basic");
   assert.equal(menus.get("configure")?.restricted, false);
@@ -198,14 +198,13 @@ test("main and additional settings use task-based groups", async () => {
   for (const key of [
     SETTINGS.slidePanel,
     SETTINGS.openPlayerOnCombat,
-    SETTINGS.autoOpenHud,
-    SETTINGS.showInventorySummary
+    SETTINGS.autoOpenHud
   ])
     assert.equal(visibleKeys.includes(key), true);
   assert.equal(registrations.get(SETTINGS.slidePanel)?.default, true);
   assert.equal(visibleKeys.includes(SETTINGS.pinWindow), false);
   assert.equal(visibleKeys.includes(SETTINGS.showModeNavigation), false);
-  assert.equal(visibleKeys.includes(SETTINGS.showShortcuts), true);
+  assert.equal(visibleKeys.includes(SETTINGS.showShortcuts), false);
   assert.equal(registrations.get(SETTINGS.showShortcuts)?.default, true);
   assert.equal(settingRefreshStrategy(SETTINGS.showShortcuts), "content");
   assert.equal(new Set(visibleKeys).size, visibleKeys.length);
@@ -288,15 +287,18 @@ test("additional settings serialize concurrent saves and write only changed cont
   const handler = menus.get("configure").type.DEFAULT_OPTIONS.form.handler;
   const values = Object.fromEntries(current);
   values.showSearch = false;
+  values.autoScrollExpanded = !values.autoScrollExpanded;
   values.pinWindow = true;
   values.showModeNavigation = true;
   await Promise.all([
     handler(null, null, { object: values }),
     handler(null, null, { object: values })
   ]);
-  assert.deepEqual(writes, [[SETTINGS.showSearch, false]]);
+  assert.deepEqual(writes, [
+    [SETTINGS.autoScrollExpanded, values.autoScrollExpanded]
+  ]);
   assert.equal(batches.length, 1);
-  assert.deepEqual([...batches[0]], [[SETTINGS.showSearch, false]]);
+  assert.deepEqual([...batches[0]], writes);
   await handler(null, null, { object: values });
   assert.equal(writes.length, 1);
   assert.equal(batches.length, 1);
@@ -312,12 +314,15 @@ test("saving additional settings preserves mode buttons enabled from the header 
       group.settings.map(setting => [setting.key, setting.value])
     )
   );
-  submitted[SETTINGS.showShortcuts] = false;
+  submitted[SETTINGS.autoScrollExpanded] =
+    !submitted[SETTINGS.autoScrollExpanded];
   await menus.get("configure").type.DEFAULT_OPTIONS.form.handler(null, null, {
     object: submitted
   });
   assert.equal(current.get(SETTINGS.showModeNavigation), true);
-  assert.deepEqual(writes, [[SETTINGS.showShortcuts, false]]);
+  assert.deepEqual(writes, [
+    [SETTINGS.autoScrollExpanded, submitted[SETTINGS.autoScrollExpanded]]
+  ]);
 });
 
 test("troubleshooting reset requires confirmation and preserves saved data", async () => {
@@ -338,7 +343,7 @@ test("troubleshooting reset requires confirmation and preserves saved data", asy
     app.context.groups
       .flatMap(group => group.settings)
       .find(setting => setting.key === SETTINGS.showSearch)?.value;
-  assert.equal(searchValue(), false);
+  assert.equal(searchValue(), undefined);
   const cancelled =
     await createTroubleshootingController().constructor.DEFAULT_OPTIONS.actions.resetsettings.call(
       {}

@@ -108,6 +108,8 @@ export class SettingsSearchController {
       if (!row || row.closest("[data-settings-panel]")?.hidden) return;
       this.removeHighlight();
       if (row.matches("details")) row.open = true;
+      const disclosure = row.closest("details");
+      if (disclosure) disclosure.open = true;
       row.classList.add("ws-settings-search-match");
       row.scrollIntoView?.({ block: "nearest" });
       const control = row.querySelector(

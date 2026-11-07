@@ -134,7 +134,7 @@ test("localized spell filters keep preparation counts readable in narrow panels 
   const { createAbilityComponents } =
     await import("../scripts/hud/ability-components.js");
   const { readFile } = await import("node:fs/promises");
-  for (const language of ["en", "ru"]) {
+  for (const language of ["en", "ru", "pt-BR", "pt-PT"]) {
     const fixture = await layoutFixture(language);
     const translations = JSON.parse(
       await readFile(
@@ -173,7 +173,7 @@ test("localized spell filters keep preparation counts readable in narrow panels 
       const toggle = page.locator("[data-spell-filters-toggle]");
       await expect(page.locator(".ws-spell-filter")).not.toBeVisible();
       await expect(toggle).toContainText(
-        language === "ru" ? "Подготовленные" : "Prepared"
+        translations["ADVENTURER_HUD.Combat.Prepared"]
       );
       await toggle.focus();
       await page.keyboard.press("Enter");

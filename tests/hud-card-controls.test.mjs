@@ -8,6 +8,11 @@ import { itemRendererFixture, fragment } from "./helpers/rendering.mjs";
 import { createActorActions } from "../scripts/hud/actor-actions.js";
 import { dnd5eAdapter } from "../scripts/dnd5e/index.js";
 import { createHudState } from "../scripts/hud/state.js";
+import { readHudVisibility } from "../scripts/hud/visibility.js";
+import {
+  rememberRecentAction,
+  renderRecentActions
+} from "../scripts/hud/recent-actions.js";
 import {
   hudLaneOrder,
   toggleHudBlockHidden,
@@ -81,6 +86,194 @@ test("unprepared favorites are marked and cannot be used until prepared", () => 
       .hasAttribute("disabled"),
     false
   );
+});
+
+test("missing eligible slots grey out slot casts without disabling native use", () => {
+  const settings = installSettings();
+  const cast = {
+    id: "cast",
+    requiresSpellSlot: true,
+    consumption: { spellSlot: true },
+    use() {}
+  };
+  const freeCast = {
+    ...cast,
+    id: "free",
+    type: "forward",
+    consumption: { spellSlot: true, targets: [{ type: "itemUses" }] }
+  };
+  const spell = {
+    id: "spell",
+    name: "Example spell",
+    type: "spell",
+    system: {
+      level: 3,
+      method: "spell",
+      properties: new Set(),
+      activities: [cast]
+    }
+  };
+  const actor = {
+    isOwner: true,
+    system: {
+      spells: {
+        spell1: { max: 3, value: 2 },
+        spell2: { max: 2, value: 1 },
+        spell3: { max: 2, value: 0 },
+        spell4: { max: 1, value: 0 },
+        pact: { max: 1, value: 1, level: 2 }
+      }
+    },
+    items: new Map()
+  };
+  const f = itemRendererFixture({
+    actor,
+    t: key =>
+      key === "Quick.NeedsSpellSlotLevel"
+        ? "Requires level {level} or higher"
+        : key,
+    visibility: { ...readHudVisibility(), cardDetailFields: [] },
+    adapter: { ...dnd5eAdapter, spellPreparation: () => null }
+  });
+  const render = (item = spell, options) =>
+    fragment(f.renderer.combatItemButton(item, options));
+  const dimmed = (item, options) =>
+    Boolean(render(item, options).querySelector(".ws-unavailable-card"));
+  const variant = system => ({
+    ...spell,
+    system: { ...spell.system, ...system }
+  });
+
+  assert.equal(dimmed(), true);
+  assert.equal(dimmed(spell, { inFavorites: true }), true);
+  const button = render().querySelector(".ws-combat-item");
+  assert.equal(button.getAttribute("title"), "Requires level 3 or higher");
+  assert.equal(
+    button.getAttribute("aria-description"),
+    "Requires level 3 or higher"
+  );
+  assert.equal(
+    button.querySelector(".ws-item-unavailable").textContent,
+    "Requires level 3 or higher"
+  );
+  assert.match(
+    render(spell, { inFavorites: true }).querySelector(".ws-item-unavailable")
+      .textContent,
+    /Requires level 3 or higher/
+  );
+  assert.equal(button.disabled, false);
+  actor.uuid = "Actor.spellcaster";
+  actor.items.set(spell.id, spell);
+  rememberRecentAction(actor, { action: "useitem", itemId: spell.id });
+  const recent = fragment(
+    renderRecentActions({
+      actor,
+      adapter: f.adapter,
+      t: key =>
+        key === "Quick.NeedsSpellSlotLevel"
+          ? "Requires level {level} or higher"
+          : key,
+      dimSpellsWithoutSlots: true,
+      escapeHTML: foundry.utils.escapeHTML
+    })
+  ).querySelector(".ws-recent-action");
+  assert.match(recent.title, /Requires level 3 or higher/);
+  assert.equal(recent.disabled, false);
+
+  assert.equal(dimmed(variant({ level: 2 })), false);
+  actor.system.spells.spell3.value = 1;
+  assert.equal(dimmed(), false);
+  actor.system.spells.spell3.value = 0;
+  actor.system.spells.spell4.value = 1;
+  assert.equal(dimmed(), false);
+  actor.system.spells.spell4.value = 0;
+  actor.system.spells.pact.level = 3;
+  assert.equal(dimmed(), false);
+  globalThis.CONFIG = {
+    DND5E: {
+      spellcasting: { pact: { exclusive: { slots: true, spells: true } } }
+    }
+  };
+  assert.equal(dimmed(), true);
+  assert.equal(dimmed(variant({ method: "pact" })), false);
+  actor.system.spells.pact.value = 0;
+  actor.system.spells.spell3.value = 1;
+  assert.equal(dimmed(variant({ method: "pact" })), true);
+  actor.system.spells.spell3.value = 0;
+
+  assert.equal(dimmed(variant({ properties: new Set(["ritual"]) })), false);
+  assert.equal(
+    dimmed(
+      variant({ level: 0, activities: [{ ...cast, requiresSpellSlot: false }] })
+    ),
+    false
+  );
+  assert.equal(
+    dimmed(
+      variant({
+        method: "innate",
+        activities: [{ ...cast, requiresSpellSlot: false }]
+      })
+    ),
+    false
+  );
+  assert.equal(
+    dimmed(
+      variant({
+        activities: [
+          {
+            ...cast,
+            consumption: { spellSlot: false, targets: [{ type: "itemUses" }] }
+          }
+        ]
+      })
+    ),
+    false
+  );
+  const mixed = variant({ activities: [cast, freeCast] });
+  assert.equal(dimmed(mixed), false);
+  assert.equal(
+    dimmed(mixed, { activityId: "cast", activityOption: true }),
+    true
+  );
+  assert.equal(
+    dimmed(mixed, { activityId: "free", activityOption: true }),
+    false
+  );
+
+  const linked = {
+    id: "wand",
+    type: "equipment",
+    system: {
+      activities: [
+        {
+          id: "wand-cast",
+          type: "cast",
+          spell: { uuid: "Actor.test.Item.spell" },
+          use() {}
+        }
+      ]
+    }
+  };
+  actor.items.set(linked.id, linked);
+  assert.equal(dimmed(), false);
+  linked.system.activities[0].consumption = {
+    targets: [{ type: "spellSlots", target: "3", value: "1" }]
+  };
+  assert.equal(dimmed(), true);
+  actor.system.spells.spell3.value = 1;
+  assert.equal(dimmed(), false);
+  linked.system.activities[0].consumption.targets[0].value = "2";
+  assert.equal(dimmed(), true);
+  actor.system.spells.spell3.value = 2;
+  assert.equal(dimmed(), false);
+  actor.system.spells.spell3.value = 0;
+
+  actor.items.clear();
+  settings.current.set("dimSpellsWithoutSlots", false);
+  f.visibility.dimSpellsWithoutSlots =
+    readHudVisibility().dimSpellsWithoutSlots;
+  assert.equal(dimmed(), false);
 });
 
 test("slot editing submits only the chosen pool and accepts zero without changing maximum", async () => {

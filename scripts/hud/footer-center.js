@@ -9,10 +9,11 @@ export function footerCenterMode({ visibility, currentMode }) {
     : (visibility?.explorationFooterMode ?? "recent");
 }
 
-/** @param {{actorContext: import('../../types/hud.js').ActorContext, adapter: import('../../types/hud.js').HudAdapter, toolState: {tools?: {id: string, name: string, img?: string}[]}, t: import('../../types/hud.js').Translate, escapeHTML: (value: unknown) => string, mode: string}} options */
+/** @param {{actorContext: import('../../types/hud.js').ActorContext, adapter: import('../../types/hud.js').HudAdapter, toolState: {tools?: {id: string, name: string, img?: string}[]}, language?: string, t: import('../../types/hud.js').Translate, escapeHTML: (value: unknown) => string, mode: string, dimSpellsWithoutSlots?: boolean}} options */
 export function renderFooterCenter(options) {
   const { actorContext, t, escapeHTML, mode } = options;
-  if (mode === "target") return renderHudTarget(options);
+  if (mode === "target")
+    return `<!--hud-target-->${renderHudTarget(options)}<!--/hud-target-->`;
   if (mode === "none")
     return `<div class="ws-footer-empty" role="group" aria-label="${escapeHTML(t("Footer.Disabled"))}"></div>`;
   return renderRecentActions({ ...options, actor: actorContext.actor });

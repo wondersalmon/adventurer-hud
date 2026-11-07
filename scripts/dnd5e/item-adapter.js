@@ -48,6 +48,47 @@ const spellSourceId = item =>
       ? `item:${item.system.sourceItem}`
       : "other";
 
+const hasRemainingSlots = pool => pool?.max > 0 && pool.value > 0;
+
+function hasCastingSlot(pools, { level = 1, method = "spell" } = {}) {
+  const methods = globalThis.CONFIG?.DND5E?.spellcasting;
+  return Object.entries(pools).some(([key, pool]) => {
+    if (!hasRemainingSlots(pool)) return false;
+    const standardLevel = /^spell([1-9])$/.exec(key)?.[1];
+    const poolLevel = Number(pool.level ?? standardLevel);
+    const type = pool.type ?? (standardLevel ? "spell" : key);
+    return (
+      poolLevel >= level &&
+      (method === type ||
+        (!methods?.[method]?.exclusive?.spells &&
+          !methods?.[type]?.exclusive?.slots))
+    );
+  });
+}
+
+function hasTargetSlot(pools, target) {
+  const level = Number(target.target);
+  if (
+    Number.isInteger(level) &&
+    level >= 1 &&
+    level <= 9 &&
+    target.scaling?.mode !== "level"
+  ) {
+    const pool = pools[`spell${level}`];
+    const cost = Number(target.value);
+    return (
+      hasRemainingSlots(pool) &&
+      (target.scaling?.mode === "amount" ||
+        !Number.isFinite(cost) ||
+        pool.value >= cost)
+    );
+  }
+  // Formula and scaling targets can select another level during native use.
+  return Object.entries(pools).some(
+    ([key, pool]) => /^spell[1-9]$/.test(key) && hasRemainingSlots(pool)
+  );
+}
+
 export const dnd5eItems = {
   spellSourceId,
   spellSources(actor) {
@@ -249,6 +290,51 @@ export const dnd5eItems = {
   },
   itemUsesData,
   itemUseState,
+  itemSpellSlotShortage(actor, item, activityId = null) {
+    const pools = actor.system?.spells;
+    if (!pools || (item.type === "spell" && hasItemProperty(item, "ritual")))
+      return null;
+
+    const activities = itemActivities(item).filter(
+      activity =>
+        (!activityId || activity.id === activityId) &&
+        activity.canUse !== false &&
+        typeof activity.use === "function"
+    );
+    if (
+      item.type !== "spell" &&
+      !activities.some(activity => activity.type === "cast")
+    )
+      return null;
+    // Forward activities invoke their linked action with slot consumption off.
+    const usesCastingSlot = activity =>
+      activity.type !== "forward" &&
+      activity.requiresSpellSlot === true &&
+      activity.consumption?.spellSlot !== false;
+    const missingCastingSlot =
+      activities.some(usesCastingSlot) && !hasCastingSlot(pools, item.system);
+    if (
+      !activities.length ||
+      !activities.every(
+        activity =>
+          (missingCastingSlot && usesCastingSlot(activity)) ||
+          activity.consumption?.targets?.some(
+            target =>
+              target.type === "spellSlots" &&
+              (!target.combatOnly || actor.inCombat) &&
+              !target.hasZeroCost?.() &&
+              !hasTargetSlot(pools, target)
+          )
+      )
+    )
+      return null;
+    return {
+      minimumLevel:
+        missingCastingSlot && activities.every(usesCastingSlot)
+          ? Number(item.system.level) || null
+          : null
+    };
+  },
   itemRole(item) {
     if (item.type === "weapon") return "weapon";
     if (item.type === "spell") return "spell";

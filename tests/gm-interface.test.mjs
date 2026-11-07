@@ -453,6 +453,30 @@ test("GM layout is shared across exact tokens while native filters and legacy la
   assert.deepEqual(empty.initialState.hudLayouts, state.hudLayouts);
 });
 
+test("a GM filter save from another token does not overwrite an in-flight shared layout edit", async () => {
+  const layout = key => ({ "combat:info": { order: [key], hidden: [] } });
+  let stored = { "gm:layout": { hudLayouts: layout("hp") } };
+  const { promise, resolve } = Promise.withResolvers();
+  const options = {
+    gmActive: true,
+    readSetting: key => (key === SETTINGS.panelStates ? stored : true),
+    writeSetting: async (_key, next) => {
+      await promise;
+      stored = next;
+    }
+  };
+  const first = createPanelPreferences({ ...options, tokenUuid: "Token.one" });
+  const saved = first.save(createHudState({ hudLayouts: layout("stats") }));
+  const second = createPanelPreferences({ ...options, tokenUuid: "Token.two" });
+  const state = createHudState(second.initialState);
+  state.combatCategory = "spells";
+  resolve();
+  await saved;
+  await second.save(state);
+  assert.deepEqual(stored["gm:layout"].hudLayouts, layout("stats"));
+  assert.equal(stored["gm:Token.two"].combatCategory, "spells");
+});
+
 for (const gm of [false, true])
   test(`${gm ? "GM" : "player"} reset restores default blocks, removes the extra column and supports undo`, () => {
     const root = fragment(

@@ -114,7 +114,7 @@ export function createItemPanelRenderer({
   };
 
   const favoriteSection = () => {
-    if (!visibility.favorites) return "";
+    if (!(visibility.favoriteControls?.() ?? visibility.favorites)) return "";
     const entries = hudState.favoriteEntries
       .map(entry => ({ ...entry, item: actor.items.get(entry.itemId) }))
       .filter(entry => entry.item);

@@ -70,14 +70,22 @@ export function createItemActions({
       );
     },
     togglefavorite: function (_event, target) {
-      if (!visibility.favorites || !canAct()) return;
+      if (
+        !(visibility.favoriteControls?.() ?? visibility.favorites) ||
+        !canAct()
+      )
+        return;
       return toggleFavoriteEntry(
         target.dataset.itemId,
         target.dataset.activityId ?? null
       );
     },
     removefavorite: function (_event, target) {
-      if (!visibility.favorites || !canAct()) return;
+      if (
+        !(visibility.favoriteControls?.() ?? visibility.favorites) ||
+        !canAct()
+      )
+        return;
       return removeFavoriteEntry(
         target.dataset.itemId,
         target.dataset.activityId ?? null

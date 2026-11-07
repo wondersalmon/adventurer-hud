@@ -92,8 +92,7 @@ test("HP dialog rejects saving after ownership is revoked", async () => {
 });
 
 for (const combat of [false, true]) {
-  test(`shortcut hints follow saved and live settings in ${combat ? "combat" : "exploration"} mode`, async t => {
-    t.mock.timers.enable({ apis: ["setTimeout"] });
+  test(`shortcut hints follow the layout editor in ${combat ? "combat" : "exploration"} mode`, async () => {
     const fixture = await hudFixture({
       combat,
       values: { showShortcuts: false }
@@ -109,8 +108,13 @@ for (const combat of [false, true]) {
     assert.equal(app.element.querySelector(".ws-shortcuts"), null);
 
     for (const enabled of [true, false]) {
-      await game.settings.set("adventurer-hud", "showShortcuts", enabled);
-      t.mock.timers.tick(50);
+      await app.hudActions.togglehudedit();
+      const toggle = app.element.querySelector(
+        '[data-action="hudblockhide"][data-hud-key="hints"]'
+      );
+      assert.ok(toggle);
+      await app.hudActions.hudblockhide(null, toggle);
+      await app.hudActions.togglehudedit();
       for (const view of combat
         ? [null]
         : ["main", "skills", "tools", "spells", "inventory"]) {

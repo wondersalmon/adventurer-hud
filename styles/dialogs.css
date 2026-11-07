@@ -856,6 +856,16 @@
   border-radius: 0 4px 4px 0;
 }
 
+.adventurer-hud-settings .ws-settings-advanced {
+  margin-block: 12px;
+  border-bottom: 1px solid var(--ws-settings-line);
+}
+
+.adventurer-hud-settings .ws-settings-advanced > summary {
+  padding: 8px 0;
+  cursor: pointer;
+}
+
 .adventurer-hud-settings .ws-settings-help-links {
   display: grid;
   gap: 10px;

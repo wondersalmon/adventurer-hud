@@ -86,6 +86,23 @@ async function targetFixture(values = {}) {
   return { ...f, scene, source, target, other, calls, toolListeners };
 }
 
+test("Portuguese HUD uses its locale for distance and declares it for assistive technology", async () => {
+  const f = await targetFixture({
+    language: "pt-PT",
+    explorationFooterMode: "target"
+  });
+  f.target.document.x = 250;
+  assert.equal(game.i18n.lang, "en");
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  assert.equal(app.element.getAttribute("lang"), "pt-PT");
+  assert.equal(
+    app.element.querySelector(".ws-target-distance").textContent,
+    "12,5 ft"
+  );
+  await app.close();
+});
+
 test("combat target delegates native targeting, preserves other targets and leaves exploration history available", async () => {
   const f = await targetFixture();
   await f.api.open(f.actor);
@@ -282,7 +299,7 @@ test("toolbar center preferences switch live and independently in both modes and
     assert.equal(fields.find(field => field.key === key).isSelect, true);
     assert.ok(
       settings.groups
-        .find(group => group.id === "panelSections")
+        .find(group => group.id === "panelItems")
         ?.settings.some(field => field.key === key)
     );
     assert.deepEqual(Object.keys(f.registrations.get(key).choices), [
@@ -428,7 +445,7 @@ test("removed toolbar modes fall back to mode defaults without rewriting saved s
   await app.close();
 });
 
-test("manual tool changes, scene teardown and session disposal cancel HUD targeting restoration", async () => {
+test("manual tool changes and teardown cancel targeting, while closing restores the previous tool", async () => {
   const f = await targetFixture({ explorationFooterMode: "target" });
   const initial = f.callbacks.size;
   await f.api.open(f.actor);
@@ -444,14 +461,40 @@ test("manual tool changes, scene teardown and session disposal cancel HUD target
   f.hooks.callAll("canvasTearDown");
   assert.equal(f.callbacks.size, baseline);
   assert.equal(f.toolListeners.size, 0);
+  await ui.controls.activate({ control: "tokens", tool: "ruler" });
   await app.hudActions.selecttarget();
   await app.close();
+  assert.equal(ui.controls.tool.name, "ruler");
   assert.equal(f.callbacks.size, initial);
   assert.equal(f.toolListeners.size, 0);
   const calls = f.calls.length;
   f.hooks.callAll("targetToken", game.user, f.target, true);
   await Promise.resolve();
   assert.equal(f.calls.length, calls);
+});
+
+test("target changes update the existing footer block without closing the dice tray", async () => {
+  const f = await targetFixture({ explorationFooterMode: "target" });
+  await f.api.open(f.actor);
+  const app = __adventurerHud.app;
+  const targetBlock = app.element.querySelector(".ws-footer-target");
+  let closed = 0;
+  const close = app.closeDiceTray;
+  app.closeDiceTray = (...args) => {
+    closed++;
+    close(...args);
+  };
+  f.target.document.x = 1000;
+  f.hooks.callAll("updateToken", f.target.document, { x: 1000 });
+  f.flushFrames();
+  assert.equal(
+    targetBlock.querySelector(".ws-target-distance").textContent,
+    "50 ft"
+  );
+  assert.equal(app.element.querySelector(".ws-footer-target"), targetBlock);
+  assert.equal(closed, 0);
+  app.closeDiceTray = close;
+  await app.close();
 });
 
 test("Escape cancels a HUD targeting gesture, restores the previous tool and keeps the HUD open", async () => {

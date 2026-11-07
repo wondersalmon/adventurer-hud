@@ -83,6 +83,10 @@ export function applyPlayerLayout(view, columns) {
 }
 
 const fontMetrics = new WeakMap();
+const PLAYER_COLUMN_GAP = 20;
+const PLAYER_VIEW_PADDING = 12;
+const PLAYER_DEFAULT_RATIO = 0.48;
+const PLAYER_MIN_RESIZED_INFO = 210;
 
 /** Content minima use the selected text scale and installed font metrics. */
 export function playerColumnMinimums(view) {
@@ -93,27 +97,22 @@ export function playerColumnMinimums(view) {
   // Font measurement is small and document-free, and only happens on layout synchronization.
   const key = `${style?.fontStyle} ${style?.fontWeight} ${font}`;
   const cached = fontMetrics.get(view.ownerDocument);
-  if (cached?.key === key)
-    return {
-      left: Math.ceil(270 * scale * cached.factor),
-      right: Math.ceil(Math.max(220, 190 * scale * cached.factor))
-    };
-  const canvas = view.ownerDocument.createElement("canvas");
-  const context = canvas.getContext?.("2d");
-  let factor = 1;
-  if (context) {
-    context.font = `${style?.fontStyle ?? "normal"} ${style?.fontWeight ?? "400"} 14px ${font}`;
-    const width = context.measureText("Strength Initiative Spellcasting").width;
-    context.font = "400 14px Arial";
-    factor = Math.max(
-      1,
-      width / context.measureText("Strength Initiative Spellcasting").width
-    );
+  let factor = cached?.key === key ? cached.factor : 1;
+  if (cached?.key !== key) {
+    const canvas = view.ownerDocument.createElement("canvas");
+    const context = canvas.getContext?.("2d");
+    if (context) {
+      const sample = "Strength Initiative Spellcasting";
+      context.font = `${style?.fontStyle ?? "normal"} ${style?.fontWeight ?? "400"} 14px ${font}`;
+      const width = context.measureText(sample).width;
+      context.font = "400 14px Arial";
+      factor = Math.max(1, width / context.measureText(sample).width);
+    }
+    fontMetrics.set(view.ownerDocument, { key, factor });
   }
-  fontMetrics.set(view.ownerDocument, { key, factor });
   return {
-    left: Math.ceil(270 * scale * factor),
-    right: Math.ceil(Math.max(220, 190 * scale * factor))
+    left: Math.ceil(Math.max(PLAYER_MIN_RESIZED_INFO, 240 * scale * factor)),
+    right: Math.ceil(Math.max(220, 216 * scale * factor))
   };
 }
 
@@ -121,29 +120,43 @@ export function synchronizePlayerLayout(
   root,
   threshold = 450,
   fallbackWidth = 0,
-  ratio = 0.48,
+  ratio = PLAYER_DEFAULT_RATIO,
   mode = "manual"
 ) {
   const shell = root?.querySelector(".ws-shell");
   const panel = shell?.closest(".ws-rolls-dialog");
   const width = panel?.getBoundingClientRect?.().width || fallbackWidth;
+  const frameBorder = width - (panel?.clientWidth || width);
   for (const view of shell?.querySelectorAll(".ws-player-layout") ?? []) {
     const minima =
       mode === "auto" ? playerColumnMinimums(view) : { left: 210, right: 232 };
     const switchWidth =
       mode === "auto"
-        ? minima.left + minima.right + 32
+        ? minima.left +
+          minima.right +
+          PLAYER_COLUMN_GAP +
+          PLAYER_VIEW_PADDING +
+          Math.max(0, Math.round(frameBorder))
         : Math.min(1200, Math.max(450, Number(threshold) || 450));
     view.dataset.columnSwitchWidth = String(switchWidth);
     const columns = width >= switchWidth;
     applyPlayerLayout(view, columns);
     view.style.setProperty("--ws-player-min-info", `${minima.left}px`);
     view.style.setProperty("--ws-player-min-actions", `${minima.right}px`);
-    const safeRatio = Math.min(0.7, Math.max(0, Number(ratio) || 0.48));
+    const safeRatio = Math.min(
+      0.7,
+      Math.max(0, Number(ratio) || PLAYER_DEFAULT_RATIO)
+    );
+    // The automatic starting split is readable at the breakpoint. A saved
+    // divider position can still use the compact ability grid.
+    const leftMinimum =
+      safeRatio === PLAYER_DEFAULT_RATIO
+        ? minima.left
+        : PLAYER_MIN_RESIZED_INFO;
     view.style.setProperty(
       "--ws-player-left-width",
       mode === "auto"
-        ? `clamp(210px, ${safeRatio * 100}%, calc(100% - ${minima.right + 18}px))`
+        ? `clamp(${leftMinimum}px, ${safeRatio * 100}%, calc(100% - ${minima.right + PLAYER_COLUMN_GAP}px))`
         : safeRatio === 0.52
           ? "clamp(210px, 52%, min(400px, calc(100% - 232px)))"
           : `clamp(210px, ${safeRatio * 100}%, calc(100% - 232px))`
@@ -153,7 +166,11 @@ export function synchronizePlayerLayout(
     divider.setAttribute("aria-valuenow", String(Math.round(safeRatio * 100)));
     divider.setAttribute(
       "aria-valuemin",
-      String(Math.ceil((210 / (view.clientWidth || width)) * 100))
+      String(
+        Math.ceil(
+          (PLAYER_MIN_RESIZED_INFO / (view.clientWidth || width || 1)) * 100
+        )
+      )
     );
     divider.setAttribute("aria-valuemax", "70");
     divider.setAttribute("aria-disabled", String(Boolean(pinned || !columns)));
@@ -181,7 +198,7 @@ export function watchPlayerLayout(app, readThreshold, options = {}) {
       app.element,
       readThreshold(),
       Number(app.position?.width) || 0,
-      options.readRatio?.() ?? 0.48,
+      options.readRatio?.() ?? PLAYER_DEFAULT_RATIO,
       options.readMode?.() ?? "manual"
     );
     options.afterSync?.();
@@ -200,8 +217,10 @@ export function watchPlayerLayout(app, readThreshold, options = {}) {
       return {
         min: 0,
         max: 0.7,
-        left: 210,
-        right: minima.right + (options.readMode?.() === "auto" ? 18 : 0)
+        left: PLAYER_MIN_RESIZED_INFO,
+        right:
+          minima.right +
+          (options.readMode?.() === "auto" ? PLAYER_COLUMN_GAP : 0)
       };
     }
   });

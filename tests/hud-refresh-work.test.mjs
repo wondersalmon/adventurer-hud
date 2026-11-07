@@ -4,7 +4,11 @@ import {
   changesPath,
   subscribeHudDocuments
 } from "../scripts/hud/subscriptions.js";
-import { refreshHudShell } from "../scripts/hud/refresh.js";
+import {
+  refreshHudShell,
+  refreshHudTarget,
+  refreshHudView
+} from "../scripts/hud/refresh.js";
 import {
   captureHudDomState,
   restoreHudDomState
@@ -12,6 +16,39 @@ import {
 import { installDom, restoreGlobalsAfterEach } from "./helpers/foundry.mjs";
 
 restoreGlobalsAfterEach();
+
+test("target-only updates retain the shell on the next equivalent full refresh", () => {
+  const { document } = installDom();
+  const element = document.createElement("main");
+  element.innerHTML = '<div class="ws-shell"></div>';
+  const app = { rendered: true, element };
+  let target = "First";
+  let replacements = 0;
+  const targetHTML = () =>
+    `<div class="ws-footer-target"><span>${target}</span></div>`;
+  const options = {
+    app,
+    availableViews: () => ({}),
+    hudState: { currentView: "main" },
+    mode: "combat",
+    renderers: {
+      combat: () =>
+        `<button>Card</button><!--hud-target-->${targetHTML()}<!--/hud-target-->`
+    },
+    setView() {},
+    beforeReplace: () => replacements++
+  };
+  refreshHudView(options);
+  const card = element.querySelector("button");
+  for (const name of ["Second", "Third"]) {
+    target = name;
+    refreshHudTarget(app, targetHTML);
+    refreshHudView(options);
+    assert.equal(element.querySelector(".ws-footer-target").textContent, name);
+    assert.equal(element.querySelector("button"), card);
+  }
+  assert.equal(replacements, 1);
+});
 
 test("change paths understand nested, flattened and deleted Foundry fields", () => {
   for (const changes of [
@@ -121,6 +158,27 @@ test("refresh can restore keyboard focus to the GM menu disclosure", () => {
   };
   restoreHudDomState(shell, state);
   assert.equal(focused, true);
+});
+
+test("refresh restores keyboard focus to the same spell slot pool", () => {
+  const { document } = installDom();
+  const shell = document.createElement("div");
+  const markup =
+    '<button data-action="editspellslots" data-spell-pool="spell3">3rd level</button><button data-action="editspellslots" data-spell-pool="pact">Pact</button>';
+  shell.innerHTML = markup;
+  Object.defineProperty(document, "activeElement", {
+    configurable: true,
+    value: shell.lastElementChild
+  });
+  const state = captureHudDomState(shell);
+  shell.innerHTML = markup;
+  let focused;
+  for (const button of shell.children)
+    button.focus = () => {
+      focused = button.dataset.spellPool;
+    };
+  restoreHudDomState(shell, state);
+  assert.equal(focused, "pact");
 });
 
 test("refresh preserves the responsive GM menu state and its accessible disclosure", () => {

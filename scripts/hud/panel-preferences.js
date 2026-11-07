@@ -30,7 +30,13 @@ export async function replacePanelPreferences(operation) {
   }
 }
 
-export const flushPanelPreferences = () => writeQueue;
+export async function flushPanelPreferences() {
+  let pending;
+  do {
+    pending = writeQueue;
+    await pending;
+  } while (pending !== writeQueue);
+}
 
 export function createPanelPreferences({
   actorUuid,
@@ -109,8 +115,7 @@ export function createPanelPreferences({
                             : {})
                         }
                       : snapshot,
-                  ...(sharedKey &&
-                  (gmActive || layoutChanged || !latest[sharedKey])
+                  ...(sharedKey && (layoutChanged || !latest[sharedKey])
                     ? {
                         [sharedKey]: {
                           ...latest[sharedKey],

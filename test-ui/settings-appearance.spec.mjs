@@ -51,10 +51,14 @@ for (const language of ["en", "ru"])
       window.game = { settings: { get: (_id, key) => values[key] } };
     }, Object.fromEntries(f.current));
     await loadHudModules(page, {
-      "settings-appearance.js": ["AppearanceSettingsController"]
+      "settings-appearance.js": [
+        "AppearanceSettingsController",
+        "groupAdvancedSettings"
+      ]
     });
     await page.evaluate(() => {
       const root = document.querySelector("form");
+      window.groupAdvancedSettings(root);
       window.appearance = new window.AppearanceSettingsController(root);
       root.addEventListener("change", () => window.appearance.update());
       for (const panel of root.querySelectorAll('[role="tabpanel"]'))
@@ -115,6 +119,7 @@ for (const language of ["en", "ru"])
     const accent = page.locator('[name="accentPreset"]');
     const customAccent = page.locator('[data-setting-key="accentColor"]');
     await expect(customAccent).toBeHidden();
+    await accent.locator("xpath=ancestor::details/summary").click();
     await accent.selectOption("custom");
     await expect(customAccent).toBeVisible();
     await page.locator('[name="accentColor"]').evaluate(node => {
@@ -192,7 +197,9 @@ for (const language of ["en", "ru"])
       for (const panel of root.querySelectorAll('[role="tabpanel"]'))
         panel.hidden = panel.dataset.settingsPanel !== "appearanceAnimations";
     });
-    await page.locator('[name="hpAnimation"]').selectOption("bar");
+    const hpAnimation = page.locator('[name="hpAnimation"]');
+    await hpAnimation.locator("xpath=ancestor::details/summary").click();
+    await hpAnimation.selectOption("bar");
     await page.locator('[data-appearance-demo="damage"]').click();
     await expect(page.locator("[data-preview-hp]")).toHaveText("20 / 40");
     expect(

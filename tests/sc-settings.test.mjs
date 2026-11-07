@@ -16,7 +16,7 @@ import {
 } from "../scripts/settings-backup.js";
 restoreGlobalsAfterEach();
 
-test("SC integration requires an installed module, explains missing/inactive states, and is hidden from players", async () => {
+test("SC integration only appears for GMs while the module is active", async () => {
   const f = installSettings({ isGM: true });
   const App = f.menus.get("configure").type;
   const app = new App();
@@ -25,16 +25,16 @@ test("SC integration requires an installed module, explains missing/inactive sta
       .flatMap(group => group.settings)
       .find(row => row.key === "scInitiative");
   assert.equal(getSetting("scInitiative"), false);
-  assert.equal((await field()).disabled, true);
-  assert.match((await field()).hint, /scInitiative.Missing/);
+  assert.equal(await field(), undefined);
   await setSetting("scInitiative", true);
   assert.equal(getSetting("scInitiative"), false);
   installSc();
   game.modules.get(SC).active = false;
-  assert.equal((await field()).disabled, false);
-  assert.match((await field()).hint, /scInitiative.Inactive/);
+  assert.equal(await field(), undefined);
   await setSetting("scInitiative", true);
   assert.equal(getSetting("scInitiative"), true);
+  game.modules.get(SC).active = true;
+  assert.equal((await field()).disabled, false);
   game.modules.delete(SC);
   await App.DEFAULT_OPTIONS.form.handler.call(app, null, null, {
     object: { scInitiative: false }

@@ -5,7 +5,8 @@ import {
 } from "../../diagnostics.js";
 import {
   isFavorite,
-  itemAvailability,
+  itemAvailabilityLabel,
+  itemPresentationAvailability,
   usableActivities
 } from "./quick-access.js";
 
@@ -107,7 +108,8 @@ export function createCombatItemCardRenderer({
     const unpreparedFavorite =
       inFavorites && preparation?.canPrepare && !preparation.prepared;
     const canPrepare = !inFavorites && Boolean(preparation?.canPrepare);
-    const showFavorite = visibility.favorites;
+    const showFavorite =
+      visibility.favoriteControls?.() ?? visibility.favorites;
     const activityName = activityId
       ? itemActivities.find(activity => activity.id === activityId)?.name
       : null;
@@ -179,13 +181,20 @@ export function createCombatItemCardRenderer({
       adapter.itemUsesData(usageItem, usageActivityId);
     const useState = passive
       ? { blocked: false, reason: null }
-      : itemAvailability(adapter, actor, usageItem, usageActivityId);
-    const unavailableReason = passive
-      ? null
-      : unpreparedFavorite
-        ? "Combat.UnpreparedSpell"
-        : (useState.reason ?? (uses?.value === 0 ? "Quick.NoCharges" : null));
-    const unavailableLabel = unavailableReason ? t(unavailableReason) : "";
+      : itemPresentationAvailability(
+          adapter,
+          actor,
+          usageItem,
+          usageActivityId,
+          {
+            dimSpellsWithoutSlots: visibility.dimSpellsWithoutSlots,
+            uses
+          }
+        );
+    const unavailable = unpreparedFavorite
+      ? { reason: "Combat.UnpreparedSpell" }
+      : useState;
+    const unavailableLabel = itemAvailabilityLabel(t, unavailable);
     if (recordCards && diagnosticsRecording())
       recordDiagnostic(
         "hud.card",
@@ -201,14 +210,15 @@ export function createCombatItemCardRenderer({
           })),
           description: Boolean(item.system?.description?.value),
           blocked: useState.blocked || unpreparedFavorite,
-          reason: unavailableReason
+          reason: unavailable.reason
         },
         { detailed: true }
       );
     const showUnavailable =
-      !inFavorites &&
       unavailableLabel &&
-      (!Array.isArray(detailFields) || detailFields.length);
+      (unavailable.reason === "Quick.NoSpellSlots" ||
+        (!inFavorites &&
+          (!Array.isArray(detailFields) || detailFields.length)));
     const showCharges = !hideActivityDetails && showDetail("charges", true);
     const inventoryInfo = inventory ? adapter.inventoryInfo?.(item) : null;
     const inventoryMarkup = inventoryInfo
@@ -319,8 +329,8 @@ export function createCombatItemCardRenderer({
       : "";
 
     if (activityOption)
-      return `<div class="ws-activity-option" data-description-item-id="${escapeHTML(item.id)}" ${useState.blocked ? `tabindex="0" role="group" aria-label="${escapeHTML(name)}"` : ""}>
-      <button type="button" class="ws-button" data-action="useactivity" data-item-id="${escapeHTML(item.id)}" data-activity-id="${escapeHTML(activityId)}" aria-label="${escapeHTML(name)}" title="${escapeHTML(unavailableLabel)}" ${useState.blocked ? 'disabled aria-disabled="true"' : ""}><span class="ws-combat-item-content"><strong>${escapeHTML(activityName ?? item.name)}</strong>${metadataMarkup}${showUnavailable ? `<small class="ws-item-unavailable">${escapeHTML(unavailableLabel)}</small>` : ""}</span></button>
+      return `<div class="ws-activity-option${unavailable.reason === "Quick.NoSpellSlots" ? " ws-unavailable-card" : ""}" data-description-item-id="${escapeHTML(item.id)}" ${useState.blocked ? `tabindex="0" role="group" aria-label="${escapeHTML(name)}"` : ""}>
+      <button type="button" class="ws-button" data-action="useactivity" data-item-id="${escapeHTML(item.id)}" data-activity-id="${escapeHTML(activityId)}" aria-label="${escapeHTML(name)}" title="${escapeHTML(unavailableLabel)}" ${unavailableLabel ? `aria-description="${escapeHTML(unavailableLabel)}"` : ""} ${useState.blocked ? 'disabled aria-disabled="true"' : ""}><span class="ws-combat-item-content"><strong>${escapeHTML(activityName ?? item.name)}</strong>${metadataMarkup}${showUnavailable ? `<small class="ws-item-unavailable">${escapeHTML(unavailableLabel)}</small>` : ""}</span></button>
       ${showFavorite ? `<button type="button" class="ws-button ws-item-favorite ${favorite ? "ws-active" : ""}" data-action="${favorite ? "removefavorite" : "togglefavorite"}" data-item-id="${escapeHTML(item.id)}" data-activity-id="${escapeHTML(activityId)}" title="${t(favorite ? "Quick.RemoveFavorite" : "Quick.AddFavorite")}" aria-label="${t(favorite ? "Quick.RemoveFavorite" : "Quick.AddFavorite")}" ${actor.isOwner === false ? "disabled" : ""}><i class="fa-${favorite ? "solid" : "regular"} fa-star"></i></button>` : ""}
     </div>`;
 
@@ -338,6 +348,7 @@ export function createCombatItemCardRenderer({
             data-action="${passive ? "openitem" : usageActivityId ? "useactivity" : "useitem"}"
             data-item-id="${escapeHTML(usageItem.id)}"
             title="${escapeHTML(unavailableLabel)}"
+            ${unavailableLabel ? `aria-description="${escapeHTML(unavailableLabel)}"` : ""}
             aria-label="${escapeHTML(name)}"
             ${(useState.blocked || unpreparedFavorite) && !passive ? 'disabled aria-disabled="true"' : ""}
             ${usageActivityId ? `data-activity-id="${escapeHTML(usageActivityId)}"` : ""}
@@ -347,7 +358,7 @@ export function createCombatItemCardRenderer({
             <span class="ws-combat-item-content">
               <strong>${escapeHTML(name)}</strong>
               ${metadataMarkup}
-              ${showUnavailable ? `<small class="ws-item-unavailable"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>${unavailableLabel}</small>` : ""}
+              ${showUnavailable ? `<small class="ws-item-unavailable"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>${escapeHTML(unavailableLabel)}</small>` : ""}
             </span>
 
             ${offersActivities ? '<i class="ws-item-usage-icon fa-solid fa-chevron-down" aria-hidden="true"></i>' : ""}

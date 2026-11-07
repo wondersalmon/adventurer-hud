@@ -37,6 +37,8 @@ export async function activateHudWindow({
   getCombat,
   layoutState,
   adapter,
+  language,
+  beforeReveal,
   t = key => key,
   app,
   visualEffectsEnabled = true,
@@ -51,6 +53,7 @@ export async function activateHudWindow({
   getTurnKey,
   onSearchInput,
   onToolsChange,
+  onItemLayoutChange,
   onStatusChange,
   onCombatChange,
   onCombatSelection,
@@ -238,7 +241,7 @@ export async function activateHudWindow({
     app.element.querySelector(".window-title").textContent = title;
     restoreHudDomState(app.element, domState);
   } else await app.render({ force: true });
-  await app.revealHud?.();
+  if (language) app.element.setAttribute("lang", language);
   memory = bindRatMemory({
     app,
     t,
@@ -308,6 +311,10 @@ export async function activateHudWindow({
     }
   );
   app.syncHudLayout = layout.sync;
+  await app.revealHud?.(() => {
+    beforeReveal?.();
+    layout.sync();
+  });
   const unwatchTheme = watchHudTheme(app.element, () =>
     getSetting(SETTINGS.theme)
   );
@@ -532,6 +539,7 @@ export async function activateHudWindow({
       showHpFeedback(change);
     },
     onToolsChange,
+    onItemLayoutChange,
     onStatusChange,
     onCombatChange,
     scheduleRefresh: refreshScheduler.schedule

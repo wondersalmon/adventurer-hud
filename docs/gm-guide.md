@@ -8,7 +8,7 @@ Enable **Use GM panel** in **Configure → GM panel**, then press **Shift+R**. T
 
 ## Prepare an encounter
 
-Choose the encounter, add creatures and roll initiative. You can add scene tokens or drag NPCs, actor folders and Encounters onto the creature list. Choose where new tokens should appear; cancel placement if needed.
+Choose the encounter, add creatures and roll initiative. You can add scene tokens or drag NPCs, actor folders and Encounters onto the creature list. Review the creature counts for folders and Encounters, then choose where the tokens should appear. Actors are imported after you confirm placement.
 
 Click an initiative value to roll or edit it. Preparation also offers initiative resets and participant removal. Removing a participant from the encounter leaves its token on the scene. Click **Start combat** when ready.
 

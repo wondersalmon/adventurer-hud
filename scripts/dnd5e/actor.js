@@ -5,28 +5,30 @@ import {
   proficiencyMultiplier
 } from "./actor-data.js";
 
-/** Resolve native encounter members, including quantity formulas and world imports. */
-export async function encounterActors(actor) {
+/** Resolve encounter members and roll their counts without importing actors. */
+export async function encounterActors(actor, canExecute = () => true) {
   if (
+    !canExecute() ||
     !game.user?.isGM ||
     actor.type !== "encounter" ||
     !actor.isOwner ||
-    !actor.system?.getPlaceableMembers
+    !actor.system?.getMembers
   )
     return [];
-  const members = await actor.system.getPlaceableMembers();
-  if (!actor.isOwner) return [];
-  return members.flatMap(member => {
-    const quantity = member.quantity?.value ?? 1;
-    if (
-      member.actor?.type !== "npc" ||
-      !member.actor.isOwner ||
-      !Number.isSafeInteger(quantity) ||
-      quantity < 1
-    )
-      return [];
-    return Array(quantity).fill(member.actor);
-  });
+  const members = await actor.system.getMembers();
+  const creatures = [];
+  for (const member of members) {
+    if (!canExecute() || !actor.isOwner) return [];
+    if (member.actor?.type !== "npc" || !member.actor.isOwner) continue;
+    const { value = 1, formula } = member.quantity ?? {};
+    const count =
+      value === null && formula
+        ? (await new foundry.dice.Roll(formula).evaluate()).total
+        : value;
+    if (Number.isSafeInteger(count) && count > 0)
+      creatures.push(Array(count).fill(member.actor));
+  }
+  return canExecute() && actor.isOwner ? creatures.flat() : [];
 }
 
 export const dnd5eActor = {

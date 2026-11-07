@@ -5,7 +5,11 @@ import { createHudActions } from "./actions.js";
 import { createGmSelection } from "./gm/gm-selection.js";
 import { createHpDialogController } from "./hp-dialog.js";
 import { syncHealthAppearance as syncHealthAppearanceClass } from "./health-feedback.js";
-import { createRefreshScheduler, refreshHudView } from "./refresh.js";
+import {
+  createRefreshScheduler,
+  refreshHudTarget,
+  refreshHudView
+} from "./refresh.js";
 import { createHudRollRunner } from "./roll-runner.js";
 import { createHudToolState } from "./tool-state.js";
 import { createArmorClassRefresh } from "./stat-details.js";
@@ -21,6 +25,7 @@ import { pruneItemLayouts } from "./items/item-layout.js";
 import { createHudWindow } from "./window/window.js";
 import { syncHeaderEditControl } from "./window/window-controls.js";
 import { readHudVisibility } from "./visibility.js";
+import { importLegacyBlockVisibility } from "./window/hud-layout-model.js";
 import { getSetting, setSetting, SETTINGS } from "../settings-access.js";
 import { actorActionCooldown } from "./action-cooldown.js";
 import { reportFailure } from "../diagnostics.js";
@@ -45,6 +50,7 @@ export async function openActorHud(
     reusedApp,
     gmActive,
     DialogV2,
+    language,
     t,
     tf,
     adapter,
@@ -72,9 +78,15 @@ export async function openActorHud(
   });
   const canRollActor = actor.isOwner;
   const canStartMutation = actorActionCooldown(actor);
+  let favoritesEnabled = !gmActive && !companion;
 
   const readVisibility = () => ({
     ...readHudVisibility(),
+    shortcuts: true,
+    search: true,
+    inventorySummary: true,
+    favorites: true,
+    favoriteControls: () => favoritesEnabled,
     ...(companion ? { favorites: false } : {}),
     ...(gmActive
       ? {
@@ -110,9 +122,22 @@ export async function openActorHud(
     ...recoveryState,
     favoriteEntries: favoriteEntries(actor)
   });
+  const importBlockVisibility = () => {
+    const legacy = readHudVisibility();
+    importLegacyBlockVisibility(hudState, {
+      ...(!gmActive && { search: legacy.search }),
+      ...(!gmActive && !companion && { favorites: legacy.favorites }),
+      weight: legacy.inventorySummary,
+      hints: legacy.shortcuts
+    });
+  };
+  importBlockVisibility();
   if (companionOwner && !companion) hudState.companionsExpanded = true;
   const savePanelState = () => panelPreferences.save(hudState);
+  let itemLayoutsDirty = true;
   const cleanItemLayouts = () => {
+    if (!itemLayoutsDirty) return;
+    itemLayoutsDirty = false;
     if (!Object.keys(hudState.itemLayouts).length) return;
     const items = [...actor.items.values()].map(item => ({
       id: item.id,
@@ -188,6 +213,7 @@ export async function openActorHud(
     hudState,
     visibility,
     toolState,
+    language,
     t,
     tf
   });
@@ -196,6 +222,18 @@ export async function openActorHud(
   // Content
   // =========================================================
 
+  const syncFavoriteVisibility = () => {
+    const scopePrefix = `${currentMode()}:`;
+    favoritesEnabled =
+      !gmActive &&
+      !companion &&
+      !Object.entries(hudState.hudLayouts).some(
+        ([scope, preference]) =>
+          scope.startsWith(scopePrefix) &&
+          preference.hidden.includes("favorites")
+      );
+  };
+  syncFavoriteVisibility();
   const content = await createContent();
 
   const setView = view => {
@@ -235,6 +273,10 @@ export async function openActorHud(
   const refreshHud = (region = null) => {
     if (!isSessionCurrent()) return;
     if (recoverActor()) return;
+    if (region === "target" && !hudState.hudEditing) {
+      refreshHudTarget(app, targetHTML);
+      return;
+    }
     if (region !== "search" && hudState.hudEditing) region = null;
     cleanItemLayouts();
     hudState.favoriteEntries = favoriteEntries(actor);
@@ -246,6 +288,7 @@ export async function openActorHud(
       hudState.forcedMode = null;
     }
     syncHealthAppearance();
+    syncFavoriteVisibility();
     hudWindow.syncMode(currentMode());
     refreshHudView({
       app,
@@ -377,6 +420,7 @@ export async function openActorHud(
     reusedApp,
     gmActive,
     DialogV2,
+    language,
     t,
     title: dialogTitle(),
     content,
@@ -448,6 +492,8 @@ export async function openActorHud(
 
   app = hudWindow.create(actions);
   const unsubscribePreferences = panelPreferences.subscribe(hudState, () => {
+    importBlockVisibility();
+    itemLayoutsDirty = true;
     if (isSessionCurrent()) app.refreshFromSettings?.();
   });
   let unsubscribeTargets = () => {};
@@ -501,6 +547,9 @@ export async function openActorHud(
     refreshHud,
     refreshScheduler,
     onToolsChange: refreshTools,
+    onItemLayoutChange: () => {
+      itemLayoutsDirty = true;
+    },
     onStatusChange: () => refreshScheduler.schedule(),
     onCombatChange: gmActive
       ? gmSelection.scheduleCombatChange
@@ -519,8 +568,7 @@ export async function openActorHud(
         app.rendered &&
         footerCenterMode({ visibility, currentMode }) === "target" &&
         visibility.playerFooter,
-      read: targetHTML,
-      scheduleRefresh: () => refreshScheduler.schedule()
+      scheduleRefresh: () => refreshScheduler.schedule("target")
     });
 
   syncHealthAppearance();

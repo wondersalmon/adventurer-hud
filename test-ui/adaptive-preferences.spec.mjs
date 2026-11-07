@@ -56,86 +56,112 @@ test("automatic columns respect font metrics and exact boundaries; manual thresh
   page
 }) => {
   const fixture = await layoutFixture("ru");
-  for (const font of ["small", "medium", "large", "extralarge", "custom"])
-    for (const family of ["arial", "verdana", "georgia"]) {
-      await page.setContent(
-        `<style>${fixture.baseline}\n${fixture.css}</style><section class="ws-rolls-dialog ws-font-${font} ws-theme-light" style="width:900px"><div class="window-content" style="height:700px"><div class="ws-shell">${fixture.bodies["player-combat-footer"]}</div></div></section>`
-      );
-      await loadHudModules(page, {
-        "hud/window/responsive-layout.js": ["synchronizePlayerLayout"],
-        "hud/theme.js": ["synchronizeHudTypography"]
-      });
-      const boundary = await page.evaluate(family => {
-        const root = document.querySelector(".ws-rolls-dialog");
-        window.synchronizeHudTypography(root, {
-          family,
-          style: "normal",
-          size: root.classList.contains("ws-font-custom")
-            ? "custom"
-            : undefined,
-          pixels: 18
+  for (const mode of ["player-main-footer", "player-combat-footer"])
+    for (const font of ["small", "medium", "large", "extralarge", "custom"])
+      for (const family of ["arial", "verdana", "georgia"]) {
+        await page.setContent(
+          `<style>${fixture.baseline}\n${fixture.css}</style><section class="ws-rolls-dialog ws-font-${font} ws-theme-light" style="width:900px"><div class="window-content" style="height:700px"><div class="ws-shell">${fixture.bodies[mode]}</div></div></section>`
+        );
+        await loadHudModules(page, {
+          "hud/window/responsive-layout.js": ["synchronizePlayerLayout"],
+          "hud/theme.js": ["synchronizeHudTypography"]
         });
-        window.synchronizePlayerLayout(root, 450, 0, 0.48, "auto");
-        return Number(
-          root.querySelector(".ws-player-layout").dataset.columnSwitchWidth
-        );
-      }, family);
-      expect(boundary).toBeGreaterThan(450);
-      for (const offset of [-1, 0, 1]) {
-        const result = await page.evaluate(
-          ({ boundary, offset }) => {
-            const root = document.querySelector(".ws-rolls-dialog");
-            root.style.width = `${boundary + offset}px`;
-            window.synchronizePlayerLayout(root, 450, 0, 0.48, "auto");
-            const view = root.querySelector(".ws-player-layout");
-            const info = view
-                .querySelector(".ws-player-info")
-                .getBoundingClientRect(),
-              actions = view
-                .querySelector(".ws-player-actions")
-                .getBoundingClientRect();
-            return {
-              columns: view.classList.contains("ws-player-columns"),
-              overflow: root.scrollWidth > root.clientWidth + 1,
-              overlap:
-                info.right > actions.left + 1 &&
-                info.top < actions.bottom &&
-                info.bottom > actions.top,
-              text: getComputedStyle(view).getPropertyValue("--ws-type-scale")
-            };
-          },
-          { boundary, offset }
-        );
-        expect(result.columns).toBe(offset >= 0);
-        expect(result.overflow).toBe(false);
-        if (offset >= 0) expect(result.overlap).toBe(false);
-        const text = result.text;
-        await page.evaluate(() => {
+        const boundary = await page.evaluate(family => {
           const root = document.querySelector(".ws-rolls-dialog");
-          root.style.width = "1100px";
+          window.synchronizeHudTypography(root, {
+            family,
+            style: "normal",
+            size: root.classList.contains("ws-font-custom")
+              ? "custom"
+              : undefined,
+            pixels: 18
+          });
           window.synchronizePlayerLayout(root, 450, 0, 0.48, "auto");
-        });
-        expect(
-          await page
-            .locator(".ws-player-layout")
-            .evaluate(n =>
-              getComputedStyle(n).getPropertyValue("--ws-type-scale")
-            )
-        ).toBe(text);
+          return Number(
+            root.querySelector(".ws-player-layout").dataset.columnSwitchWidth
+          );
+        }, family);
+        expect(boundary).toBeGreaterThan(450);
+        for (const offset of [-1, 0, 1]) {
+          const result = await page.evaluate(
+            ({ boundary, offset }) => {
+              const root = document.querySelector(".ws-rolls-dialog");
+              root.style.width = `${boundary + offset}px`;
+              window.synchronizePlayerLayout(root, 450, 0, 0.48, "auto");
+              const view = root.querySelector(".ws-player-layout");
+              const info = view
+                  .querySelector(".ws-player-info")
+                  .getBoundingClientRect(),
+                actions = view
+                  .querySelector(".ws-player-actions")
+                  .getBoundingClientRect();
+              return {
+                columns: view.classList.contains("ws-player-columns"),
+                widths: [
+                  info.width,
+                  actions.width,
+                  view.clientWidth,
+                  root.clientWidth
+                ],
+                minima: [
+                  view.style.getPropertyValue("--ws-player-min-info"),
+                  view.style.getPropertyValue("--ws-player-min-actions")
+                ],
+                overflow: root.scrollWidth > root.clientWidth + 1,
+                columnsMeetMinimums:
+                  info.width + 1 >=
+                    parseFloat(
+                      view.style.getPropertyValue("--ws-player-min-info")
+                    ) &&
+                  actions.width + 1 >=
+                    parseFloat(
+                      view.style.getPropertyValue("--ws-player-min-actions")
+                    ),
+                overlap:
+                  info.right > actions.left + 1 &&
+                  info.top < actions.bottom &&
+                  info.bottom > actions.top,
+                text: getComputedStyle(view).getPropertyValue("--ws-type-scale")
+              };
+            },
+            { boundary, offset }
+          );
+          expect(result.columns).toBe(offset >= 0);
+          expect(result.overflow).toBe(false);
+          if (offset >= 0) {
+            expect(result.overlap).toBe(false);
+            expect(
+              result.columnsMeetMinimums,
+              JSON.stringify({ font, family, boundary, offset, ...result })
+            ).toBe(true);
+          }
+          const text = result.text;
+          await page.evaluate(() => {
+            const root = document.querySelector(".ws-rolls-dialog");
+            root.style.width = "1100px";
+            window.synchronizePlayerLayout(root, 450, 0, 0.48, "auto");
+          });
+          expect(
+            await page
+              .locator(".ws-player-layout")
+              .evaluate(n =>
+                getComputedStyle(n).getPropertyValue("--ws-type-scale")
+              )
+          ).toBe(text);
+        }
+        for (const width of [719, 720, 721]) {
+          await page.evaluate(width => {
+            const root = document.querySelector(".ws-rolls-dialog");
+            root.style.width = width + "px";
+            window.synchronizePlayerLayout(root, 720, 0, 0.48, "manual");
+          }, width);
+          expect(
+            await page
+              .locator(".ws-player-layout")
+              .evaluate(n => n.classList.contains("ws-player-columns"))
+          ).toBe(width >= 720);
+        }
       }
-      for (const width of [719, 720, 721]) {
-        await page.evaluate(width => {
-          const root = document.querySelector(".ws-rolls-dialog");
-          root.style.width = width + "px";
-          window.synchronizePlayerLayout(root, 720, 0, 0.48, "manual");
-        }, width);
-        expect(
-          await page
-            .locator(".ws-player-layout")
-            .evaluate(n => n.classList.contains("ws-player-columns"))
-        ).toBe(width >= 720);
-      }
-    }
 });
 
 test("long NPC identity wraps inside its button without intersecting GM controls", async ({

@@ -131,15 +131,21 @@ test("ownership and favorite visibility still guard permanent favorite controls"
       .hasAttribute("disabled"),
     false
   );
-  await game.settings.set("adventurer-hud", "showFavorites", false);
+  await app.hudActions.togglehudedit();
+  const toggle = () =>
+    app.element.querySelector(
+      '[data-action="hudblockhide"][data-hud-key="favorites"]'
+    );
+  await app.hudActions.hudblockhide(null, toggle());
   assert.equal(
     app.element.querySelector('[data-action="removefavorite"]'),
     null
   );
   await app.hudActions.removefavorite(null, { dataset: { itemId: "a" } });
   assert.equal(f.actor.system.favorites.length, 1);
-  await game.settings.set("adventurer-hud", "showFavorites", true);
+  await app.hudActions.hudblockhide(null, toggle());
   assert.ok(app.element.querySelector('[data-action="removefavorite"]'));
+  await app.hudActions.togglehudedit();
   assert.equal(app.hudActions.togglefavoriteedit, undefined);
   await app.close();
 });

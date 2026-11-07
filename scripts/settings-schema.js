@@ -53,6 +53,7 @@ export const SETTINGS = Object.freeze({
   showVisualEffects: "showVisualEffects",
   showItemDetails: "showItemDetails",
   showSpellPreparation: "showSpellPreparation",
+  dimSpellsWithoutSlots: "dimSpellsWithoutSlots",
   showActionTypes: "showActionTypes",
   showCombatSkills: "showCombatSkills",
   showArmorClass: "showArmorClass",
@@ -110,10 +111,16 @@ export const HUD_TEXT_PIXELS = Object.freeze({
   extraLarge: 15
 });
 
+export const HUD_LANGUAGE_NAMES = Object.freeze({
+  en: "English",
+  ru: "Русский",
+  "pt-BR": "Português (Brasil)",
+  "pt-PT": "Português (Portugal)"
+});
+
 const LANGUAGE_CHOICES = Object.freeze({
   auto: "ADVENTURER_HUD.Settings.language.Auto",
-  en: "English",
-  ru: "Русский"
+  ...HUD_LANGUAGE_NAMES
 });
 
 const FOOTER_MODE_CHOICES = Object.freeze({
@@ -448,6 +455,7 @@ export const SETTING_DEFINITIONS = Object.freeze({
     refresh: "none"
   }),
   [SETTINGS.showActivityPicker]: defineSetting("itemUse"),
+  [SETTINGS.dimSpellsWithoutSlots]: defineSetting("itemUse"),
   [SETTINGS.showItemDescriptions]: defineSetting("itemUse", {
     refresh: "runtime"
   }),
@@ -675,20 +683,19 @@ export const getConfigureSettingGroups = (isGM = false) => {
     behavior: [
       SETTINGS.language,
       SETTINGS.autoOpenHud,
-      SETTINGS.showTokenControl,
-      SETTINGS.showRatMemory,
-      SETTINGS.hudActorSelection,
       SETTINGS.openPlayerOnCombat,
+      SETTINGS.showTokenControl,
+      SETTINGS.hudActorSelection,
       SETTINGS.autoUpdateActor,
       SETTINGS.slidePanel,
-      SETTINGS.closeOnEscape,
-      SETTINGS.autoScrollExpanded
+      SETTINGS.closeOnEscape
     ],
     windowLayout: [
       SETTINGS.separateModeSizes,
       SETTINGS.perCharacterLayout,
       SETTINGS.twoColumnMode,
       SETTINGS.twoColumnWidth,
+      SETTINGS.autoScrollExpanded,
       SETTINGS.debugWindowSize
     ],
     appearance: [],
@@ -712,12 +719,25 @@ export const getConfigureSettingGroups = (isGM = false) => {
     quickAccess: [],
     panelSections: [
       ...advanced.quickAccess.filter(
-        key => ![SETTINGS.statusFilter, SETTINGS.hiddenEffects].includes(key)
+        key =>
+          ![
+            SETTINGS.statusFilter,
+            SETTINGS.hiddenEffects,
+            SETTINGS.showSearch,
+            SETTINGS.showFavorites,
+            SETTINGS.showInventorySummary,
+            SETTINGS.playerFooter,
+            SETTINGS.explorationFooterMode,
+            SETTINGS.combatFooterMode
+          ].includes(key)
       ),
-      SETTINGS.showSpellPreparation,
-      SETTINGS.showShortcuts
+      SETTINGS.showSpellPreparation
     ],
     panelItems: [
+      SETTINGS.playerFooter,
+      SETTINGS.explorationFooterMode,
+      SETTINGS.combatFooterMode,
+      SETTINGS.showRatMemory,
       ...advanced.itemUse.filter(
         key => ![SETTINGS.cardDetails, SETTINGS.cardDetailFields].includes(key)
       )
@@ -774,7 +794,6 @@ export const CONFIGURE_SECTION_LABELS = Object.freeze({
   [SETTINGS.slidePanel]: "Settings.Sections.Closing",
   [SETTINGS.autoScrollExpanded]: "Settings.Sections.Navigation",
   [SETTINGS.separateModeSizes]: "Settings.Sections.Dimensions",
-  [SETTINGS.showSearch]: "Settings.Sections.QuickAccess",
   [SETTINGS.showActivityPicker]: "Settings.Groups.itemUse.Name",
   [SETTINGS.playerFooter]: "Settings.Sections.Controls",
   [SETTINGS.statusFilter]: "Settings.Sections.Effects",
@@ -834,6 +853,7 @@ export const getAdvancedSettingGroups = () => ({
   ],
   itemUse: [
     SETTINGS.showActivityPicker,
+    SETTINGS.dimSpellsWithoutSlots,
     SETTINGS.showItemDescriptions,
     SETTINGS.hideItemOpenButton,
     SETTINGS.cardDetails,

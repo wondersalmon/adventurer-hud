@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.4.0
+
+### New
+
+- **Portuguese:** Added Brazilian and European Portuguese to the HUD language menu.
+- **Spell slots:** Optionally dim spells when no eligible slot remains. Lower-level slots do not count, and ritual casts or casts from another source stay available when they can be used without a slot. Dimmed spell cards explain which slot level is needed.
+
+### Changes and improvements
+
+- **Layout editor:** Show or hide search, favorites, the inventory summary and shortcut hints in the editor. Blocks turned off in earlier versions start hidden and can be restored there.
+- **Player columns:** Automatic switching accounts for the selected font and text size in exploration and combat. Saved manual thresholds and column proportions are retained, and the divider still supports a compact left column.
+- **Settings:** Automatic opening options are grouped together. Toolbar modes and the Rat integration are grouped under panel controls. Fine appearance controls are collapsible, and integration settings appear while the corresponding modules are active.
+- **Card details:** Players and GMs keep separate presets. Individual fields appear in Custom mode, and each custom selection is remembered when switching presets.
+- **GM encounter setup:** Review creature counts before placing a folder or Encounter. Only actors needed for the confirmed placement are imported.
+- **Performance:** Target changes update only the target display and keep the dice tray open. Combat action lists do less rendering work, and routine updates avoid unnecessary inventory scans and companion roster refreshes.
+
+### Fixes
+
+- **Panel opening:** Saved widths and column proportions are applied before the panel starts sliding into view.
+- **GM layouts:** Saving a creature's individual HUD preferences no longer overwrites the shared layout.
+- **Keyboard focus:** Refreshing the HUD keeps focus on the same spell-slot pool when it remains visible.
+
+Documentation: [Layout editor](docs/layout-guide.md) · [Player guide](docs/player-guide.md) · [GM guide](docs/gm-guide.md).
+
 ## 2.3.1
 
 ### New

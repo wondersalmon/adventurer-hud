@@ -22,8 +22,10 @@ export async function createCompanionRosterSession(
 ) {
   let entries = await ownedCompanions(owner);
   const trackedActors = new Set();
+  const trackedTokens = new Set();
   const trackActors = () => {
     trackedActors.clear();
+    trackedTokens.clear();
     for (const uuid of [
       owner.uuid,
       actorContext.actorUuid,
@@ -34,6 +36,7 @@ export async function createCompanionRosterSession(
       trackedActors.add(entry.uuid);
       if (entry.actor?.uuid) trackedActors.add(entry.actor.uuid);
       for (const token of entry.tokenOptions) {
+        trackedTokens.add(token.uuid);
         if (token.actor?.uuid) trackedActors.add(token.actor.uuid);
         if (token.baseActor?.uuid) trackedActors.add(token.baseActor.uuid);
       }
@@ -134,11 +137,28 @@ export async function createCompanionRosterSession(
     "deleteItem"
   ];
   const relatedActor = actor => actor && trackedActors.has(actor.uuid);
-  const relevant = (hook, doc) => {
+  const relevant = (hook, doc, changes) => {
     if (!doc) return true;
     if (hook.endsWith("Item") || hook.endsWith("ActiveEffect"))
       return relatedActor(doc.parent) || relatedActor(doc.parent?.parent);
-    if (hook.endsWith("Token")) return doc.parent?.id === canvas.scene?.id;
+    if (hook.endsWith("Token")) {
+      if (doc.parent?.id !== canvas.scene?.id) return false;
+      if (
+        hook === "updateToken" &&
+        changes &&
+        Object.keys(changes).length &&
+        Object.keys(changes).every(key =>
+          ["x", "y", "elevation", "rotation", "_movementHistory"].includes(key)
+        )
+      )
+        return false;
+      return (
+        trackedTokens.has(doc.uuid) ||
+        relatedActor(doc.actor) ||
+        relatedActor(doc.baseActor) ||
+        (doc.actor?.isOwner && ["character", "npc"].includes(doc.actor.type))
+      );
+    }
     if (hook === "updateActorDelta")
       return doc.parent?.parent?.id === canvas.scene?.id;
     if (hook.endsWith("Actor"))
@@ -160,8 +180,8 @@ export async function createCompanionRosterSession(
           hook =>
             /** @type {[string, number]} */ ([
               hook,
-              Hooks.on(hook, doc => {
-                if (relevant(hook, doc)) {
+              Hooks.on(hook, (doc, changes) => {
+                if (relevant(hook, doc, changes)) {
                   recordDiagnostic(
                     "hud.companions.refresh-request",
                     { reason: hook },

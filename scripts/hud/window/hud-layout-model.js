@@ -37,6 +37,8 @@ export const HUD_LAYOUT_BLOCKS = [
   ["players", ".ws-gm-preparation-players", "GM.Players"]
 ];
 
+export const BLOCK_VISIBILITY_SCOPE = "blockVisibility";
+
 /** @param {Partial<import('../../../types/hud.js').HudState>|undefined} state @param {string} key */
 export const hudElementHidden = (state, key) =>
   Object.entries(state?.hudLayouts ?? {}).some(
@@ -48,6 +50,23 @@ export const hudElementHidden = (state, key) =>
         id => id === key || (key === "weight" && id === "currency")
       )
   );
+
+/** @param {import('../../../types/hud.js').HudState} state
+ * @param {Record<string, boolean>} blocks */
+export function importLegacyBlockVisibility(state, blocks) {
+  if (state.hudLayouts[BLOCK_VISIBILITY_SCOPE]) return;
+  const hidden = Object.keys(blocks).filter(key => blocks[key] === false);
+  if (!hidden.length) return;
+  for (const mode of ["regular", "combat"]) {
+    const scope = `${mode}:info`;
+    const previous = state.hudLayouts[scope] ?? { order: [], hidden: [] };
+    state.hudLayouts[scope] = {
+      ...previous,
+      hidden: [...new Set([...previous.hidden, ...hidden])]
+    };
+  }
+  state.hudLayouts[BLOCK_VISIBILITY_SCOPE] = { order: [], hidden: [] };
+}
 
 /** @param {import('../../../types/hud.js').ItemLayouts} layouts */
 const copyLayouts = layouts =>

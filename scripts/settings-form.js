@@ -63,9 +63,10 @@ export function prepareSettingsGroups({
     hudActorSelection: "Actor",
     slidePanel: "Closing",
     autoScrollExpanded: "Scrolling",
+    separateModeSizes: "Dimensions",
+    playerFooter: "Controls",
     theme: "Palette",
     fontSize: "Text",
-    showSearch: "Blocks",
     showArmorClass: "Stats",
     showActionTypes: "Categories",
     showCompanions: "CompanionDisplay",
@@ -85,6 +86,16 @@ export function prepareSettingsGroups({
     gmActions: "gm",
     world: "gm"
   };
+  const advancedHeadings = {
+    twoColumnMode: "Dimensions",
+    twoColumnWidth: "Dimensions",
+    accentPreset: "Accent",
+    accentColor: "Accent",
+    fontFamily: "Text",
+    fontStyle: "Text",
+    hpAnimation: "Feedback",
+    turnAnimation: "Feedback"
+  };
   return Object.entries(groups)
     .map(([id, keys], index) => ({
       id,
@@ -92,7 +103,7 @@ export function prepareSettingsGroups({
       childHidden: Object.hasOwn(groups, parents[id]) ? "hidden" : "",
       hasChildren: Object.keys(groups).some(key => parents[key] === id),
       behaviorSummary: id === "behavior",
-      editorHint: id === "panelSections" ? t("Settings.EditorHint") : "",
+      editorHint: id === "windowLayout" ? t("Settings.EditorHint") : "",
       editorGuideLabel: t("Settings.EditorGuide"),
       editorGuideUrl: `https://github.com/wondersalmon/adventurer-hud/blob/main/docs/layout-guide${language === "ru" ? ".ru" : ""}.md`,
       defaultChild: !keys.length
@@ -130,6 +141,7 @@ export function prepareSettingsGroups({
       settings: keys
         .filter(key => key !== SETTINGS.hudPreferredActor)
         .filter(key => key !== SETTINGS.showRatMemory || ratActive())
+        .filter(key => key !== SETTINGS.scInitiative || scModule()?.active)
         .map(key => {
           const value = valueFor(key);
           const choices =
@@ -189,10 +201,8 @@ export function prepareSettingsGroups({
                         ["gmSelectionMode", "gmActionDisplay"].includes(key))
                     ? SETTINGS.gmEnabled
                     : null;
-          const sc = key === SETTINGS.scInitiative;
-          const disabled = sc
-            ? !scModule()
-            : parentKey === SETTINGS.twoColumnMode
+          const disabled =
+            parentKey === SETTINGS.twoColumnMode
               ? readValue(parentKey) !== "manual"
               : parentKey === SETTINGS.accentPreset
                 ? readValue(parentKey) !== "custom"
@@ -200,21 +210,17 @@ export function prepareSettingsGroups({
           return {
             idPrefix,
             key,
-            sectionHeading: headings[key]
-              ? t(`Settings.Sections.${headings[key]}`)
-              : "",
+            sectionHeading:
+              key === SETTINGS.debugWindowSize
+                ? t("Settings.Troubleshooting.Name")
+                : headings[key]
+                  ? t(`Settings.Sections.${headings[key]}`)
+                  : "",
             merged: key === SETTINGS.fontSizePx,
             animationDisabledHint: t("Settings.Animations.Disabled"),
             fieldsSummary: t("Settings.CardFields.Summary"),
             name: t(`Settings.${key}.Name`),
-            hint:
-              sc && !scModule()?.active
-                ? t(
-                    scModule()
-                      ? "Settings.scInitiative.Inactive"
-                      : "Settings.scInitiative.Missing"
-                  )
-                : t(`Settings.${key}.Hint`),
+            hint: t(`Settings.${key}.Hint`),
             value,
             parentKey,
             disabled,
@@ -239,14 +245,7 @@ export function prepareSettingsGroups({
                     key,
                     value: field,
                     label: t(`Settings.cardDetailFields.${field}`),
-                    selected: cardDetailFields(
-                      readValue(
-                        key === SETTINGS.cardDetailFields
-                          ? SETTINGS.cardDetails
-                          : SETTINGS.gmCardDetails
-                      ),
-                      value
-                    ).includes(field)
+                    selected: cardDetailFields("custom", value).includes(field)
                   }))
                 }))
               : null,
@@ -401,6 +400,18 @@ export function prepareSettingsGroups({
       ...group,
       settings: group.settings.map(setting => ({
         ...setting,
+        advancedHeading: advancedHeadings[setting.key]
+          ? t(`Settings.Sections.${advancedHeadings[setting.key]}`)
+          : "",
+        customFieldsHidden:
+          setting.detailGroups &&
+          readValue(
+            setting.key === SETTINGS.cardDetailFields
+              ? SETTINGS.cardDetails
+              : SETTINGS.gmCardDetails
+          ) !== "custom"
+            ? "hidden"
+            : "",
         customPalette: setting.customColorAnchor ? group : null
       }))
     }));
@@ -411,6 +422,7 @@ export function booleanSettingsEntries(groups, submitted) {
     .flat()
     .flatMap(key => {
       if (!Object.hasOwn(submitted, key)) return [];
+      if (key === SETTINGS.scInitiative && !scModule()?.active) return [];
       const value = submitted[key];
       const definition = getSettingDefinitions()[key];
       if (
