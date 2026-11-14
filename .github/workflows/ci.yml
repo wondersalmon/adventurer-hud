@@ -55,7 +55,7 @@ jobs:
           retention-days: 7
 
       - name: Check out pinned private release toolkit for trusted builds
-        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        if: github.actor != 'dependabot[bot]' && (github.event_name == 'push' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]'))
         uses: actions/checkout@v7
         with:
           repository: wondersalmon/foundry-release-tools
@@ -65,20 +65,22 @@ jobs:
           persist-credentials: false
 
       - name: Install pinned toolkit dependencies
-        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        if: github.actor != 'dependabot[bot]' && (github.event_name == 'push' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]'))
         run: npm ci --prefix dev/release-tools --omit=dev --ignore-scripts
 
       - name: Build and verify with shared toolkit
-        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        id: shared-build
+        if: github.actor != 'dependabot[bot]' && (github.event_name == 'push' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]'))
         run: |
           npm run release:build
           npm run release:verify
 
-      - name: Build fork package without private credentials
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+      - name: Build package without private credentials
+        if: github.actor == 'dependabot[bot]' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]'))
         run: npm run build
 
       - name: Upload build artifact
+        if: steps.shared-build.outcome == 'success'
         uses: actions/upload-artifact@v7
         with:
           name: adventurer-hud-${{ github.sha }}
@@ -87,5 +89,16 @@ jobs:
             dist/adventurer-hud.zip
             dist/release-notes.md
             dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build artifact without release metadata
+        if: steps.shared-build.outcome == 'skipped'
+        uses: actions/upload-artifact@v7
+        with:
+          name: adventurer-hud-${{ github.sha }}
+          path: |
+            dist/module.json
+            dist/adventurer-hud.zip
           if-no-files-found: error
           retention-days: 14
