@@ -34,9 +34,9 @@
     "node": ">=22"
   },
   "devDependencies": {
-    "@playwright/test": "^1.65.0",
+    "@playwright/test": "^1.65.1",
     "archiver": "^8.0.0",
-    "eslint": "^10.14.0",
+    "eslint": "^10.15.0",
     "globals": "^17.14.0",
     "handlebars": "^4.7.10",
     "linkedom": "^0.18.15",
